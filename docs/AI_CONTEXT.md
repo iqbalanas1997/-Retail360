@@ -6,7 +6,7 @@ This file is the compact "map" for Cursor when a task is large.
 Grocery Shop Management System.
 
 ## Stack
-.NET 8 + modern Angular + PostgreSQL + EF Core.
+.NET 8 + modern Angular + PostgreSQL + Dapper + Npgsql.
 
 ## Architecture
 Modular monolith with Domain/Application/Infrastructure/API boundaries.

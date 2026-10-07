@@ -1,5 +1,5 @@
 ---
-description: PostgreSQL and EF Core database rules.
+description: PostgreSQL, Dapper, and SQL migration rules.
 globs: "**/*.cs,**/*.sql,**/*Migration*.cs"
 alwaysApply: false
 ---
@@ -7,9 +7,15 @@ alwaysApply: false
 
 - PostgreSQL is the system of record.
 - Database schema must reflect the domain model; do not create tables only because they are convenient for one screen.
-- Use consistent naming conventions documented in `docs/database/DATABASE.md`.
-- Every schema change must be represented by an EF Core migration.
-- Never edit an old migration to fix a new requirement if it may already have been applied; add a new migration.
+- Use snake_case for every PostgreSQL table, column, key, and index. Examples: `created_at`, `updated_at`, `is_deleted`, `product_id`.
+- Dapper does not set audit columns or hide deleted rows. Write them in SQL:
+  - an insert sets `created_at` and `updated_at`;
+  - an update sets `updated_at`;
+  - a soft delete sets `is_deleted` to true and sets `updated_at`, and does not delete the row;
+  - a query for active rows includes `is_deleted = false`.
+- Do not assume an EF Core global query filter or change tracker exists.
+- Every schema change must be a new ordered SQL script in `src/Infrastructure/Persistence/Sql/Migrations`.
+- Never edit a SQL script that may already have been applied; add a new script.
 - Define foreign keys and appropriate indexes for real query patterns.
 - Avoid premature indexes and redundant columns.
 - Preserve monetary values with appropriate decimal precision; never use floating point for money.

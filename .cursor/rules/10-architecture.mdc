@@ -21,6 +21,6 @@ Suggested solution structure:
 
 Business rules belong in Domain/Application, not controllers.
 Controllers should remain thin.
-Infrastructure concerns (EF Core, PostgreSQL, external integrations) stay in Infrastructure.
+Infrastructure concerns (Dapper, Npgsql, PostgreSQL, external integrations) stay in Infrastructure. Domain and Application do not reference Dapper, Npgsql, or EF Core.
 Avoid generic repositories when they add no value; follow the established project pattern.
 Do not create a new abstraction merely to wrap one existing method.

@@ -1,5 +1,5 @@
 ---
-description: .NET backend coding conventions, API design, validation, errors, and EF Core practices.
+description: .NET backend coding conventions, API design, validation, errors, and Dapper persistence.
 globs: "**/*.cs,**/*.csproj"
 alwaysApply: false
 ---
@@ -8,13 +8,12 @@ alwaysApply: false
 - Target .NET 8 unless the project explicitly approves another target.
 - Use async APIs for I/O.
 - Use cancellation tokens where appropriate.
-- Use DTOs for API contracts; do not expose EF entities directly.
+- Use DTOs for API contracts; do not expose persistence rows directly.
 - Validate input at the API/Application boundary.
 - Keep business rules testable and independent of HTTP.
 - Use consistent API response/error conventions already established by the project.
-- Use EF Core migrations for schema changes.
-- Do not use raw SQL unless there is a demonstrated need and the query is parameterized.
+- Persist with parameterized Dapper SQL. Do not concatenate untrusted input into SQL.
+- Schema changes are new SQL scripts, as described in `docs/database/DATABASE.md`.
 - Avoid N+1 queries.
-- Use `AsNoTracking()` for read-only queries where appropriate.
 - Never hard-code secrets, connection strings, passwords, or tokens.
 - Add tests for non-trivial business rules and important regression fixes.

@@ -10,7 +10,7 @@
 | Customers | Customer records/receivables | Customer, CustomerPayment | Planned |
 | Expenses | Shop expenses | Expense, ExpenseCategory | Planned |
 | Reporting | Dashboard/reports | Sales/Purchase/Profit/Stock projections | Planned |
-| Identity | Users/roles | User, Role, Permission | In progress. Identity tables, role seed, and Infrastructure Identity types exist. Domain keeps role names only. Permission is not modeled. |
+| Identity | Users/roles | User, Role, Permission | In progress. Identity tables and the role seed remain. Dapper reads the roles. Domain keeps role names only. Sign-in and Permission are not modeled. |
 | Audit | Important activity log | AuditEntry | Planned |
 | Barcode | Barcode resolution | Barcode mapping | Planned |
 

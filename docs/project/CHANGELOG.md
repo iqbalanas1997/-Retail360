@@ -10,6 +10,13 @@ Use this file for meaningful project-level changes that affect future AI context
 - Documentation updated
 
 ## Entries
+### 2026-10-07 — Dapper and Npgsql replace EF Core
+- Removed EF Core, the Npgsql EF Core provider, `ApplicationDbContext`, and the EF migration classes.
+- Added Dapper, the Npgsql driver, a connection factory, one-transaction execution, and ordered SQL scripts.
+- Kept the existing Identity tables and seeded roles. Startup applies pending SQL scripts and checks the four shop roles.
+- Impacted modules: Identity.
+- Documentation updated: `DECISIONS.md` (ADR-009, ADR-008 revision), `ARCHITECTURE.md`, `DATABASE.md`, `DOMAIN_MODEL.md`, `AI_CONTEXT.md`, `MODULE_CATALOG.md`, `TASKS.md`, `AGENTS.md`, `README.md`.
+
 ### 2026-10-07 — Identity types moved out of Domain
 - Moved `ApplicationUser`, `ApplicationRole`, and `ApplicationUserRole` to `src/Infrastructure/Identity`.
 - Domain no longer references the ASP.NET Core Identity package. `ShopRoleNames` stays in Domain.

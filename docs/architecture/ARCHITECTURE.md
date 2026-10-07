@@ -6,7 +6,7 @@ Use a modular monolith. Do not split into microservices unless a future requirem
 ## Layers
 - Domain: entities, value objects, domain rules.
 - Application: use cases, commands/queries, DTOs, validation, interfaces.
-- Infrastructure: EF Core, PostgreSQL, persistence, external services.
+- Infrastructure: Dapper, Npgsql, PostgreSQL, persistence, external services.
 - API: HTTP endpoints, authentication/authorization, composition.
 - Angular Web: presentation and user interaction.
 
@@ -39,10 +39,10 @@ See ADR-007.
 
 - `Retail360.sln` at the repository root.
 - `global.json` pins the local .NET SDK to 8.0.x.
-- `src/Domain` — class library with no project references and no framework packages. Shop role names live here. ASP.NET Core Identity types live in Infrastructure.
-- `src/Application` — references Domain.
-- `src/Infrastructure` — references Application and Domain.
+- `src/Domain` — class library with no project references and no framework packages. Shop role names live here.
+- `src/Application` — references Domain. It does not reference Dapper, Npgsql, or EF Core.
+- `src/Infrastructure` — references Application and Domain. It owns the PostgreSQL connection, SQL migrations, transactions, and Identity table access.
 - `src/Api` — Web API composition host. References Application and Infrastructure.
 - `frontend` — Angular application.
 
-Business modules other than the Identity schema are not part of this layout. The initial EF Core migration is `InitialIdentityAndBaseSetup`.
+Business modules other than the Identity schema are not part of this layout. The initial schema script is `001_initial_identity.sql`. See ADR-009.

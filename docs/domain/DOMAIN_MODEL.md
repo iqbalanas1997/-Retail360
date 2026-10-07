@@ -40,7 +40,7 @@ Business expense categorized and dated.
 ### User / Role / Permission
 Controls system access.
 
-Domain keeps the role names in `ShopRoleNames`: Admin, Manager, Cashier, and Inventory Staff. The ASP.NET Core Identity classes `ApplicationUser`, `ApplicationRole`, and `ApplicationUserRole` live in Infrastructure. Users and roles carry `CreatedAt`, `UpdatedAt`, and `IsDeleted`. Permission is not a table yet.
+Domain keeps the role names in `ShopRoleNames`: Admin, Manager, Cashier, and Inventory Staff. The user and role rows live in the existing PostgreSQL Identity tables and are read with Dapper from Infrastructure. Users and roles carry `created_at`, `updated_at`, and `is_deleted`. Permission is not a table yet. Sign-in is not implemented.
 
 ### Audit Entry
 Records important actions where accountability is required.

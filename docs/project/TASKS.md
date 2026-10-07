@@ -1,7 +1,7 @@
 # Project Task Board
 
 ## Current phase
-Phase 0 — Foundation and architecture. Solution structure, the Angular application, and PostgreSQL/EF Core infrastructure are in place.
+Phase 0 — Foundation and architecture. Solution structure, the Angular application, and PostgreSQL persistence through Dapper and Npgsql are in place.
 
 ## Rules
 - Only one primary task should be actively implemented at a time unless parallel work is explicitly planned.
@@ -15,7 +15,8 @@ Phase 0 — Foundation and architecture. Solution structure, the Angular applica
 - [x] Create .NET 8 solution and layer structure.
 - [x] Create modern Angular application.
 - [x] Configure PostgreSQL and EF Core.
-- [x] Keep Domain free of the ASP.NET Core Identity package. Identity types live in Infrastructure.
+- [x] Keep Domain free of framework packages. Shop role names stay in Domain.
+- [x] Replace EF Core with Dapper and Npgsql. Keep the existing Identity tables.
 - [ ] Establish authentication/authorization baseline.
 - [ ] Establish shared error/validation/logging conventions.
 - [ ] Add initial CI/build/test commands.

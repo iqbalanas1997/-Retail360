@@ -1,9 +1,9 @@
-using Microsoft.AspNetCore.Identity;
-using Microsoft.EntityFrameworkCore;
+using Dapper;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Retail360.Infrastructure.Database;
 using Retail360.Infrastructure.Identity;
-using Retail360.Infrastructure.Persistence;
+using Retail360.Infrastructure.Persistence.Sql;
 
 namespace Retail360.Infrastructure;
 
@@ -22,16 +22,12 @@ public static class DependencyInjection
                 $"Connection string '{ConnectionStringName}' is not configured.");
         }
 
-        services.AddDbContext<ApplicationDbContext>(options =>
-            options.UseNpgsql(connectionString));
+        DefaultTypeMap.MatchNamesWithUnderscores = true;
 
-        services
-            .AddIdentityCore<ApplicationUser>(options =>
-            {
-                options.User.RequireUniqueEmail = true;
-            })
-            .AddRoles<ApplicationRole>()
-            .AddEntityFrameworkStores<ApplicationDbContext>();
+        services.AddSingleton(new NpgsqlConnectionFactory(connectionString));
+        services.AddSingleton<PostgresTransaction>();
+        services.AddSingleton<SqlMigrationRunner>();
+        services.AddSingleton<ShopRoleQuery>();
 
         return services;
     }

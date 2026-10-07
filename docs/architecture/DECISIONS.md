@@ -44,13 +44,46 @@ Install frontend dependencies with npm 11.21.0 or newer. npm 10.9.2 fails while 
 ## ADR-008 — PostgreSQL naming and Identity schema
 Status: Accepted
 
-PostgreSQL identifiers use snake_case. That convention is applied by `ApplicationDbContext` and is fixed unless a later ADR changes it.
+PostgreSQL identifiers use snake_case. SQL scripts write those names explicitly. The convention is fixed unless a later ADR changes it.
 
-`ApplicationUser`, `ApplicationRole`, and `ApplicationUserRole` live in `src/Infrastructure/Identity`. They are ASP.NET Core Identity implementation types. Domain does not reference `Microsoft.Extensions.Identity.Stores`, EF Core, Npgsql, or the Web API. `ApplicationUser` and `ApplicationRole` do not inherit `BaseEntity` because ASP.NET Identity uses a string id. They still carry `CreatedAt`, `UpdatedAt`, and `IsDeleted`.
-
-The shop role names Admin, Manager, Cashier, and Inventory Staff stay in Domain as `ShopRoleNames`. Those names are the business concept. The Identity role rows are the persistence of those names.
+The shop role names Admin, Manager, Cashier, and Inventory Staff stay in Domain as `ShopRoleNames`. Those names are the business concept. The rows in `asp_net_roles` are the persistence of those names. Users and roles keep a string `id`, so they do not use `BaseEntity`. `asp_net_users` and `asp_net_roles` still carry `created_at`, `updated_at`, and `is_deleted`.
 
 The four shop roles from the requirements are seeded as reference data. A Permission table is not part of this schema. Sign-in, cookies, and JWT are not configured here.
 
 ### 2026-10-07 — Revision
-The original decision placed the Identity classes in Domain so they could be reused without a second user model. That required Domain to reference the Identity stores package. The classes now live in Infrastructure. The database tables and the applied migration id are unchanged. The EF model snapshot uses the Infrastructure type names so Entity Framework does not treat the move as a new set of tables.
+The original decision placed ASP.NET Core Identity classes in Domain. Those classes moved to Infrastructure, and Domain dropped the Identity stores package. A later decision, ADR-009, removed EF Core and the Identity class hierarchy. The PostgreSQL tables and seeded role rows were kept.
+
+## ADR-009 — Dapper and Npgsql persistence
+Status: Accepted
+
+Retail360 persists data with Dapper and the Npgsql driver. EF Core is not used for application or business data, and it is not kept for Identity.
+
+### Why Dapper
+The shop's writes are explicit: a sale, a purchase, or a stock transfer changes several rows that must commit together. SQL makes those statements visible. EF Core change tracking, global query filters, and migrations are not required for that, and they were the only reason Domain and Infrastructure were tied to a framework persistence model before any business module existed.
+
+### Why EF Core was removed
+The solution had no business entities. EF Core existed to map ASP.NET Core Identity and to generate one migration. Keeping it would have made Identity the exception that pulls the ORM back into every later module. The persistence technology is therefore one stack: Dapper, Npgsql, and SQL scripts.
+
+### PostgreSQL access
+Infrastructure reads `ConnectionStrings:DefaultConnection` and creates connections through `NpgsqlConnectionFactory`. Credentials stay in configuration. Domain and Application do not reference Dapper or Npgsql.
+
+Dapper maps snake_case columns to PascalCase properties with `DefaultTypeMap.MatchNamesWithUnderscores`.
+
+### SQL migrations
+Schema changes are ordered SQL scripts in `src/Infrastructure/Persistence/Sql/Migrations`. `SqlMigrationRunner` embeds those scripts, creates `schema_migrations` if needed, and applies each script once inside a transaction. The version is the script file name without `.sql`. A script that has been applied is not edited; a later change is a new script.
+
+`001_initial_identity.sql` matches the existing Identity tables and is safe to run when those tables are already present. The API applies pending scripts at startup.
+
+### Transactions
+`PostgresTransaction.ExecuteAsync` opens one connection, begins one PostgreSQL transaction, runs the supplied work, and commits. A failure rolls the transaction back. A sale, purchase, or stock transfer uses this for its related inserts and stock changes. This is not a generic unit-of-work registry.
+
+### Identity persistence
+The existing Identity tables stay as they are. Retail360 does not implement ASP.NET Core Identity store interfaces. Those interfaces cover users, passwords, emails, lockout, stamps, claims, logins, tokens, and roles, and the API does not sign anyone in yet. Building that store now would be an authentication framework ahead of the authentication baseline.
+
+Dapper reads active roles from `asp_net_roles` through `ShopRoleQuery`. Startup fails if Admin, Manager, Cashier, or Inventory Staff is missing. User sign-in is still a later task and will use these tables rather than a new user model.
+
+### Layer responsibilities
+Application defines use cases and does not choose the database technology. Infrastructure owns connections, SQL, transactions, migration scripts, and Identity table access. Domain keeps business concepts such as `ShopRoleNames` and has no persistence attributes.
+
+### Audit and soft delete
+Dapper does not set timestamps or hide deleted rows. Insert and update SQL sets `created_at` and `updated_at`. A query that should hide deleted rows includes `is_deleted = false`. There is no global filter.

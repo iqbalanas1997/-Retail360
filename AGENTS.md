@@ -7,7 +7,7 @@ Build a simple, reliable Grocery Shop Management System for a small retail shop.
 - Backend: .NET 8 Web API (LTS baseline)
 - Frontend: modern Angular (NOT legacy AngularJS 1.x)
 - Database: PostgreSQL
-- ORM: Entity Framework Core
+- Persistence: Dapper + Npgsql. Do not use EF Core.
 - API style: REST/JSON
 - Architecture: modular monolith with clear Domain/Application/Infrastructure/API boundaries
 - UI priority: extremely simple counter/POS workflow, minimal screens and controls.
