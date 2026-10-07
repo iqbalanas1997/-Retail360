@@ -1,0 +1,24 @@
+---
+description: Grocery POS and counter-person UX rules.
+globs: "**/*.html,**/*.scss,**/*.css,**/*.ts"
+alwaysApply: false
+---
+# POS UX Rules
+
+Primary counter flow:
+1. Find/scan product.
+2. Enter quantity.
+3. Add/review cart.
+4. Select payment method.
+5. Complete sale.
+6. Show/print receipt.
+
+Design goals:
+- Maximum simplicity for full-day counter use.
+- Prefer one main POS screen.
+- Avoid unnecessary pages and dialogs.
+- Large readable text and controls.
+- Keyboard/scanner friendly.
+- Maximum three primary visual colors unless a usability reason requires more.
+- Show only information needed for the current task.
+- Low-stock/admin information should not distract the cashier.

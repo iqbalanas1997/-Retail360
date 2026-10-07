@@ -1,0 +1,26 @@
+---
+description: Backend architecture and dependency rules for the .NET solution.
+globs: "**/*.cs,**/*.csproj"
+alwaysApply: false
+---
+# Architecture
+
+Use a modular monolith unless the project owner explicitly approves microservices.
+
+Preferred dependency direction:
+API -> Application -> Domain
+Infrastructure -> Application/Domain
+Domain must not depend on Infrastructure or API.
+
+Suggested solution structure:
+- `src/Api`
+- `src/Application`
+- `src/Domain`
+- `src/Infrastructure`
+- `tests/`
+
+Business rules belong in Domain/Application, not controllers.
+Controllers should remain thin.
+Infrastructure concerns (EF Core, PostgreSQL, external integrations) stay in Infrastructure.
+Avoid generic repositories when they add no value; follow the established project pattern.
+Do not create a new abstraction merely to wrap one existing method.

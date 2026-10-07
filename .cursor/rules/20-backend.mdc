@@ -1,0 +1,20 @@
+---
+description: .NET backend coding conventions, API design, validation, errors, and EF Core practices.
+globs: "**/*.cs,**/*.csproj"
+alwaysApply: false
+---
+# Backend Rules
+
+- Target .NET 8 unless the project explicitly approves another target.
+- Use async APIs for I/O.
+- Use cancellation tokens where appropriate.
+- Use DTOs for API contracts; do not expose EF entities directly.
+- Validate input at the API/Application boundary.
+- Keep business rules testable and independent of HTTP.
+- Use consistent API response/error conventions already established by the project.
+- Use EF Core migrations for schema changes.
+- Do not use raw SQL unless there is a demonstrated need and the query is parameterized.
+- Avoid N+1 queries.
+- Use `AsNoTracking()` for read-only queries where appropriate.
+- Never hard-code secrets, connection strings, passwords, or tokens.
+- Add tests for non-trivial business rules and important regression fixes.

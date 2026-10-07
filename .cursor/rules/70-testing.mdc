@@ -1,0 +1,15 @@
+---
+description: Testing and regression-prevention rules.
+globs: "**/*"
+alwaysApply: false
+---
+# Testing Rules
+
+- Prefer tests around business rules and critical workflows.
+- Every important inventory mutation should have regression coverage.
+- Sales should verify stock reduction.
+- Purchases should verify stock increase.
+- Stock adjustments/transfers should be traceable.
+- Credit sales should update customer receivables correctly.
+- Tests should use realistic domain scenarios, not only trivial getters/setters.
+- When fixing a bug, add a regression test when practical.

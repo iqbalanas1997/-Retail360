@@ -1,0 +1,30 @@
+---
+description: Safe feature-development workflow and context maintenance.
+alwaysApply: true
+---
+# Workflow
+
+For every non-trivial task:
+
+1. Understand
+   - Read `AGENTS.md`.
+   - Read the relevant requirement/domain/architecture documents.
+   - Search the codebase for existing implementations.
+2. Plan
+   - State the files/modules likely to change.
+   - Identify reuse opportunities.
+   - Identify API/database/UI impact.
+3. Implement
+   - Make the smallest coherent change.
+   - Do not mix unrelated refactoring.
+4. Verify
+   - Build the affected project(s).
+   - Run relevant tests.
+   - Inspect the final diff.
+5. Synchronize knowledge
+   - Update `docs/project/TASKS.md`.
+   - Update `docs/project/MODULE_CATALOG.md` when modules change.
+   - Update ADR/decision documentation when architecture changes.
+   - Update API/database docs when contracts/schema change.
+
+If context is unclear, stop and inspect files rather than guessing.

@@ -1,0 +1,18 @@
+---
+description: Core project rules for architecture, context continuity, duplication prevention, and safe implementation.
+alwaysApply: true
+---
+# Core Rules
+
+- Treat `AGENTS.md` and the `docs/` folder as the project's persistent knowledge base.
+- Before adding anything, search the repository for an existing equivalent.
+- Reuse existing classes/components/services/queries/DTOs before creating new ones.
+- Never solve the same business concept twice under different names.
+- Do not invent requirements or silently make business decisions.
+- Keep changes scoped to the requested task.
+- For multi-file changes, plan first, then implement.
+- Never modify migrations already applied to shared environments; create a new migration.
+- Do not introduce a new library/package without explaining why it is needed.
+- Run the smallest relevant build/test/validation after changes.
+- If documentation and code disagree, identify the conflict instead of silently choosing one.
+- Update the relevant documentation when architecture, domain behavior, API contracts, database structure, or project status changes.

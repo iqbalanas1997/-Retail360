@@ -1,0 +1,17 @@
+---
+description: Modern Angular frontend conventions with focus on simple, maintainable UI and reuse.
+globs: "**/*.ts,**/*.html,**/*.scss,**/*.css"
+alwaysApply: false
+---
+# Angular Rules
+
+- Use modern Angular, not legacy AngularJS 1.x.
+- Prefer standalone components and the project's established Angular conventions.
+- Keep components focused on presentation/orchestration; move reusable business/data logic to services.
+- Reuse existing components, directives, pipes, models and services before creating new ones.
+- Avoid duplicate API calls and duplicate state models.
+- Keep POS screens optimized for keyboard/scanner workflows.
+- Minimize visible controls and unnecessary navigation.
+- Keep forms short and use clear validation/error states.
+- Do not add a UI library unless approved.
+- Follow the existing project design tokens and component patterns once established.

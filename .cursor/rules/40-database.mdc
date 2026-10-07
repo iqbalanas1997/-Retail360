@@ -1,0 +1,17 @@
+---
+description: PostgreSQL and EF Core database rules.
+globs: "**/*.cs,**/*.sql,**/*Migration*.cs"
+alwaysApply: false
+---
+# Database Rules
+
+- PostgreSQL is the system of record.
+- Database schema must reflect the domain model; do not create tables only because they are convenient for one screen.
+- Use consistent naming conventions documented in `docs/database/DATABASE.md`.
+- Every schema change must be represented by an EF Core migration.
+- Never edit an old migration to fix a new requirement if it may already have been applied; add a new migration.
+- Define foreign keys and appropriate indexes for real query patterns.
+- Avoid premature indexes and redundant columns.
+- Preserve monetary values with appropriate decimal precision; never use floating point for money.
+- Inventory quantities and stock movements must have an auditable source.
+- Stock changes should be traceable to purchases, sales, transfers, or adjustments.
