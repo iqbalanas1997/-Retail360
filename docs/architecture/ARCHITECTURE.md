@@ -27,12 +27,17 @@ Keep module boundaries clear:
 - Reporting
 - Identity/Users
 - Audit
-- Barcode
 
-Modules may share stable domain concepts, but do not duplicate them.
+Barcode values belong to Catalog. There is no separate Barcode module. Modules may share stable domain concepts, but do not duplicate them.
 
-## Important design principle
-Inventory is not just a Product.Stock integer. Stock changes must be explainable through stock movements/transactions.
+## Inventory
+Inventory owns areas, shelves, on-hand balances, and stock movements. See ADR-011. The design is approved and is not implemented.
+
+An area contains shelves. Stock is stored per product and shelf. Catalog does not store that quantity. The movement ledger is append-only and explains every change. The stored balance is the current quantity for one product on one shelf. Both are written in one transaction. A failure rolls the whole operation back.
+
+The operation locks the affected balance rows in ascending shelf id order before it changes them. A shelf balance cannot go below zero. A transfer moves one positive quantity from one shelf to another and does not change the shop total. Opening stock and adjustments are movements. Damaged, expired, and missing are adjustment reasons. Purchasing and Sales are not part of this design.
+
+Shop-wide on-hand quantity is the sum of the product's shelf balances. Low stock compares that sum with Catalog `minimum_stock`.
 
 ## Repository layout
 See ADR-007.
@@ -45,4 +50,4 @@ See ADR-007.
 - `src/Api` — Web API composition host. References Application and Infrastructure.
 - `frontend` — Angular application.
 
-Business modules other than the Identity schema are not part of this layout. The initial schema script is `001_initial_identity.sql`. See ADR-009.
+Catalog is implemented in Domain, Application, Infrastructure, and the API. Its schema script is `002_catalog.sql`. Do not edit `001_initial_identity.sql` or `002_catalog.sql`. Inventory is specified in ADR-011 and has no tables or code yet. Sales, purchases, and the Angular screens are not implemented. See ADR-009 and ADR-010.

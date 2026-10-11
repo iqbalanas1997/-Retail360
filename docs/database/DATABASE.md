@@ -4,10 +4,29 @@
 PostgreSQL, accessed with Dapper and Npgsql. See ADR-009. EF Core is not used.
 
 ## Money
-Use `numeric/decimal` with explicit precision/scale appropriate to the business.
+Use `numeric/decimal` with explicit precision and scale. Catalog purchase and selling prices are `numeric(12,2)`. C# stores them as `decimal`.
 
 ## Inventory
-Do not rely only on a mutable stock field. Maintain auditable stock movements and derive/maintain balances consistently.
+The Inventory design is approved and is not implemented. Do not edit `001_initial_identity.sql` or `002_catalog.sql` to add it. The next change is a new numbered script. Product master data does not include `stock`, `current_stock`, `available_quantity`, or a shelf column.
+
+On-hand quantity is a stored balance per product and shelf. Every change also inserts an append-only movement in the same transaction. Quantity is `numeric(14,3)`. C# uses `decimal`. A movement quantity is greater than zero. Direction is inbound or outbound. The stored balance is `>= 0`. There is no negative-stock override.
+
+Proposed table names, which do not exist yet:
+
+- `areas` and `shelves`. A shelf references one area. Both are master data with `is_active`, `created_at`, `updated_at`, and `is_deleted`.
+- `stock_balances`. One row per product and shelf. Proposed unique key: `product_id`, `shelf_id`. Proposed `quantity numeric(14,3)` with a check that it is `>= 0`. Foreign keys reference `products` and `shelves`. A balance row is not soft-deleted.
+- `stock_movements`. Append-only. Proposed fields record the product, shelf, positive quantity, direction, type (`opening`, `adjustment`, or `transfer`), reason when required, the other shelf for a transfer, the shared operation id for the rows written together, and the time of the movement. A movement has no `is_deleted` and is not updated after insert.
+
+A transfer locks the source and destination balance rows in ascending shelf id order, then writes the outbound and inbound movements and both balance updates. The shop total is unchanged. Opening stock and adjustments lock the one balance row the same way. The first inbound movement to a product-shelf pair creates the balance row.
+
+Reconciliation, required when this is implemented and run on an isolated database: for every product and shelf, inbound quantity minus outbound quantity equals `stock_balances.quantity`. The two rows of a transfer net to zero.
+
+An inactive shelf must not receive a new stock movement. A shelf or area with a balance or any movement is not soft-deleted. A soft-deleted product is not a valid target. An inactive product remains a valid target. Shop-wide on-hand quantity sums every shelf balance for the product, including a deactivated shelf, and is compared with `products.minimum_stock`.
+
+## Catalog schema
+`002_catalog.sql` adds `categories`, `brands`, `units`, `products`, and `product_barcodes`. Do not edit `001_initial_identity.sql`.
+
+Identifiers are `uuid`. Each table has `created_at`, `updated_at`, and `is_deleted`. Soft delete is an update. Category, brand, and unit names are unique where `is_deleted = false`, compared case-insensitively. Product names are not unique. `products.category_id` and `products.brand_id` are nullable. `products.unit_id` is required. Prices are `numeric(12,2)`. `minimum_stock` is `numeric(14,3)`. `product_barcodes.barcode` is unique where `is_deleted = false`, matched exactly. `products` has no stock, SKU, or shelf column.
 
 ## Naming
 Snake case is the fixed convention for PostgreSQL tables, columns, keys, foreign keys, and indexes. See ADR-008.

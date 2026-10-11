@@ -19,5 +19,9 @@ alwaysApply: false
 - Define foreign keys and appropriate indexes for real query patterns.
 - Avoid premature indexes and redundant columns.
 - Preserve monetary values with appropriate decimal precision; never use floating point for money.
-- Inventory quantities and stock movements must have an auditable source.
-- Stock changes should be traceable to purchases, sales, transfers, or adjustments.
+- Catalog `purchase_price` and `selling_price` are `numeric(12,2)`. `minimum_stock` is `numeric(14,3)`. Product has no `stock`, `current_stock`, `available_quantity`, or SKU column.
+- Category, brand, and unit names are unique among non-deleted rows, case-insensitively. Product names are not unique. A non-deleted barcode value is unique in `product_barcodes`.
+- Inventory quantities are `numeric(14,3)`. Use `decimal` in C#. Do not use `float` or `double`.
+- Stock is a balance per product and shelf plus an append-only movement ledger. Update both in one transaction. Do not add a stock column to `products`.
+- A movement quantity is positive. A stored balance is `>= 0`. Movements are not updated and are not soft-deleted. Corrections are new movements.
+- The next Inventory schema change is a new SQL script. Do not edit `001_initial_identity.sql` or `002_catalog.sql`.

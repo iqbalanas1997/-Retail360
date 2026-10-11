@@ -1,6 +1,8 @@
 using Dapper;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Retail360.Application.Catalog;
+using Retail360.Infrastructure.Catalog;
 using Retail360.Infrastructure.Database;
 using Retail360.Infrastructure.Identity;
 using Retail360.Infrastructure.Persistence.Sql;
@@ -28,6 +30,10 @@ public static class DependencyInjection
         services.AddSingleton<PostgresTransaction>();
         services.AddSingleton<SqlMigrationRunner>();
         services.AddSingleton<ShopRoleQuery>();
+        services.AddSingleton<ICategoryStore, CategoryCatalogStore>();
+        services.AddSingleton<IBrandStore, BrandCatalogStore>();
+        services.AddSingleton<IUnitStore, UnitCatalogStore>();
+        services.AddSingleton<IProductStore, ProductCatalogStore>();
 
         return services;
     }

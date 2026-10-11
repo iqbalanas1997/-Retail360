@@ -8,12 +8,13 @@ Digitize daily grocery shop operations and provide real-time visibility into sto
 ### 1. Product & Inventory Management
 - Products, categories, brands and units.
 - Purchase price, selling price and minimum stock.
-- Current stock and stock movement.
-- Stock by Area -> Shelf.
-- Multiple shelves/locations per product.
-- Transfer stock between shelves.
-- Damaged, expired and missing stock adjustments.
-- Low-stock and out-of-stock identification.
+- Current stock and stock movement. On-hand quantity is per shelf, not a column on the product.
+- Stock by Area -> Shelf. An area contains shelves. The shop is one shop.
+- Multiple shelves per product.
+- Transfer stock between shelves without changing the shop total.
+- Opening stock is a stock movement with a reason, not a purchase.
+- Damaged, expired, and missing goods are adjustment reasons.
+- Low-stock and out-of-stock identification from the sum of shelf balances compared with minimum stock. A shelf quantity is never negative.
 
 ### 2. Purchase Management
 - Supplier purchases.
@@ -62,6 +63,7 @@ Digitize daily grocery shop operations and provide real-time visibility into sto
 - Important activity/audit log.
 
 ### 9. Barcode
+Barcode is a Catalog capability, not a separate module. Values are stored on the product in `product_barcodes`.
 - Scan existing product barcodes.
 - Fast product identification at POS/inventory.
 - Custom/internal barcodes.
@@ -79,7 +81,7 @@ Design for future additions without implementing them prematurely:
 The first implementation should prioritize:
 1. Product/catalog
 2. Inventory and stock movements
-3. Barcode/search
+3. Barcode lookup through Catalog, and product search
 4. POS sales
 5. Purchases
 6. Customers/suppliers

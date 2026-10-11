@@ -87,3 +87,48 @@ Application defines use cases and does not choose the database technology. Infra
 
 ### Audit and soft delete
 Dapper does not set timestamps or hide deleted rows. Insert and update SQL sets `created_at` and `updated_at`. A query that should hide deleted rows includes `is_deleted = false`. There is no global filter.
+
+## ADR-010 — Catalog ownership
+Status: Accepted
+
+Catalog owns product identity: name, one unit, current purchase price, current selling price, minimum-stock threshold, active flag, and barcode values. Category and brand are optional. Unit is required. One product may have many barcodes in `product_barcodes`. A non-deleted barcode value belongs to one product. There is no separate Barcode module and no second barcode table.
+
+`purchase_price` and `selling_price` are `numeric(12,2)`. `minimum_stock` is `numeric(14,3)`. C# uses `decimal`. These are current catalog values. A future purchase line stores the price paid, and a future sale line stores the price charged. Changing the product price does not change those documents.
+
+Catalog does not own on-hand quantity, stock movements, area, shelf, supplier, purchase history, or sales history. `products` has no `stock`, `current_stock`, `available_quantity`, or shelf column. There is no SKU in the MVP. Categories are flat. A product has one unit and no unit conversion. Brand is `id`, `name`, and the audit columns, with no supplier and no logo.
+
+`is_active` means the product is currently offered. `is_deleted` means it is logically removed. Deactivation changes only `is_active`. Soft delete changes `is_deleted` and is not a SQL `DELETE`.
+
+### 2026-10-10 — Approved
+Price scale, minimum-stock scale, and optional category and brand are approved. Catalog backend uses `002_catalog.sql`.
+
+## ADR-011 — Inventory ledger and shelf balances
+Status: Accepted
+
+Inventory owns on-hand quantities, shelf locations, and the history of stock changes. Catalog keeps product identity, barcodes, current prices, and `minimum_stock`. This decision is approved and is not implemented. No Inventory tables, migrations, or APIs exist yet.
+
+### Location
+The shop is one shop. Branches are out of scope. An area contains shelves, and a shelf belongs to one area. Stock is kept per product and shelf. A product may be on more than one shelf. Transfers between shelves are part of Inventory. Product does not gain a stock quantity or a shelf column.
+
+### Ledger and balances
+Two representations are kept together. An append-only movement ledger explains every change. A stored balance holds the current quantity for one product on one shelf. A stock operation inserts its movement rows and updates the affected balances in the same database transaction. If any part fails, the transaction rolls back.
+
+A stored balance was chosen in addition to the ledger so current stock can be read without replaying history, while the ledger remains the explanation. A balance-only column was rejected because a quantity with no movement history cannot be audited. Summing the ledger on every read, with no stored balance, was not chosen: the approved design keeps the stored balance and checks it against the ledger.
+
+Movement quantity is always greater than zero and uses `numeric(14,3)`. C# uses `decimal`. Direction is inbound or outbound. Proposed schema names, not yet created, are `areas`, `shelves`, `stock_balances`, and `stock_movements`. A balance is unique per product and shelf, and its quantity cannot be negative. A movement is not updated and is not soft-deleted.
+
+Initial movement types are opening, adjustment, and transfer. Damaged, expired, and missing are adjustment reasons, not types. Opening stock is an inbound movement with product, shelf, quantity, time, and a required reason. It is not a purchase and it does not write a stock field on the product. An adjustment requires a reason. A transfer writes one outbound movement on the source shelf and one inbound movement on the destination shelf for the same quantity. Total shop stock does not change.
+
+Purchasing and Sales are later modules. This decision does not define their document ids or line contracts.
+
+### Concurrency and the zero floor
+The operation locks the stored balance rows it will change, in ascending shelf id order, inside the existing single-transaction boundary. That lock is the concurrency control. No isolation level is mandated. A second concurrent request must not pass the non-negative check. There is no permission to take a shelf below zero. The database constraint on the stored balance enforces the same floor.
+
+### History and locations
+Corrections are new compensating movements with a reason. Ordinary location master data still uses `is_active` and `is_deleted`. A shelf or area is not soft-deleted when it has a balance or any movement history. An inactive shelf must not receive a new stock movement. Deactivating a shelf leaves its balance and history in place. An inactive product may still be counted or adjusted. A soft-deleted product is rejected for a new movement.
+
+### Low stock
+Shop-wide on-hand quantity is the sum of that product's shelf balances, including quantity that remains on a deactivated shelf. Out of stock means that sum is zero. Low stock means that sum is greater than zero and less than or equal to Catalog `minimum_stock`. One shelf is not compared with the product threshold on its own.
+
+### Reconciliation
+For each product and shelf, inbound quantity minus outbound quantity must equal the stored balance. The two movements of a transfer must net to zero for the shop. That check is a required test when Inventory is implemented. It runs against an isolated database, not the shop database.

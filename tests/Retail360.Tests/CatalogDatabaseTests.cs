@@ -1,0 +1,416 @@
+using System.Text.Json;
+using Dapper;
+using Npgsql;
+using Retail360.Application.Catalog;
+using Retail360.Infrastructure.Catalog;
+using Retail360.Infrastructure.Database;
+using Retail360.Infrastructure.Identity;
+using Retail360.Infrastructure.Persistence.Sql;
+using Xunit;
+
+namespace Retail360.Tests;
+
+[CollectionDefinition("catalog-database", DisableParallelization = true)]
+public sealed class CatalogDatabaseCollection : ICollectionFixture<CatalogDatabaseFixture>
+{
+}
+
+[Collection("catalog-database")]
+public sealed class CatalogDatabaseTests
+{
+    private readonly CatalogDatabaseFixture _database;
+
+    public CatalogDatabaseTests(CatalogDatabaseFixture database)
+    {
+        _database = database;
+    }
+
+    [Fact]
+    public async Task Runner_records_each_script_once_and_keeps_identity_roles()
+    {
+        await _database.Runner.ApplyAsync(CancellationToken.None);
+
+        await using var connection = await _database.OpenAsync();
+        var versions = (await connection.QueryAsync<string>(
+            "select version from schema_migrations order by version;")).ToArray();
+        Assert.Equal(["001_initial_identity", "002_catalog"], versions);
+
+        var roles = new ShopRoleQuery(_database.Connections);
+        await roles.EnsureRequiredRolesAsync(CancellationToken.None);
+        var roleIds = (await connection.QueryAsync<string>(
+            """
+            select id
+            from asp_net_roles
+            where is_deleted = false
+            order by id;
+            """)).ToArray();
+        Assert.Equal(
+            [
+                "8f4c2e1a-6b3d-4a91-9c70-1a2b3c4d5e01",
+                "8f4c2e1a-6b3d-4a91-9c70-1a2b3c4d5e02",
+                "8f4c2e1a-6b3d-4a91-9c70-1a2b3c4d5e03",
+                "8f4c2e1a-6b3d-4a91-9c70-1a2b3c4d5e04"
+            ],
+            roleIds);
+    }
+
+    [Fact]
+    public async Task Product_table_matches_the_approved_shape()
+    {
+        await using var connection = await _database.OpenAsync();
+        var columns = (await connection.QueryAsync<ColumnRow>(
+            """
+            select column_name, data_type, numeric_precision, numeric_scale, is_nullable
+            from information_schema.columns
+            where table_schema = 'public' and table_name = 'products';
+            """)).ToDictionary(column => column.ColumnName, StringComparer.Ordinal);
+
+        Assert.Equal("numeric", columns["purchase_price"].DataType);
+        Assert.Equal(12, columns["purchase_price"].NumericPrecision);
+        Assert.Equal(2, columns["purchase_price"].NumericScale);
+        Assert.Equal("numeric", columns["selling_price"].DataType);
+        Assert.Equal(12, columns["selling_price"].NumericPrecision);
+        Assert.Equal(2, columns["selling_price"].NumericScale);
+        Assert.Equal("numeric", columns["minimum_stock"].DataType);
+        Assert.Equal(14, columns["minimum_stock"].NumericPrecision);
+        Assert.Equal(3, columns["minimum_stock"].NumericScale);
+        Assert.Equal("YES", columns["category_id"].IsNullable);
+        Assert.Equal("YES", columns["brand_id"].IsNullable);
+        Assert.Equal("NO", columns["unit_id"].IsNullable);
+        Assert.DoesNotContain("sku", columns.Keys);
+        Assert.DoesNotContain("stock", columns.Keys);
+        Assert.DoesNotContain("current_stock", columns.Keys);
+        Assert.DoesNotContain("available_quantity", columns.Keys);
+
+        var indexes = (await connection.QueryAsync<string>(
+            """
+            select indexdef
+            from pg_indexes
+            where schemaname = 'public'
+              and indexname in (
+                'uq_categories_name',
+                'uq_brands_name',
+                'uq_units_name',
+                'uq_product_barcodes_barcode');
+            """)).ToArray();
+        Assert.Equal(4, indexes.Length);
+        Assert.All(indexes, index =>
+        {
+            Assert.Contains("UNIQUE", index, StringComparison.OrdinalIgnoreCase);
+            Assert.Contains("is_deleted = false", index, StringComparison.OrdinalIgnoreCase);
+        });
+    }
+
+    [Fact]
+    public async Task Database_rejects_negative_price_null_unit_and_duplicate_barcode()
+    {
+        await using (var connection = await _database.OpenAsync())
+        await using (var transaction = await connection.BeginTransactionAsync())
+        {
+            var unitId = Guid.NewGuid();
+            await InsertUnitAsync(connection, transaction, unitId, $"Piece {unitId:N}");
+            var priceError = await Assert.ThrowsAsync<PostgresException>(() => connection.ExecuteAsync(
+                """
+                insert into products (
+                    id, name, category_id, brand_id, unit_id,
+                    purchase_price, selling_price, minimum_stock, is_active,
+                    created_at, updated_at, is_deleted)
+                values (
+                    @Id, 'Rice', null, null, @UnitId,
+                    -1, 2, 0, true,
+                    now(), now(), false);
+                """,
+                new { Id = Guid.NewGuid(), UnitId = unitId },
+                transaction));
+            Assert.Equal(PostgresErrorCodes.CheckViolation, priceError.SqlState);
+            await transaction.RollbackAsync();
+        }
+
+        await using (var connection = await _database.OpenAsync())
+        await using (var transaction = await connection.BeginTransactionAsync())
+        {
+            var error = await Assert.ThrowsAsync<PostgresException>(() => connection.ExecuteAsync(
+                """
+                insert into products (
+                    id, name, category_id, brand_id, unit_id,
+                    purchase_price, selling_price, minimum_stock, is_active,
+                    created_at, updated_at, is_deleted)
+                values (
+                    @Id, 'Rice', null, null, null,
+                    1, 2, 0, true,
+                    now(), now(), false);
+                """,
+                new { Id = Guid.NewGuid() },
+                transaction));
+            Assert.Equal(PostgresErrorCodes.NotNullViolation, error.SqlState);
+            await transaction.RollbackAsync();
+        }
+
+        await using (var connection = await _database.OpenAsync())
+        await using (var transaction = await connection.BeginTransactionAsync())
+        {
+            var unitId = Guid.NewGuid();
+            var productId = Guid.NewGuid();
+            const string barcode = "duplicate-barcode";
+            await InsertUnitAsync(connection, transaction, unitId, $"Piece {unitId:N}");
+            await InsertProductAsync(connection, transaction, productId, unitId, "Rice");
+            var otherProductId = Guid.NewGuid();
+            await InsertProductAsync(connection, transaction, otherProductId, unitId, "Other rice");
+            await InsertBarcodeAsync(connection, transaction, productId, barcode);
+            var error = await Assert.ThrowsAsync<PostgresException>(() =>
+                InsertBarcodeAsync(connection, transaction, otherProductId, barcode));
+            Assert.Equal(PostgresErrorCodes.UniqueViolation, error.SqlState);
+            await transaction.RollbackAsync();
+        }
+    }
+
+    [Fact]
+    public async Task Soft_deleted_barcode_and_category_name_can_be_reused()
+    {
+        await using (var connection = await _database.OpenAsync())
+        await using (var transaction = await connection.BeginTransactionAsync())
+        {
+            var unitId = Guid.NewGuid();
+            var productId = Guid.NewGuid();
+            const string barcode = "reusable-barcode";
+            await InsertUnitAsync(connection, transaction, unitId, $"Piece {unitId:N}");
+            await InsertProductAsync(connection, transaction, productId, unitId, "Rice");
+            await InsertBarcodeAsync(connection, transaction, productId, barcode);
+            await connection.ExecuteAsync(
+                """
+                update product_barcodes
+                set is_deleted = true, updated_at = now()
+                where barcode = @Barcode;
+                """,
+                new { Barcode = barcode },
+                transaction);
+            await InsertBarcodeAsync(connection, transaction, productId, barcode);
+            await transaction.RollbackAsync();
+        }
+
+        await using (var connection = await _database.OpenAsync())
+        await using (var transaction = await connection.BeginTransactionAsync())
+        {
+            var firstId = Guid.NewGuid();
+            var name = $"Grocery {firstId:N}";
+            await InsertCategoryAsync(connection, transaction, firstId, name);
+            var duplicate = await Assert.ThrowsAsync<PostgresException>(() =>
+                InsertCategoryAsync(connection, transaction, Guid.NewGuid(), name.ToUpperInvariant()));
+            Assert.Equal(PostgresErrorCodes.UniqueViolation, duplicate.SqlState);
+            await transaction.RollbackAsync();
+        }
+    }
+
+    [Fact]
+    public async Task Stored_product_lookup_hides_inactive_barcodes_and_deleted_products()
+    {
+        var suffix = Guid.NewGuid().ToString("N");
+        var barcode = $"scan-{suffix}";
+        var clock = new FixedClock(new DateTimeOffset(2026, 10, 10, 9, 0, 0, TimeSpan.Zero));
+        var categories = new CategoryCatalogStore(_database.Connections);
+        var brands = new BrandCatalogStore(_database.Connections);
+        var units = new UnitCatalogStore(_database.Connections);
+        var products = new ProductService(
+            new ProductCatalogStore(_database.Connections, new PostgresTransaction(_database.Connections)),
+            categories,
+            brands,
+            units,
+            clock);
+        var unitService = new UnitService(units, clock);
+        var unit = await unitService.CreateAsync(new SaveNameCommand($"Kg {suffix}"), CancellationToken.None);
+
+        var created = await products.CreateAsync(
+            new SaveProductCommand($"Rice {suffix}", null, null, unit.Id, 80.50m, 100.00m, 1.500m, [barcode]),
+            CancellationToken.None);
+        var byBarcode = await products.FindActiveByBarcodeAsync(barcode, CancellationToken.None);
+        Assert.Equal(created.Id, byBarcode.Id);
+        Assert.Null(created.CategoryId);
+        Assert.Null(created.BrandId);
+
+        await products.DeactivateAsync(created.Id, CancellationToken.None);
+        var inactive = await products.GetAsync(created.Id, CancellationToken.None);
+        var hiddenBarcode = await Assert.ThrowsAsync<Retail360.Domain.Catalog.CatalogRuleException>(() =>
+            products.FindActiveByBarcodeAsync(barcode, CancellationToken.None));
+        Assert.False(inactive.IsActive);
+        Assert.Equal(Retail360.Domain.Catalog.CatalogRuleFailure.NotFound, hiddenBarcode.Failure);
+
+        await products.DeleteAsync(created.Id, CancellationToken.None);
+        var deleted = await Assert.ThrowsAsync<Retail360.Domain.Catalog.CatalogRuleException>(() =>
+            products.GetAsync(created.Id, CancellationToken.None));
+        var listed = await products.ListAsync(suffix, false, 50, 0, CancellationToken.None);
+        Assert.Equal(Retail360.Domain.Catalog.CatalogRuleFailure.NotFound, deleted.Failure);
+        Assert.DoesNotContain(listed, product => product.Id == created.Id);
+
+        var reused = await products.CreateAsync(
+            new SaveProductCommand($"Rice again {suffix}", null, null, unit.Id, 80.50m, 100.00m, 1.500m, [barcode]),
+            CancellationToken.None);
+        Assert.Equal(barcode, Assert.Single(reused.Barcodes));
+    }
+
+    private static Task InsertUnitAsync(
+        NpgsqlConnection connection,
+        NpgsqlTransaction transaction,
+        Guid id,
+        string name)
+    {
+        return connection.ExecuteAsync(
+            """
+            insert into units (id, name, created_at, updated_at, is_deleted)
+            values (@Id, @Name, now(), now(), false);
+            """,
+            new { Id = id, Name = name },
+            transaction);
+    }
+
+    private static Task InsertCategoryAsync(
+        NpgsqlConnection connection,
+        NpgsqlTransaction transaction,
+        Guid id,
+        string name)
+    {
+        return connection.ExecuteAsync(
+            """
+            insert into categories (id, name, created_at, updated_at, is_deleted)
+            values (@Id, @Name, now(), now(), false);
+            """,
+            new { Id = id, Name = name },
+            transaction);
+    }
+
+    private static Task InsertProductAsync(
+        NpgsqlConnection connection,
+        NpgsqlTransaction transaction,
+        Guid id,
+        Guid unitId,
+        string name)
+    {
+        return connection.ExecuteAsync(
+            """
+            insert into products (
+                id, name, category_id, brand_id, unit_id,
+                purchase_price, selling_price, minimum_stock, is_active,
+                created_at, updated_at, is_deleted)
+            values (
+                @Id, @Name, null, null, @UnitId,
+                1.00, 2.00, 0.000, true,
+                now(), now(), false);
+            """,
+            new { Id = id, Name = name, UnitId = unitId },
+            transaction);
+    }
+
+    private static Task InsertBarcodeAsync(
+        NpgsqlConnection connection,
+        NpgsqlTransaction transaction,
+        Guid productId,
+        string barcode)
+    {
+        return connection.ExecuteAsync(
+            """
+            insert into product_barcodes (id, product_id, barcode, created_at, updated_at, is_deleted)
+            values (@Id, @ProductId, @Barcode, now(), now(), false);
+            """,
+            new { Id = Guid.NewGuid(), ProductId = productId, Barcode = barcode },
+            transaction);
+    }
+
+    private sealed class ColumnRow
+    {
+        public string ColumnName { get; init; } = string.Empty;
+
+        public string DataType { get; init; } = string.Empty;
+
+        public int? NumericPrecision { get; init; }
+
+        public int? NumericScale { get; init; }
+
+        public string IsNullable { get; init; } = string.Empty;
+    }
+
+    private sealed class FixedClock : IClock
+    {
+        public FixedClock(DateTimeOffset utcNow)
+        {
+            UtcNow = utcNow;
+        }
+
+        public DateTimeOffset UtcNow { get; }
+    }
+}
+
+public sealed class CatalogDatabaseFixture : IAsyncLifetime
+{
+    private const string TestDatabaseName = "retail360_catalog_test";
+
+    public NpgsqlConnectionFactory Connections { get; private set; } = null!;
+
+    public SqlMigrationRunner Runner { get; private set; } = null!;
+
+    public async Task InitializeAsync()
+    {
+        DefaultTypeMap.MatchNamesWithUnderscores = true;
+        var shop = ReadShopConnectionString();
+        var builder = new NpgsqlConnectionStringBuilder(shop)
+        {
+            Database = "postgres"
+        };
+        await EnsureDatabaseAsync(builder.ConnectionString);
+        builder.Database = TestDatabaseName;
+        Connections = new NpgsqlConnectionFactory(builder.ConnectionString);
+        Runner = new SqlMigrationRunner(Connections);
+        await Runner.ApplyAsync(CancellationToken.None);
+        await Runner.ApplyAsync(CancellationToken.None);
+    }
+
+    public Task DisposeAsync()
+    {
+        return Task.CompletedTask;
+    }
+
+    public async Task<NpgsqlConnection> OpenAsync()
+    {
+        return await Connections.OpenConnectionAsync(CancellationToken.None);
+    }
+
+    private static async Task EnsureDatabaseAsync(string adminConnectionString)
+    {
+        await using var connection = new NpgsqlConnection(adminConnectionString);
+        await connection.OpenAsync();
+        var exists = await connection.ExecuteScalarAsync<bool>(
+            "select exists(select 1 from pg_database where datname = @Name);",
+            new { Name = TestDatabaseName });
+        if (exists)
+        {
+            return;
+        }
+
+        await connection.ExecuteAsync($"create database {TestDatabaseName};");
+    }
+
+    private static string ReadShopConnectionString()
+    {
+        var directory = new DirectoryInfo(AppContext.BaseDirectory);
+        while (directory is not null && !File.Exists(Path.Combine(directory.FullName, "Retail360.sln")))
+        {
+            directory = directory.Parent;
+        }
+
+        if (directory is null)
+        {
+            throw new InvalidOperationException("Retail360.sln was not found above the test output directory.");
+        }
+
+        var path = Path.Combine(directory.FullName, "src", "Api", "appsettings.json");
+        using var document = JsonDocument.Parse(File.ReadAllText(path));
+        var connectionString = document.RootElement
+            .GetProperty("ConnectionStrings")
+            .GetProperty("DefaultConnection")
+            .GetString();
+        if (string.IsNullOrWhiteSpace(connectionString))
+        {
+            throw new InvalidOperationException("DefaultConnection is missing from appsettings.json.");
+        }
+
+        return connectionString;
+    }
+}

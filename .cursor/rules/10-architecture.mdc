@@ -23,4 +23,5 @@ Business rules belong in Domain/Application, not controllers.
 Controllers should remain thin.
 Infrastructure concerns (Dapper, Npgsql, PostgreSQL, external integrations) stay in Infrastructure. Domain and Application do not reference Dapper, Npgsql, or EF Core.
 Avoid generic repositories when they add no value; follow the established project pattern.
+Catalog owns Category, Brand, Unit, Product, and ProductBarcode. Do not add a separate Barcode module, a second barcode table, a product SKU, or a stock quantity on Product.
 Do not create a new abstraction merely to wrap one existing method.

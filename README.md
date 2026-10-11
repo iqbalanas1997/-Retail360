@@ -2,7 +2,7 @@
 
 Grocery shop management system for a small retail shop. The counter workflow is the priority: find a product, enter a quantity, review the cart, take payment, and show a receipt.
 
-The repository currently contains the foundation: a .NET 8 API, an Angular application, and the PostgreSQL Identity schema. Catalog, inventory, sales, and the other business modules are not implemented yet.
+The repository contains the foundation and the Catalog backend: categories, brands, units, products, and barcodes. The Inventory design is approved in ADR-011. Inventory code, sales, purchases, and the Angular screens are not implemented yet.
 
 ## Stack
 
@@ -54,6 +54,7 @@ The UI is at [http://localhost:4200](http://localhost:4200).
 
 ```powershell
 dotnet build Retail360.sln
+dotnet test Retail360.sln
 ```
 
 ```powershell
@@ -69,4 +70,4 @@ The existing Identity tables are kept. Seeded roles are Admin, Manager, Cashier,
 
 ## Current status
 
-Identity tables and the four shop roles are in place. Persistence is Dapper and Npgsql. Sign-in, permissions, and business screens are still to be built. See `docs/project/TASKS.md` for the task board.
+Identity tables and the four shop roles are in place. The Catalog API covers categories, brands, units, and products, including activation, deactivation, logical delete, and barcode lookup. `002_catalog.sql` is applied by the migration runner. Product has no stock quantity. Inventory is documented in ADR-011 and has no tables or endpoints yet. Sign-in, permissions, and the Angular screens are still to be built. See `docs/project/TASKS.md` for the task board.

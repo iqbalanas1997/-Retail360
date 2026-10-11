@@ -63,3 +63,9 @@ The POS/counter workflow must remain fast and simple:
 - print/show receipt
 
 Avoid unnecessary popups, fields, navigation and visual noise.
+
+## Catalog
+Catalog owns Category, Brand, Unit, Product, and ProductBarcode. Category and brand are optional. Unit is required. Barcode values live in `product_barcodes`; there is no separate Barcode module or second barcode table. The MVP product identity is the product id, name, and barcode values. There is no SKU. Product does not store a stock quantity. `purchase_price` and `selling_price` are current catalog prices (`numeric(12,2)`). `minimum_stock` is `numeric(14,3)`. `is_active` means the product is offered. `is_deleted` means it is logically removed. Deactivation does not delete the product.
+
+## Inventory
+Inventory owns areas, shelves, the on-hand balance per product and shelf, and the append-only movement ledger. The design is approved in ADR-011 and is not implemented. Do not add a stock quantity or a shelf column to Product. Movement quantity is a positive `numeric(14,3)` / `decimal`. A shelf balance cannot go below zero. Movements are not edited or soft-deleted. A transfer does not change total shop stock. Low stock compares the sum of shelf balances with Catalog `minimum_stock`. Do not implement Purchasing or Sales as part of Inventory.

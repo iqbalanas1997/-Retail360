@@ -10,6 +10,36 @@ Use this file for meaningful project-level changes that affect future AI context
 - Documentation updated
 
 ## Entries
+### 2026-10-10 — Inventory design approved
+- Recorded the approved Inventory design: one shop, areas and shelves, stock per product and shelf, an append-only movement ledger, and a stored balance updated in the same transaction.
+- Opening stock, adjustments, and transfers are in scope. Damaged, expired, and missing are adjustment reasons. Purchasing and Sales integration are not.
+- Shelf quantity uses `numeric(14,3)` and cannot go below zero. Movements are not edited or soft-deleted. Low stock compares the sum of shelf balances with Catalog `minimum_stock`.
+- No Inventory code, migration, test, or database table was added.
+- Impacted modules: Inventory, Catalog.
+- Documentation updated: `DECISIONS.md` (ADR-011), `ARCHITECTURE.md`, `DOMAIN_MODEL.md`, `DATABASE.md`, `API_CONTRACTS.md`, `MODULE_CATALOG.md`, `TASKS.md`, `REQUIREMENTS.md`, `AGENTS.md`, `.cursor/rules/40-database.mdc`, `CHANGELOG.md`.
+
+### 2026-10-10 — Catalog backend verification
+- Reconciled Catalog documentation so price scale, minimum stock, optional category and brand, and barcode ownership match the approved model.
+- Added tests for validation, duplicate barcodes, soft deletion, inactive barcode lookup, and PostgreSQL constraints.
+- `dotnet build Retail360.sln`: 0 warnings, 0 errors. `dotnet test`: 22 passed, 0 failed.
+- The shop database `retail360` still has one `schema_migrations` row each for `001_initial_identity` and `002_catalog` after two API starts. Admin, Manager, Cashier, and Inventory Staff remain.
+- Impacted modules: Catalog.
+- Documentation updated: `AGENTS.md`, `.cursor/rules/10-architecture.mdc`, `.cursor/rules/40-database.mdc`, `REQUIREMENTS.md`, `ARCHITECTURE.md`, `DATABASE.md`, `DOMAIN_MODEL.md`, `CHANGELOG.md`, `TASKS.md`.
+
+### 2026-10-10 — Catalog backend
+- Added category, brand, unit, product, and product barcode persistence with `002_catalog.sql`.
+- Prices are `numeric(12,2)`, minimum stock is `numeric(14,3)`, and category and brand are optional.
+- No inventory, sales, purchase, or Angular catalog screens were added.
+- Impacted modules: Catalog.
+- Documentation updated: `DECISIONS.md` (ADR-010), `DOMAIN_MODEL.md`, `DATABASE.md`, `ARCHITECTURE.md`, `API_CONTRACTS.md`, `MODULE_CATALOG.md`, `TASKS.md`, `README.md`.
+
+### 2026-10-08 — Catalog ownership design
+- Recorded which module owns product identity, barcodes, current prices, stock, and locations.
+- This design step added no tables or APIs. Catalog tables and APIs were added later on 2026-10-10 in `002_catalog.sql`.
+- The open questions from this design were closed on 2026-10-10: prices are `numeric(12,2)`, minimum stock is `numeric(14,3)`, and category and brand are optional. Barcode is a Catalog capability, not a separate module.
+- Impacted modules: Catalog, Inventory.
+- Documentation updated: `DECISIONS.md` (ADR-010), `DOMAIN_MODEL.md`, `DATABASE.md`, `MODULE_CATALOG.md`, `TASKS.md`.
+
 ### 2026-10-07 — Dapper and Npgsql replace EF Core
 - Removed EF Core, the Npgsql EF Core provider, `ApplicationDbContext`, and the EF migration classes.
 - Added Dapper, the Npgsql driver, a connection factory, one-transaction execution, and ordered SQL scripts.
