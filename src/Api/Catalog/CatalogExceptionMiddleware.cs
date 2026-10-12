@@ -1,4 +1,5 @@
 using Retail360.Domain.Catalog;
+using Retail360.Domain.Inventory;
 
 namespace Retail360.Api.Catalog;
 
@@ -23,6 +24,17 @@ public sealed class CatalogExceptionMiddleware
             {
                 CatalogRuleFailure.NotFound => StatusCodes.Status404NotFound,
                 CatalogRuleFailure.Conflict => StatusCodes.Status409Conflict,
+                _ => StatusCodes.Status400BadRequest
+            };
+            context.Response.ContentType = "application/json";
+            await context.Response.WriteAsJsonAsync(new { error = exception.Message });
+        }
+        catch (InventoryRuleException exception)
+        {
+            context.Response.StatusCode = exception.Failure switch
+            {
+                InventoryRuleFailure.NotFound => StatusCodes.Status404NotFound,
+                InventoryRuleFailure.Conflict => StatusCodes.Status409Conflict,
                 _ => StatusCodes.Status400BadRequest
             };
             context.Response.ContentType = "application/json";

@@ -1,7 +1,7 @@
 # Project Task Board
 
 ## Current phase
-Phase 0 — Foundation and architecture. The Catalog backend is implemented and verified. The Inventory design is approved and documented in ADR-011. Inventory code and the Angular screens are not started.
+Phase 0 — Foundation and architecture. The Catalog and Inventory backends are implemented and verified. Angular screens are not started.
 
 ## Rules
 - Only one primary task should be actively implemented at a time unless parallel work is explicitly planned.
@@ -14,7 +14,7 @@ Phase 0 — Foundation and architecture. The Catalog backend is implemented and 
 ### Foundation
 - [x] Create .NET 8 solution and layer structure.
 - [x] Create modern Angular application.
-- [x] Configure PostgreSQL and EF Core.
+- [x] Configure PostgreSQL with Dapper and Npgsql. EF Core was removed; it is not the persistence stack.
 - [x] Keep Domain free of framework packages. Shop role names stay in Domain.
 - [x] Replace EF Core with Dapper and Npgsql. Keep the existing Identity tables.
 - [ ] Establish authentication/authorization baseline.
@@ -32,14 +32,14 @@ Phase 0 — Foundation and architecture. The Catalog backend is implemented and 
 
 ### Inventory
 - [x] Record the approved design: shelf balances, append-only movements, opening stock, adjustments, transfers, and shop-wide low stock.
-- [ ] Implement areas and shelves.
-- [ ] Implement stock balances and append-only movements.
-- [ ] Implement opening stock, adjustments, and transfers in one transaction per operation.
-- [ ] Enforce the non-negative shelf balance, including concurrent updates.
-- [ ] Identify low stock and out of stock from the sum of shelf balances.
-- [ ] Add a new SQL migration. Do not edit `001_initial_identity.sql` or `002_catalog.sql`.
-- [ ] Add domain tests, service tests, and PostgreSQL tests on an isolated database.
-- [ ] Add the reconciliation check that stored balances match movement history.
+- [x] Implement areas and shelves.
+- [x] Implement stock balances and append-only movements.
+- [x] Implement opening stock, adjustments, and transfers in one transaction per operation.
+- [x] Enforce the non-negative shelf balance, including concurrent updates.
+- [x] Identify low stock and out of stock from the sum of shelf balances.
+- [x] Add a new SQL migration. Do not edit `001_initial_identity.sql` or `002_catalog.sql`.
+- [x] Add domain tests, service tests, and PostgreSQL tests on an isolated database.
+- [x] Add the reconciliation check that stored balances match movement history.
 
 ### Sales / POS
 - [ ] Product scan/search
@@ -65,4 +65,4 @@ Phase 0 — Foundation and architecture. The Catalog backend is implemented and 
 - [ ] Audit log
 
 ## Current task
-Wait for explicit approval before implementing Inventory. The design is documented and no Inventory code exists. Angular catalog screens are still not started. Authentication is still not implemented. Sign-in and permission checks do not exist.
+Inventory and Catalog backend review fixes are in place: area deletion locks before it rechecks, stock posts require a client operation id, and catalog tests refuse any database other than `retail360_catalog_test`. Angular catalog and inventory screens are not started. Authentication is still not implemented. Sign-in and permission checks do not exist. Sales and Purchasing are not started.

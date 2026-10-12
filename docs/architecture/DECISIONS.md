@@ -105,7 +105,7 @@ Price scale, minimum-stock scale, and optional category and brand are approved. 
 ## ADR-011 — Inventory ledger and shelf balances
 Status: Accepted
 
-Inventory owns on-hand quantities, shelf locations, and the history of stock changes. Catalog keeps product identity, barcodes, current prices, and `minimum_stock`. This decision is approved and is not implemented. No Inventory tables, migrations, or APIs exist yet.
+Inventory owns on-hand quantities, shelf locations, and the history of stock changes. Catalog keeps product identity, barcodes, current prices, and `minimum_stock`. The backend is implemented in `003_inventory.sql` and the Inventory API. Purchasing, Sales, and Inventory screens are not implemented.
 
 ### Location
 The shop is one shop. Branches are out of scope. An area contains shelves, and a shelf belongs to one area. Stock is kept per product and shelf. A product may be on more than one shelf. Transfers between shelves are part of Inventory. Product does not gain a stock quantity or a shelf column.
@@ -115,20 +115,20 @@ Two representations are kept together. An append-only movement ledger explains e
 
 A stored balance was chosen in addition to the ledger so current stock can be read without replaying history, while the ledger remains the explanation. A balance-only column was rejected because a quantity with no movement history cannot be audited. Summing the ledger on every read, with no stored balance, was not chosen: the approved design keeps the stored balance and checks it against the ledger.
 
-Movement quantity is always greater than zero and uses `numeric(14,3)`. C# uses `decimal`. Direction is inbound or outbound. Proposed schema names, not yet created, are `areas`, `shelves`, `stock_balances`, and `stock_movements`. A balance is unique per product and shelf, and its quantity cannot be negative. A movement is not updated and is not soft-deleted.
+Movement quantity is always greater than zero and uses `numeric(14,3)`. C# uses `decimal`. Direction is inbound or outbound. The tables are `areas`, `shelves`, `stock_balances`, and `stock_movements`. A balance is unique per product and shelf, and its quantity cannot be negative. A movement is not updated and is not soft-deleted. `stock_movements` has a `BEFORE UPDATE OR DELETE` trigger that rejects both changes, because the application connects as the table owner and a `REVOKE` would not hold.
 
 Initial movement types are opening, adjustment, and transfer. Damaged, expired, and missing are adjustment reasons, not types. Opening stock is an inbound movement with product, shelf, quantity, time, and a required reason. It is not a purchase and it does not write a stock field on the product. An adjustment requires a reason. A transfer writes one outbound movement on the source shelf and one inbound movement on the destination shelf for the same quantity. Total shop stock does not change.
 
 Purchasing and Sales are later modules. This decision does not define their document ids or line contracts.
 
 ### Concurrency and the zero floor
-The operation locks the stored balance rows it will change, in ascending shelf id order, inside the existing single-transaction boundary. That lock is the concurrency control. No isolation level is mandated. A second concurrent request must not pass the non-negative check. There is no permission to take a shelf below zero. The database constraint on the stored balance enforces the same floor.
+The operation locks the product row, records the client operation key, then locks the shelf rows and stored balance rows, in ascending shelf id order, inside the existing single-transaction boundary. After the product lock it rejects a soft-deleted product for a new key. The same key and payload returns the original movements. A different payload for that key is a conflict. Shelf soft-delete locks the shelf and rechecks history before deleting. Area soft-delete locks the area and its shelves, then rechecks shelves and history. Shelf creation locks the area. Catalog product soft-delete locks the same product row before it sets `is_deleted`. That lock order is the concurrency control. No isolation level is mandated. A second concurrent request must not pass the non-negative check. There is no permission to take a shelf below zero. The database constraint on the stored balance enforces the same floor. A balance check violation is reported as insufficient stock. Any other check violation on the stock write is a conflict without the database error text.
 
 ### History and locations
-Corrections are new compensating movements with a reason. Ordinary location master data still uses `is_active` and `is_deleted`. A shelf or area is not soft-deleted when it has a balance or any movement history. An inactive shelf must not receive a new stock movement. Deactivating a shelf leaves its balance and history in place. An inactive product may still be counted or adjusted. A soft-deleted product is rejected for a new movement.
+Corrections are new compensating movements with a reason. Ordinary location master data still uses `is_active` and `is_deleted`. A shelf or area is not soft-deleted when it has a balance or any movement history. An inactive shelf rejects inbound stock and allows outbound stock when the quantity is available. Deactivating a shelf leaves its balance and history in place. An inactive product may still be counted or adjusted. A soft-deleted product is rejected for a new movement.
 
 ### Low stock
 Shop-wide on-hand quantity is the sum of that product's shelf balances, including quantity that remains on a deactivated shelf. Out of stock means that sum is zero. Low stock means that sum is greater than zero and less than or equal to Catalog `minimum_stock`. One shelf is not compared with the product threshold on its own.
 
 ### Reconciliation
-For each product and shelf, inbound quantity minus outbound quantity must equal the stored balance. The two movements of a transfer must net to zero for the shop. That check is a required test when Inventory is implemented. It runs against an isolated database, not the shop database.
+For each product and shelf, inbound quantity minus outbound quantity must equal the stored balance. The two movements of a transfer must net to zero for the shop. `GET /api/inventory/reconciliation` returns the rows that do not match. The check is tested on `retail360_inventory_test`, not by deleting shop data.

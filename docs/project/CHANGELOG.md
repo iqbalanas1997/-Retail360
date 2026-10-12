@@ -10,6 +10,30 @@ Use this file for meaningful project-level changes that affect future AI context
 - Documentation updated
 
 ## Entries
+### 2026-10-12 — Backend review remediation
+- Area soft-delete locks the area and its shelves, then rechecks shelves and stock history. Shelf creation locks the area. Balance reads keep stock visible if an area row is soft-deleted.
+- Stock opening, adjustment, and transfer require a client `operationId`. `004_stock_operations.sql` stores that key and its request fingerprint. A repeat returns the original movements. A different payload for the same key is a conflict. `001`, `002`, and `003` were not edited.
+- Missing area, unit, category, and brand references return not-found. Only the balance check constraint is reported as insufficient stock.
+- Catalog integration tests refuse `retail360` and `retail360_inventory_test` before they migrate or write.
+- Impacted modules: Inventory, Catalog, API.
+- Documentation updated: `API_CONTRACTS.md`, `DATABASE.md`, `DECISIONS.md`, `DOMAIN_MODEL.md`, `TASKS.md`, `CHANGELOG.md`, `AGENTS.md`.
+
+### 2026-10-12 — Inventory lock coordination
+- Shelf soft-delete now locks the shelf row and rechecks stock history in that same transaction.
+- Stock posting locks the product row and rejects a product that is already soft-deleted. Catalog product update and soft-delete lock that same row before changing it.
+- Regression tests either hold the conflicting row lock until the other session is waiting, or hold both stock transactions open until both have started, then release them.
+- Impacted modules: Inventory, Catalog.
+- Documentation updated: `DECISIONS.md` (ADR-011), `ARCHITECTURE.md`, `DOMAIN_MODEL.md`, `DATABASE.md`, `CHANGELOG.md`.
+
+### 2026-10-11 — Inventory backend
+- Added areas, shelves, shelf balances, and the append-only movement ledger in `003_inventory.sql`.
+- Opening stock, adjustments, and transfers update the stored balance in the same transaction. An inactive shelf rejects inbound stock and allows outbound stock. Concurrent outbound requests cannot take a shelf below zero.
+- Integration tests use `retail360_inventory_test` and refuse any other database name before cleanup.
+- `dotnet build Retail360.sln`: 0 warnings, 0 errors. `dotnet test Retail360.sln`: 48 passed, 0 failed, 0 skipped.
+- The shop database `retail360` recorded `003_inventory` through the existing migration runner. The script only created tables, indexes, checks, and the append-only trigger. `001_initial_identity.sql` and `002_catalog.sql` were not edited.
+- Impacted modules: Inventory.
+- Documentation updated: `DECISIONS.md` (ADR-011), `ARCHITECTURE.md`, `DOMAIN_MODEL.md`, `DATABASE.md`, `API_CONTRACTS.md`, `MODULE_CATALOG.md`, `TASKS.md`, `AGENTS.md`, `README.md`, `.cursor/rules/40-database.mdc`, `CHANGELOG.md`.
+
 ### 2026-10-10 — Inventory design approved
 - Recorded the approved Inventory design: one shop, areas and shelves, stock per product and shelf, an append-only movement ledger, and a stored balance updated in the same transaction.
 - Opening stock, adjustments, and transfers are in scope. Damaged, expired, and missing are adjustment reasons. Purchasing and Sales integration are not.

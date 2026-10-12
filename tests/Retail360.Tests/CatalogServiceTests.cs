@@ -36,7 +36,28 @@ public class CatalogServiceTests
                 new SaveProductCommand("Rice", null, null, Guid.NewGuid(), 1.00m, 2.00m, 0m, null),
                 CancellationToken.None));
 
-        Assert.Equal(CatalogRuleFailure.Invalid, error.Failure);
+        Assert.Equal(CatalogRuleFailure.NotFound, error.Failure);
+        Assert.Empty(fixture.ProductStore.Products);
+    }
+
+    [Fact]
+    public async Task Create_product_rejects_a_missing_category_or_brand()
+    {
+        var fixture = new CatalogFixture();
+        var unit = Unit.Create("Kg", Now);
+        await fixture.Units.AddAsync(unit, CancellationToken.None);
+
+        var missingCategory = await Assert.ThrowsAsync<CatalogRuleException>(() =>
+            fixture.Products.CreateAsync(
+                new SaveProductCommand("Rice", Guid.NewGuid(), null, unit.Id, 1.00m, 2.00m, 0m, null),
+                CancellationToken.None));
+        var missingBrand = await Assert.ThrowsAsync<CatalogRuleException>(() =>
+            fixture.Products.CreateAsync(
+                new SaveProductCommand("Rice", null, Guid.NewGuid(), unit.Id, 1.00m, 2.00m, 0m, null),
+                CancellationToken.None));
+
+        Assert.Equal(CatalogRuleFailure.NotFound, missingCategory.Failure);
+        Assert.Equal(CatalogRuleFailure.NotFound, missingBrand.Failure);
         Assert.Empty(fixture.ProductStore.Products);
     }
 

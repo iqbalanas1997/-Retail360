@@ -1,6 +1,6 @@
 # Domain Model
 
-This is the domain map. The Catalog and Inventory sections below are the approved models. Inventory is not implemented. Other modules still need their fields finalized before implementation.
+This is the domain map. The Catalog and Inventory sections below match the implemented backend. Other modules still need their fields finalized before implementation.
 
 ## Core concepts
 
@@ -23,7 +23,7 @@ A Catalog scan code in `product_barcodes`. One product may have several barcodes
 A named part of the single shop. An area contains shelves. There is no branch. Fields are id, name, `is_active`, created_at, updated_at, and is_deleted. Deactivation is not deletion.
 
 ### Shelf
-A storage place in one area. Stock is held here, not on the product and not on the area. A shelf has id, area, name, `is_active`, created_at, updated_at, and is_deleted. A product may have stock on many shelves. An inactive shelf must not receive a new stock movement. Its existing balance and history stay. A shelf or area with a balance or any movement history is not soft-deleted.
+A storage place in one area. Stock is held here, not on the product and not on the area. A shelf has id, area, name, `is_active`, created_at, updated_at, and is_deleted. A product may have stock on many shelves. An inactive shelf rejects inbound stock, including opening stock, a positive adjustment, and a transfer destination. It allows an outbound adjustment or a transfer source when the remaining quantity stays at or above zero. Its existing balance and history stay and can still be read. A shelf or area with a balance or any movement history is not soft-deleted.
 
 ### Stock balance
 The current on-hand quantity of one product on one shelf. Quantity is `numeric(14,3)` and cannot be negative. There is at most one balance per product and shelf. The balance is updated only in the same transaction as the movement that explains the change. It is not a column on Product. `minimum_stock` remains the Catalog threshold.
@@ -66,7 +66,7 @@ Catalog owns product identity, barcode values, the current price, and the minimu
 ## Inventory boundaries
 Inventory owns areas, shelves, shelf balances, and the movement ledger. Catalog owns product identity, the unit, barcodes, current prices, and `minimum_stock`. Shop-wide on-hand quantity is the sum of that product's shelf balances, including quantity left on a deactivated shelf. Out of stock means that sum is zero. Low stock means that sum is greater than zero and less than or equal to `minimum_stock`.
 
-A stock operation locks the affected balance rows in ascending shelf id order, writes the movements, and updates the balances in one transaction. Any failure rolls the transaction back. No isolation level is required by this model.
+A stock operation locks the product row, records the client operation key, then locks the affected shelf rows and balance rows in ascending shelf id order, writes the movements, and updates the balances in one transaction. The same key and payload is the same operation. A different payload for that key is rejected. It rejects a product that is already soft-deleted when a new key acquires that product lock. Shelf soft-delete locks the shelf and rejects the delete when the locked history check finds a balance or movement. Area soft-delete locks the area and its shelves, then rejects the delete when a non-deleted shelf, balance, or movement remains. Any failure rolls the transaction back. No isolation level is required by this model. A balance list still shows stock if the area row is soft-deleted.
 
 ## Important invariants
 - On-hand quantity at a shelf is never negative. There is no override.

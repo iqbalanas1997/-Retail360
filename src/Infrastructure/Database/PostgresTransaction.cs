@@ -11,8 +11,19 @@ public sealed class PostgresTransaction
         _connections = connections;
     }
 
-    public async Task ExecuteAsync(
+    public Task ExecuteAsync(
         Func<NpgsqlConnection, NpgsqlTransaction, CancellationToken, Task> work,
+        CancellationToken cancellationToken)
+    {
+        return ExecuteAsync<object?>(async (connection, transaction, token) =>
+        {
+            await work(connection, transaction, token);
+            return null;
+        }, cancellationToken);
+    }
+
+    public async Task<T> ExecuteAsync<T>(
+        Func<NpgsqlConnection, NpgsqlTransaction, CancellationToken, Task<T>> work,
         CancellationToken cancellationToken)
     {
         await using var connection = await _connections.OpenConnectionAsync(cancellationToken);
@@ -20,8 +31,9 @@ public sealed class PostgresTransaction
 
         try
         {
-            await work(connection, transaction, cancellationToken);
+            var result = await work(connection, transaction, cancellationToken);
             await transaction.CommitAsync(cancellationToken);
+            return result;
         }
         catch (Exception error)
         {

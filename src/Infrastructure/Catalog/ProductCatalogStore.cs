@@ -219,6 +219,21 @@ public sealed class ProductCatalogStore : IProductStore
         {
             await _transactions.ExecuteAsync(async (connection, transaction, token) =>
             {
+                var locked = await connection.QuerySingleOrDefaultAsync<ProductDeleteRow>(new CommandDefinition(
+                    """
+                    select id, is_deleted
+                    from products
+                    where id = @Id
+                    for update;
+                    """,
+                    new { product.Id },
+                    transaction,
+                    cancellationToken: token));
+                if (locked is null || locked.IsDeleted)
+                {
+                    throw new CatalogRuleException(CatalogRuleFailure.NotFound, "Product was not found.");
+                }
+
                 var rows = await connection.ExecuteAsync(new CommandDefinition(
                     """
                     update products
@@ -377,6 +392,13 @@ public sealed class ProductCatalogStore : IProductStore
         public DateTimeOffset CreatedAt { get; init; }
 
         public DateTimeOffset UpdatedAt { get; init; }
+    }
+
+    private sealed class ProductDeleteRow
+    {
+        public Guid Id { get; init; }
+
+        public bool IsDeleted { get; init; }
     }
 
     private sealed class ProductWriteRow

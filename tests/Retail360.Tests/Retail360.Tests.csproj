@@ -14,6 +14,11 @@
   </ItemGroup>
 
   <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\Api\Retail360.Api.csproj" />
     <ProjectReference Include="..\..\src\Application\Retail360.Application.csproj" />
     <ProjectReference Include="..\..\src\Domain\Retail360.Domain.csproj" />
     <ProjectReference Include="..\..\src\Infrastructure\Retail360.Infrastructure.csproj" />

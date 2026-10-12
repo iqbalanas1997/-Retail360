@@ -1,5 +1,6 @@
 using Retail360.Api.Catalog;
 using Retail360.Application.Catalog;
+using Retail360.Application.Inventory;
 using Retail360.Infrastructure;
 using Retail360.Infrastructure.Identity;
 using Retail360.Infrastructure.Persistence.Sql;
@@ -12,6 +13,9 @@ builder.Services.AddScoped<CategoryService>();
 builder.Services.AddScoped<BrandService>();
 builder.Services.AddScoped<UnitService>();
 builder.Services.AddScoped<ProductService>();
+builder.Services.AddScoped<AreaService>();
+builder.Services.AddScoped<ShelfService>();
+builder.Services.AddScoped<StockService>();
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();

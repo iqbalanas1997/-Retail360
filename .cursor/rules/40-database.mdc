@@ -24,4 +24,4 @@ alwaysApply: false
 - Inventory quantities are `numeric(14,3)`. Use `decimal` in C#. Do not use `float` or `double`.
 - Stock is a balance per product and shelf plus an append-only movement ledger. Update both in one transaction. Do not add a stock column to `products`.
 - A movement quantity is positive. A stored balance is `>= 0`. Movements are not updated and are not soft-deleted. Corrections are new movements.
-- The next Inventory schema change is a new SQL script. Do not edit `001_initial_identity.sql` or `002_catalog.sql`.
+- The next schema change is a new SQL script. Do not edit `001_initial_identity.sql`, `002_catalog.sql`, `003_inventory.sql`, or `004_stock_operations.sql`. An inactive shelf rejects inbound stock and allows outbound stock. A stock change requires a client operation id stored in `stock_operations`.

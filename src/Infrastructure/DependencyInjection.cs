@@ -2,7 +2,9 @@ using Dapper;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Retail360.Application.Catalog;
+using Retail360.Application.Inventory;
 using Retail360.Infrastructure.Catalog;
+using Retail360.Infrastructure.Inventory;
 using Retail360.Infrastructure.Database;
 using Retail360.Infrastructure.Identity;
 using Retail360.Infrastructure.Persistence.Sql;
@@ -34,6 +36,11 @@ public static class DependencyInjection
         services.AddSingleton<IBrandStore, BrandCatalogStore>();
         services.AddSingleton<IUnitStore, UnitCatalogStore>();
         services.AddSingleton<IProductStore, ProductCatalogStore>();
+        services.AddSingleton<IAreaStore, AreaInventoryStore>();
+        services.AddSingleton<IShelfStore, ShelfInventoryStore>();
+        services.AddSingleton<StockLedgerStore>();
+        services.AddSingleton<IStockLedger>(provider => provider.GetRequiredService<StockLedgerStore>());
+        services.AddSingleton<IInventoryProductLookup>(provider => provider.GetRequiredService<StockLedgerStore>());
 
         return services;
     }

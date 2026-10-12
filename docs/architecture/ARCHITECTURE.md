@@ -31,11 +31,11 @@ Keep module boundaries clear:
 Barcode values belong to Catalog. There is no separate Barcode module. Modules may share stable domain concepts, but do not duplicate them.
 
 ## Inventory
-Inventory owns areas, shelves, on-hand balances, and stock movements. See ADR-011. The design is approved and is not implemented.
+Inventory owns areas, shelves, on-hand balances, and stock movements. See ADR-011. The backend is implemented.
 
 An area contains shelves. Stock is stored per product and shelf. Catalog does not store that quantity. The movement ledger is append-only and explains every change. The stored balance is the current quantity for one product on one shelf. Both are written in one transaction. A failure rolls the whole operation back.
 
-The operation locks the affected balance rows in ascending shelf id order before it changes them. A shelf balance cannot go below zero. A transfer moves one positive quantity from one shelf to another and does not change the shop total. Opening stock and adjustments are movements. Damaged, expired, and missing are adjustment reasons. Purchasing and Sales are not part of this design.
+The operation locks the product row, records the client operation key, then locks the affected shelf rows and balance rows, in ascending shelf id order, before it changes them. Shelf soft-delete locks the shelf and rechecks stock history before it marks the shelf deleted. Area soft-delete locks the area and its shelves, then rechecks. Catalog soft-delete locks the product row before it marks the product deleted. A shelf balance cannot go below zero. A transfer moves one positive quantity from one shelf to another and does not change the shop total. Opening stock and adjustments are movements. Damaged, expired, and missing are adjustment reasons. An inactive shelf rejects inbound stock and allows a valid outbound movement. Purchasing and Sales are not part of this module.
 
 Shop-wide on-hand quantity is the sum of the product's shelf balances. Low stock compares that sum with Catalog `minimum_stock`.
 
@@ -50,4 +50,4 @@ See ADR-007.
 - `src/Api` — Web API composition host. References Application and Infrastructure.
 - `frontend` — Angular application.
 
-Catalog is implemented in Domain, Application, Infrastructure, and the API. Its schema script is `002_catalog.sql`. Do not edit `001_initial_identity.sql` or `002_catalog.sql`. Inventory is specified in ADR-011 and has no tables or code yet. Sales, purchases, and the Angular screens are not implemented. See ADR-009 and ADR-010.
+Catalog is implemented in Domain, Application, Infrastructure, and the API. Its schema script is `002_catalog.sql`. Inventory is implemented in the same layers. Its schema script is `003_inventory.sql`. Do not edit `001_initial_identity.sql`, `002_catalog.sql`, or `003_inventory.sql`. Sales, purchases, and the Angular screens are not implemented. See ADR-009, ADR-010, and ADR-011.

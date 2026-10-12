@@ -26,6 +26,15 @@ public sealed class CatalogDatabaseTests
     }
 
     [Fact]
+    public void Guard_rejects_other_databases_without_connecting()
+    {
+        Assert.Equal("retail360_catalog_test", CatalogDatabaseGuard.PermittedDatabase);
+        Assert.Throws<InvalidOperationException>(() => CatalogDatabaseGuard.Require("retail360"));
+        Assert.Throws<InvalidOperationException>(() => CatalogDatabaseGuard.Require("retail360_inventory_test"));
+        CatalogDatabaseGuard.Require(CatalogDatabaseGuard.PermittedDatabase);
+    }
+
+    [Fact]
     public async Task Runner_records_each_script_once_and_keeps_identity_roles()
     {
         await _database.Runner.ApplyAsync(CancellationToken.None);
@@ -33,7 +42,7 @@ public sealed class CatalogDatabaseTests
         await using var connection = await _database.OpenAsync();
         var versions = (await connection.QueryAsync<string>(
             "select version from schema_migrations order by version;")).ToArray();
-        Assert.Equal(["001_initial_identity", "002_catalog"], versions);
+        Assert.Equal(["001_initial_identity", "002_catalog", "003_inventory", "004_stock_operations"], versions);
 
         var roles = new ShopRoleQuery(_database.Connections);
         await roles.EnsureRequiredRolesAsync(CancellationToken.None);
@@ -340,8 +349,6 @@ public sealed class CatalogDatabaseTests
 
 public sealed class CatalogDatabaseFixture : IAsyncLifetime
 {
-    private const string TestDatabaseName = "retail360_catalog_test";
-
     public NpgsqlConnectionFactory Connections { get; private set; } = null!;
 
     public SqlMigrationRunner Runner { get; private set; } = null!;
@@ -355,8 +362,13 @@ public sealed class CatalogDatabaseFixture : IAsyncLifetime
             Database = "postgres"
         };
         await EnsureDatabaseAsync(builder.ConnectionString);
-        builder.Database = TestDatabaseName;
+        builder.Database = CatalogDatabaseGuard.PermittedDatabase;
         Connections = new NpgsqlConnectionFactory(builder.ConnectionString);
+        await using (var probe = await Connections.OpenConnectionAsync(CancellationToken.None))
+        {
+            CatalogDatabaseGuard.Require(await probe.ExecuteScalarAsync<string>("select current_database();"));
+        }
+
         Runner = new SqlMigrationRunner(Connections);
         await Runner.ApplyAsync(CancellationToken.None);
         await Runner.ApplyAsync(CancellationToken.None);
@@ -369,7 +381,9 @@ public sealed class CatalogDatabaseFixture : IAsyncLifetime
 
     public async Task<NpgsqlConnection> OpenAsync()
     {
-        return await Connections.OpenConnectionAsync(CancellationToken.None);
+        var connection = await Connections.OpenConnectionAsync(CancellationToken.None);
+        CatalogDatabaseGuard.Require(await connection.ExecuteScalarAsync<string>("select current_database();"));
+        return connection;
     }
 
     private static async Task EnsureDatabaseAsync(string adminConnectionString)
@@ -378,13 +392,13 @@ public sealed class CatalogDatabaseFixture : IAsyncLifetime
         await connection.OpenAsync();
         var exists = await connection.ExecuteScalarAsync<bool>(
             "select exists(select 1 from pg_database where datname = @Name);",
-            new { Name = TestDatabaseName });
+            new { Name = CatalogDatabaseGuard.PermittedDatabase });
         if (exists)
         {
             return;
         }
 
-        await connection.ExecuteAsync($"create database {TestDatabaseName};");
+        await connection.ExecuteAsync($"create database {CatalogDatabaseGuard.PermittedDatabase};");
     }
 
     private static string ReadShopConnectionString()

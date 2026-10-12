@@ -144,17 +144,17 @@ public sealed class ProductService
 
         if (await _units.FindAsync(unitId, cancellationToken) is null)
         {
-            throw new CatalogRuleException(CatalogRuleFailure.Invalid, "Unit was not found.");
+            throw new CatalogRuleException(CatalogRuleFailure.NotFound, "Unit was not found.");
         }
 
         if (categoryId is not null && await _categories.FindAsync(categoryId.Value, cancellationToken) is null)
         {
-            throw new CatalogRuleException(CatalogRuleFailure.Invalid, "Category was not found.");
+            throw new CatalogRuleException(CatalogRuleFailure.NotFound, "Category was not found.");
         }
 
         if (brandId is not null && await _brands.FindAsync(brandId.Value, cancellationToken) is null)
         {
-            throw new CatalogRuleException(CatalogRuleFailure.Invalid, "Brand was not found.");
+            throw new CatalogRuleException(CatalogRuleFailure.NotFound, "Brand was not found.");
         }
     }
 }

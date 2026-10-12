@@ -15,7 +15,7 @@ This document starts as a contract policy and becomes a concrete endpoint catalo
 Catalog failures return JSON `{ "error": "message" }`.
 
 - `400` invalid input
-- `404` missing record, including a deleted record
+- `404` missing record, including a deleted record. A product create or update that names a missing unit, category, or brand is 404.
 - `409` duplicate name or barcode, or a delete blocked by a product reference
 
 ## Lists
@@ -43,15 +43,32 @@ JSON property names are camelCase.
 The Web API enables OpenAPI in Development at `/swagger`. That UI is host tooling, not a second contract.
 
 ## Inventory
-The Inventory behavior below is approved and is not implemented. Routes, request bodies, response bodies, and status codes are not finalized. Do not treat this section as a callable contract.
+Inventory uses the same `{ "error": "message" }` body as Catalog. Invalid input is 400. A missing or soft-deleted area, shelf, or product is 404. A name conflict, a blocked delete, an inbound movement to an inactive shelf, and insufficient stock are 409. There is no update or delete route for a stock movement.
 
-When an Inventory API is designed, it must be able to:
+| Method | Route | Behavior |
+|---|---|---|
+| GET | `/api/areas` | List areas that are not soft-deleted. |
+| GET | `/api/areas/{id}` | Read one area. |
+| POST | `/api/areas` | Create an area from `{ "name" }`. Returns 201. |
+| PUT | `/api/areas/{id}` | Rename from `{ "name" }`. |
+| POST | `/api/areas/{id}/activate` | Set `isActive` to true. |
+| POST | `/api/areas/{id}/deactivate` | Set `isActive` to false. |
+| DELETE | `/api/areas/{id}` | Logical delete. Returns 204. Rejected while a non-deleted shelf, a balance, or a movement exists. |
+| GET | `/api/shelves?areaId=` | List shelves. `areaId` is optional. |
+| GET | `/api/shelves/{id}` | Read one shelf, including its area name. |
+| POST | `/api/shelves` | Create a shelf from `{ "areaId", "name" }`. Returns 201. |
+| PUT | `/api/shelves/{id}` | Rename from `{ "name" }`. |
+| POST | `/api/shelves/{id}/activate` | Set `isActive` to true. |
+| POST | `/api/shelves/{id}/deactivate` | Set `isActive` to false. Existing stock stays. |
+| DELETE | `/api/shelves/{id}` | Logical delete. Returns 204. Rejected when a balance or movement references the shelf. |
+| POST | `/api/inventory/opening` | `{ "operationId", "productId", "shelfId", "quantity", "reason" }`. `operationId` is a client-supplied UUID and is required. Quantity is strictly positive. Writes one inbound opening movement and updates the shelf balance. |
+| POST | `/api/inventory/adjustments` | `{ "operationId", "productId", "shelfId", "quantity", "reason" }`. `operationId` is required. Quantity is signed and must not be zero. A positive value increases stock. A negative value decreases it. The stored movement quantity is the absolute value with direction `in` or `out`. |
+| POST | `/api/inventory/transfers` | `{ "operationId", "productId", "sourceShelfId", "destinationShelfId", "quantity", "reason" }`. `operationId` is required. Quantity is strictly positive. Reason may be empty. Writes the outbound and inbound rows in one transaction. |
+| GET | `/api/inventory/balances?productId=&shelfId=` | Current shelf balances. Both filters are optional. |
+| GET | `/api/inventory/movements?productId=&shelfId=&limit=&offset=` | Movement history. Limit defaults to 50 and cannot exceed 200. |
+| GET | `/api/inventory/stock?status=&limit=&offset=` | Shop-wide on-hand quantity. `status` is `all`, `low`, or `out`. |
+| GET | `/api/inventory/reconciliation` | Rows whose stored balance does not equal inbound minus outbound history. An empty array means they match. |
 
-- Maintain areas and shelves, including activation and deactivation.
-- Record opening stock for a product on a shelf with a positive quantity and a required reason.
-- Record an adjustment with a required reason. Damaged, expired, and missing are reasons, not separate operations.
-- Transfer a positive quantity from one shelf to another without changing the shop total.
-- Read shelf balances, movement history, and shop-wide on-hand quantity.
-- Identify out-of-stock products and low-stock products from the shop-wide sum compared with Catalog `minimum_stock`.
+Repeating a stock request with the same `operationId` and the same payload returns the original movements and does not change stock again. The same `operationId` with a different payload is 409. A missing `operationId` is 400. Creating a shelf for a missing or soft-deleted area is 404.
 
-The same rules apply whatever routes are chosen later. A movement is not edited or deleted through the API. A correction is a new movement. A soft-deleted product is rejected. An inactive product may still be counted or adjusted. An inactive shelf must not receive a new stock movement. A location with a balance or movement history is not soft-deleted. A request that would make a shelf balance negative is rejected, including when two requests run together. Purchasing and Sales endpoints are not part of this contract.
+Opening and adjustment reasons are required and are at most 200 characters. `damaged`, `expired`, and `missing` are standard reasons. Other correction text is allowed. A soft-deleted product is rejected. An inactive product may still be adjusted. An inactive shelf rejects opening stock, a positive adjustment, and a transfer in. It allows a negative adjustment and a transfer out when the shelf still has enough stock. Reading an inactive shelf balance is allowed. Stock on an inactive shelf is included in the shop total. Out of stock means that total is zero. Low stock means the total is greater than zero and less than or equal to Catalog `minimum_stock`. A product with no balance rows is on hand zero. Purchasing and Sales endpoints are not part of this contract.
