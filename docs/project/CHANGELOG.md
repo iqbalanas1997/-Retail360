@@ -10,6 +10,13 @@ Use this file for meaningful project-level changes that affect future AI context
 - Documentation updated
 
 ## Entries
+### 2026-10-13 — Remaining review coverage
+- Shelf creation now has a lock-wait test: it blocks on the area row, then receives not-found after that area is soft-deleted, and no shelf row remains.
+- A rejected stock check now asserts that the failed `operationId` is absent from `stock_operations` and `stock_movements`.
+- `README.md` and `ARCHITECTURE.md` now describe `004_stock_operations.sql`, the operation-id retry rule, and that authentication is not implemented.
+- Impacted modules: Inventory.
+- Documentation updated: `README.md`, `ARCHITECTURE.md`, `CHANGELOG.md`.
+
 ### 2026-10-12 — Backend review remediation
 - Area soft-delete locks the area and its shelves, then rechecks shelves and stock history. Shelf creation locks the area. Balance reads keep stock visible if an area row is soft-deleted.
 - Stock opening, adjustment, and transfer require a client `operationId`. `004_stock_operations.sql` stores that key and its request fingerprint. A repeat returns the original movements. A different payload for the same key is a conflict. `001`, `002`, and `003` were not edited.

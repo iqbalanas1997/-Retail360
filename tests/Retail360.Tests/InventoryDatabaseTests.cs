@@ -410,6 +410,43 @@ public sealed class InventoryDatabaseTests
     }
 
     [Fact]
+    public async Task Shelf_create_waits_on_the_area_lock_and_rejects_a_deleted_area()
+    {
+        await _database.ResetAsync();
+        var graph = _database.CreateGraph();
+        var area = await graph.Areas.CreateAsync(new SaveAreaCommand("Front"), CancellationToken.None);
+
+        await using var holder = await _database.OpenAsync();
+        await using var gate = await holder.BeginTransactionAsync();
+        await holder.ExecuteAsync(
+            "select id from areas where id = @Id for update;",
+            new { Id = area.Id },
+            gate);
+
+        var create = graph.Shelves.CreateAsync(new SaveShelfCommand(area.Id, "A1"), CancellationToken.None);
+        await WaitForWaitingSessionsAsync(holder, gate, 1, areaRowLock: true);
+        await holder.ExecuteAsync(
+            "update areas set is_deleted = true, updated_at = now() where id = @Id;",
+            new { Id = area.Id },
+            gate);
+        await gate.CommitAsync();
+
+        var error = await Assert.ThrowsAsync<InventoryRuleException>(() => create);
+        Assert.Equal(InventoryRuleFailure.NotFound, error.Failure);
+        Assert.Equal("Area was not found.", error.Message);
+
+        await using var connection = await _database.OpenAsync();
+        var deleted = await connection.ExecuteScalarAsync<bool>(
+            "select is_deleted from areas where id = @Id;",
+            new { Id = area.Id });
+        var shelves = await connection.ExecuteScalarAsync<long>(
+            "select count(*) from shelves where area_id = @AreaId;",
+            new { AreaId = area.Id });
+        Assert.True(deleted);
+        Assert.Equal(0, shelves);
+    }
+
+    [Fact]
     public async Task Balance_queries_keep_stock_when_an_area_row_is_soft_deleted()
     {
         await _database.ResetAsync();
@@ -522,9 +559,10 @@ public sealed class InventoryDatabaseTests
         var setup = await graph.SeedProductAndShelfAsync("Rice", 1.000m, "Front", "A1");
         await graph.Stock.OpenAsync(new OpeningStockCommand(setup.ProductId, setup.ShelfId, 2.000m, "opening", Guid.NewGuid()), CancellationToken.None);
 
+        var operationId = Guid.NewGuid();
         var error = await Assert.ThrowsAsync<InventoryRuleException>(() => graph.Ledger.PostAsync(
             new StockPosting(
-                Guid.NewGuid(),
+                operationId,
                 "adjustment-without-reason",
                 setup.ProductId,
                 [new StockLine(setup.ShelfId, 1.000m, StockDirection.In, StockMovementType.Adjustment, "", null)],
@@ -535,6 +573,16 @@ public sealed class InventoryDatabaseTests
         Assert.Equal("The stock change was rejected.", error.Message);
         Assert.Equal(2.000m, await BalanceAsync(setup.ProductId, setup.ShelfId));
         Assert.Single(await graph.Stock.ListMovementsAsync(setup.ProductId, null, 50, 0, CancellationToken.None));
+
+        await using var connection = await _database.OpenAsync();
+        var operations = await connection.ExecuteScalarAsync<long>(
+            "select count(*) from stock_operations where id = @Id;",
+            new { Id = operationId });
+        var movements = await connection.ExecuteScalarAsync<long>(
+            "select count(*) from stock_movements where operation_id = @Id;",
+            new { Id = operationId });
+        Assert.Equal(0, operations);
+        Assert.Equal(0, movements);
     }
 
     [Fact]
@@ -652,20 +700,31 @@ public sealed class InventoryDatabaseTests
     private static async Task WaitForWaitingSessionsAsync(
         NpgsqlConnection connection,
         NpgsqlTransaction transaction,
-        int sessionCount)
+        int sessionCount,
+        bool areaRowLock = false)
     {
         var deadline = DateTime.UtcNow.AddSeconds(15);
         long waiting = 0;
         while (DateTime.UtcNow < deadline)
         {
             waiting = await connection.ExecuteScalarAsync<long>(
-                """
-                select count(distinct l.pid)
-                from pg_locks l
-                join pg_stat_activity a on a.pid = l.pid
-                where l.granted = false
-                  and a.datname = current_database();
-                """,
+                areaRowLock
+                    ? """
+                      select count(distinct a.pid)
+                      from pg_stat_activity a
+                      join pg_locks l on l.pid = a.pid
+                      where l.granted = false
+                        and a.datname = current_database()
+                        and a.query ilike '%from areas%'
+                        and a.query ilike '%for update%';
+                      """
+                    : """
+                      select count(distinct l.pid)
+                      from pg_locks l
+                      join pg_stat_activity a on a.pid = l.pid
+                      where l.granted = false
+                        and a.datname = current_database();
+                      """,
                 transaction: transaction);
             if (waiting >= sessionCount)
             {

@@ -65,4 +65,4 @@ Phase 0 — Foundation and architecture. The Catalog and Inventory backends are 
 - [ ] Audit log
 
 ## Current task
-Inventory and Catalog backend review fixes are in place: area deletion locks before it rechecks, stock posts require a client operation id, and catalog tests refuse any database other than `retail360_catalog_test`. Angular catalog and inventory screens are not started. Authentication is still not implemented. Sign-in and permission checks do not exist. Sales and Purchasing are not started.
+Inventory and Catalog backend review fixes are in place: area deletion locks before it rechecks, shelf creation waits on that same area lock, stock posts require a client operation id, and a failed post leaves no operation row. Catalog tests refuse any database other than `retail360_catalog_test`. Angular catalog and inventory screens are not started. Authentication is still not implemented. Sign-in and permission checks do not exist. Sales and Purchasing are not started.
