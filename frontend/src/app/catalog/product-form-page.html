@@ -1,0 +1,128 @@
+<p class="back"><a routerLink="/catalog/products">Back to products</a></p>
+
+@if (loading()) {
+  <p class="status">Loading product…</p>
+} @else if (loadFailed()) {
+  @if (error()) {
+    <p class="notice error" role="alert">{{ error() }}</p>
+  }
+  <button type="button" (click)="load()">Try again</button>
+} @else {
+  @if (error()) {
+    <p class="notice error" role="alert">{{ error() }}</p>
+  }
+  @if (success()) {
+    <p class="notice ok" role="status">{{ success() }}</p>
+  }
+  @if (!canWrite()) {
+    <p class="hint">You can view this product. Only an Admin or Manager can change it.</p>
+  }
+
+  <form class="form" [formGroup]="form" (ngSubmit)="save()">
+    <label>
+      Name
+      <input formControlName="name" maxlength="200" />
+    </label>
+    <label>
+      Unit
+      <select formControlName="unitId">
+        <option value="">Select a unit</option>
+        @for (unit of units(); track unit.id) {
+          <option [value]="unit.id">{{ unit.name }}</option>
+        }
+      </select>
+    </label>
+    @if (units().length === 0) {
+      <p class="hint">Create a unit before saving a product.</p>
+    }
+    <label>
+      Category
+      <select formControlName="categoryId">
+        <option value="">None</option>
+        @for (category of categories(); track category.id) {
+          <option [value]="category.id">{{ category.name }}</option>
+        }
+      </select>
+    </label>
+    <label>
+      Brand
+      <select formControlName="brandId">
+        <option value="">None</option>
+        @for (brand of brands(); track brand.id) {
+          <option [value]="brand.id">{{ brand.name }}</option>
+        }
+      </select>
+    </label>
+    <label>
+      Purchase price
+      <input formControlName="purchasePrice" inputmode="decimal" />
+    </label>
+    <label>
+      Selling price
+      <input formControlName="sellingPrice" inputmode="decimal" />
+    </label>
+    <label>
+      Minimum stock
+      <input formControlName="minimumStock" inputmode="decimal" />
+    </label>
+    <p class="hint">Prices use at most 2 decimal places. Minimum stock uses at most 3. Stock quantity is kept in Inventory.</p>
+
+    <fieldset>
+      <legend>Barcodes</legend>
+      @if (barcodes().length === 0) {
+        <p class="status">No barcodes yet.</p>
+      } @else {
+        <ul class="chips">
+          @for (barcode of barcodes(); track barcode) {
+            <li>
+              <span>{{ barcode }}</span>
+              @if (canWrite()) {
+                <button type="button" class="secondary" (click)="removeBarcode(barcode)">Remove</button>
+              }
+            </li>
+          }
+        </ul>
+      }
+      @if (canWrite()) {
+        <div class="inline">
+          <input
+            [value]="barcodeDraft()"
+            maxlength="128"
+            (input)="barcodeDraft.set(inputValue($event))"
+          />
+          <button type="button" class="secondary" (click)="addBarcode()">Add barcode</button>
+        </div>
+      }
+    </fieldset>
+
+    @if (canWrite()) {
+      <div class="actions">
+        <button type="submit" [disabled]="saving()">
+          {{ saving() ? 'Saving…' : 'Save product' }}
+        </button>
+        @if (product(); as current) {
+          @if (current.isActive) {
+            <button type="button" class="secondary" [disabled]="saving()" (click)="setOffered(false)">
+              Stop offering
+            </button>
+          } @else {
+            <button type="button" class="secondary" [disabled]="saving()" (click)="setOffered(true)">
+              Offer product
+            </button>
+          }
+          @if (!confirmDelete()) {
+            <button type="button" class="secondary" [disabled]="saving()" (click)="confirmDelete.set(true)">
+              Remove product
+            </button>
+          } @else {
+            <span class="confirm">
+              Remove {{ current.name }} from the catalog?
+              <button type="button" [disabled]="saving()" (click)="remove()">Remove</button>
+              <button type="button" class="secondary" (click)="confirmDelete.set(false)">Cancel</button>
+            </span>
+          }
+        }
+      </div>
+    }
+  </form>
+}

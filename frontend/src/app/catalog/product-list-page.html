@@ -1,0 +1,58 @@
+<form class="toolbar" [formGroup]="form" (ngSubmit)="reload()">
+  <label>
+    Search name
+    <input formControlName="name" />
+  </label>
+  <label class="check">
+    <input type="checkbox" formControlName="activeOnly" />
+    Offered products only
+  </label>
+  <button type="submit">Search</button>
+  @if (canWrite()) {
+    <a class="button" routerLink="/catalog/products/new">New product</a>
+  }
+</form>
+
+@if (error()) {
+  <p class="notice error" role="alert">{{ error() }}</p>
+}
+
+@if (loading()) {
+  <p class="status">Loading products…</p>
+} @else if (products().length === 0 && !error()) {
+  <p class="status">No products match this search.</p>
+} @else if (products().length > 0) {
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Unit</th>
+          <th>Selling price</th>
+          <th>Minimum stock</th>
+          <th>Barcodes</th>
+          <th>Offered</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        @for (product of products(); track product.id) {
+          <tr>
+            <td>{{ product.name }}</td>
+            <td>{{ product.unitName }}</td>
+            <td>{{ price(product.sellingPrice) }}</td>
+            <td>{{ stock(product.minimumStock) }}</td>
+            <td>{{ barcodes(product) }}</td>
+            <td>{{ product.isActive ? 'Yes' : 'No' }}</td>
+            <td><a [routerLink]="['/catalog/products', product.id]">Open</a></td>
+          </tr>
+        }
+      </tbody>
+    </table>
+  </div>
+  @if (hasMore()) {
+    <button type="button" class="secondary" [disabled]="loadingMore()" (click)="showMore()">
+      {{ loadingMore() ? 'Loading…' : 'Show more' }}
+    </button>
+  }
+}

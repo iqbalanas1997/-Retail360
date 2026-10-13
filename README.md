@@ -2,7 +2,7 @@
 
 Grocery shop management system for a small retail shop. The counter workflow is the priority: find a product, enter a quantity, review the cart, take payment, and show a receipt.
 
-The repository contains the foundation, the Catalog backend, and the Inventory backend. Catalog covers categories, brands, units, products, and barcodes. Inventory covers areas, shelves, shelf balances, and the append-only stock ledger. Sales, purchases, and the Angular screens are not implemented yet.
+The repository contains the foundation, the Catalog backend, the Inventory backend, and the first Angular screens. Catalog covers categories, brands, units, products, and barcodes. Inventory covers areas, shelves, shelf balances, and the append-only stock ledger. The Angular app has sign-in and Catalog screens. Inventory screens, sales, and purchases are not implemented yet.
 
 ## Stack
 
@@ -35,7 +35,9 @@ Dependency direction: API → Application → Domain, and Infrastructure → App
 
 ```powershell
 dotnet user-secrets set "ConnectionStrings:DefaultConnection" "Host=localhost;Port=5432;Database=retail360;Username=postgres;Password=<local-password>"
-$signingKey = [Convert]::ToBase64String([System.Security.Cryptography.RandomNumberGenerator]::GetBytes(32))
+$bytes = New-Object byte[] 32
+[System.Security.Cryptography.RandomNumberGenerator]::Create().GetBytes($bytes)
+$signingKey = [Convert]::ToBase64String($bytes)
 dotnet user-secrets set "Authentication:SigningKey" $signingKey
 ```
 
@@ -60,7 +62,7 @@ npm install
 npm start
 ```
 
-The UI is at [http://localhost:4200](http://localhost:4200).
+The UI is at [http://localhost:4200](http://localhost:4200). Sign in at [http://localhost:4200/login](http://localhost:4200/login) with the Admin created in step 4. The dev server proxies `/api` to `http://localhost:5117`. The API does not send CORS headers, so a browser on another origin cannot call it directly.
 
 ## Build
 
@@ -82,4 +84,4 @@ The existing Identity tables are kept. Seeded roles are Admin, Manager, Cashier,
 
 ## Current status
 
-Identity tables and the four shop roles are in place. Catalog and Inventory routes require a signed-in user. Admin and Manager can change the catalog. Admin, Manager, and Inventory Staff can change locations and stock. Cashier can read both. The Catalog API covers categories, brands, units, products, activation, deactivation, logical delete when the product has no stock history, and barcode lookup. The Inventory API covers areas, shelves, opening stock, adjustments, transfers, balances, movement history, low stock, and reconciliation. Opening stock, adjustments, and transfers require a client-generated `operationId`. `004_stock_operations.sql` stores that id and a fingerprint of the normalized payload in `stock_operations`. The same operation id and an equivalent payload return the original movements. The same id with a different payload returns HTTP 409. The migration runner applies `002_catalog.sql`, `003_inventory.sql`, `004_stock_operations.sql`, and `005_numeric_scale.sql`. Prices keep the `numeric(12,2)` limits and quantities keep the `numeric(14,3)` limits. Extra fractional digits are rejected. Product has no stock quantity. Authentication tests run with the solution suite against `retail360_identity_test`. This sign-in baseline is not a production identity platform: there is no multi-factor authentication, no external provider, and no permission table. The Angular screens are still to be built. See `docs/project/TASKS.md` for the task board.
+Identity tables and the four shop roles are in place. Catalog and Inventory routes require a signed-in user. Admin and Manager can change the catalog. Admin, Manager, and Inventory Staff can change locations and stock. Cashier can read both. The Catalog API covers categories, brands, units, products, activation, deactivation, logical delete when the product has no stock history, and barcode lookup. The Inventory API covers areas, shelves, opening stock, adjustments, transfers, balances, movement history, low stock, and reconciliation. Opening stock, adjustments, and transfers require a client-generated `operationId`. `004_stock_operations.sql` stores that id and a fingerprint of the normalized payload in `stock_operations`. The same operation id and an equivalent payload return the original movements. The same id with a different payload returns HTTP 409. The migration runner applies `002_catalog.sql`, `003_inventory.sql`, `004_stock_operations.sql`, and `005_numeric_scale.sql`. Prices keep the `numeric(12,2)` limits and quantities keep the `numeric(14,3)` limits. Extra fractional digits are rejected. Product has no stock quantity. Authentication tests run with the solution suite against `retail360_identity_test`. This sign-in baseline is not a production identity platform: there is no multi-factor authentication, no external provider, and no permission table. The Angular app has sign-in and Catalog screens for products, categories, brands, and units. Inventory is a navigation entry only. The access token from login is kept in `sessionStorage` until `expiresAt`, then removed. The password is not stored. There is no refresh token, and the API returns the token in JSON rather than an HttpOnly cookie, so this browser session is not a production-secure setup. See `docs/project/TASKS.md` for the task board.

@@ -1,0 +1,27 @@
+<div class="shell">
+  <aside class="sidebar">
+    <p class="brand">Retail360</p>
+    <p class="nav-label">Catalog</p>
+    <a routerLink="/catalog/products" routerLinkActive="active">Products</a>
+    <a routerLink="/catalog/categories" routerLinkActive="active">Categories</a>
+    <a routerLink="/catalog/brands" routerLinkActive="active">Brands</a>
+    <a routerLink="/catalog/units" routerLinkActive="active">Units</a>
+    <p class="nav-label">Inventory</p>
+    <a routerLink="/inventory" routerLinkActive="active">Inventory</a>
+  </aside>
+  <div class="workspace">
+    <header class="topbar">
+      <h1>{{ title() }}</h1>
+      <div class="user">
+        <span>{{ session.userName() }}</span>
+        @if (session.roles().length > 0) {
+          <span class="roles">{{ session.roles().join(', ') }}</span>
+        }
+        <button type="button" class="secondary" (click)="signOut()">Sign out</button>
+      </div>
+    </header>
+    <main class="page">
+      <router-outlet />
+    </main>
+  </div>
+</div>

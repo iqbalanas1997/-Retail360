@@ -2,7 +2,7 @@
 
 | Module | Purpose | Main concepts | Status |
 |---|---|---|---|
-| Catalog | Product master data | Product, Category, Brand, Unit, ProductBarcode, current prices, minimum-stock threshold | Backend implemented. Angular UI is not started. |
+| Catalog | Product master data | Product, Category, Brand, Unit, ProductBarcode, current prices, minimum-stock threshold | Backend implemented. Angular screens cover list, create, edit, barcodes, and category, brand, and unit names. |
 | Inventory | On-hand stock and locations | Area, Shelf, stock balance per product and shelf, append-only movement | Backend implemented in `003_inventory.sql`. No stock column on Product. Angular UI is not started. |
 | Sales | POS and sales history | Sale, SaleLine, Payment | Planned |
 | Purchasing | Supplier purchases | Purchase, PurchaseLine | Planned |
@@ -10,7 +10,7 @@
 | Customers | Customer records/receivables | Customer, CustomerPayment | Planned |
 | Expenses | Shop expenses | Expense, ExpenseCategory | Planned |
 | Reporting | Dashboard/reports | Sales/Purchase/Profit/Stock projections | Planned |
-| Identity | Users/roles | User, Role | Backend sign-in is in place on the existing Identity tables. JWT access tokens and role checks are implemented. Permission is not a table. Angular sign-in is not started. |
+| Identity | Users/roles | User, Role | Backend sign-in is in place on the existing Identity tables. JWT access tokens and role checks are implemented. Permission is not a table. Angular sign-in calls `POST /api/auth/login` and keeps the access token in `sessionStorage` until expiry. |
 | Audit | Important activity log | AuditEntry | Planned |
 
 ## Inventory scope

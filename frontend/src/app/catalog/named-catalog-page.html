@@ -1,0 +1,49 @@
+@if (error()) {
+  <p class="notice error" role="alert">{{ error() }}</p>
+}
+@if (success()) {
+  <p class="notice ok" role="status">{{ success() }}</p>
+}
+
+@if (canWrite()) {
+  <form class="toolbar" (ngSubmit)="create()">
+    <label>
+      New {{ singular() }}
+      <input [value]="newName()" maxlength="200" (input)="newName.set(inputValue($event))" />
+    </label>
+    <button type="submit" [disabled]="saving()">Add</button>
+  </form>
+}
+
+@if (loading()) {
+  <p class="status">Loading…</p>
+} @else if (items().length === 0 && !error()) {
+  <p class="status">No {{ plural() }} yet.</p>
+} @else if (items().length > 0) {
+  <ul class="name-list">
+    @for (item of items(); track item.id) {
+      <li>
+        <input
+          [value]="drafts()[item.id]"
+          maxlength="200"
+          [readOnly]="!canWrite()"
+          (input)="setDraft(item.id, inputValue($event))"
+        />
+        @if (canWrite()) {
+          <button type="button" class="secondary" [disabled]="saving()" (click)="save(item)">Save</button>
+          @if (pendingDelete() !== item.id) {
+            <button type="button" class="secondary" [disabled]="saving()" (click)="pendingDelete.set(item.id)">
+              Remove
+            </button>
+          } @else {
+            <span class="confirm">
+              Remove {{ item.name }}? This fails if a product still uses it.
+              <button type="button" [disabled]="saving()" (click)="remove(item)">Remove</button>
+              <button type="button" class="secondary" (click)="pendingDelete.set(null)">Cancel</button>
+            </span>
+          }
+        }
+      </li>
+    }
+  </ul>
+}
