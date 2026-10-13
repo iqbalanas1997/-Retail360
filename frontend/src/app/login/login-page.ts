@@ -26,6 +26,10 @@ export class LoginPage {
   });
 
   protected async submit(): Promise<void> {
+    if (this.submitting()) {
+      return;
+    }
+
     this.error.set('');
     if (this.form.invalid) {
       this.form.markAllAsTouched();

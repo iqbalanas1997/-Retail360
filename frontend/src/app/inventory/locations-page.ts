@@ -164,6 +164,10 @@ export class LocationsPage {
   }
 
   private async run(work: () => Promise<void>): Promise<void> {
+    if (this.saving()) {
+      return;
+    }
+
     this.error.set('');
     this.success.set('');
     this.saving.set(true);

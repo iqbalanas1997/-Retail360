@@ -85,3 +85,17 @@ export function writeStoredSession(session: ShopSession): void {
 export function clearStoredSession(): void {
   sessionStorage.removeItem(storageKey);
 }
+
+export function storedAccessToken(): string | null {
+  const raw = sessionStorage.getItem(storageKey);
+  if (!raw) {
+    return null;
+  }
+
+  try {
+    const parsed = JSON.parse(raw) as Partial<ShopSession>;
+    return typeof parsed.accessToken === 'string' ? parsed.accessToken : null;
+  } catch {
+    return null;
+  }
+}

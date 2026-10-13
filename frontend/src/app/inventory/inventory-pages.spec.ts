@@ -147,6 +147,82 @@ describe('inventory screens', () => {
     expect(fixture.nativeElement.textContent).toContain('Shelf does not have enough stock.');
     http.verify();
   });
+
+  it('ignores a second stock post while the first request is still running', async () => {
+    remember('Admin');
+    const fixture = create(StockPostPage);
+    const http = TestBed.inject(HttpTestingController);
+    http.expectOne('/api/products?activeOnly=false&limit=200&offset=0').flush([
+      { id: 'product-1', name: 'Rice', barcodes: ['RICE-5KG'] },
+    ]);
+    http.expectOne('/api/shelves').flush([
+      { id: 'shelf-1', areaId: 'area-1', areaName: 'Front', name: 'A1', isActive: true },
+    ]);
+    await fixture.whenStable();
+    fixture.detectChanges();
+
+    choose(fixture.nativeElement, 'productId', 'product-1');
+    choose(fixture.nativeElement, 'shelfId', 'shelf-1');
+    setQuantity(fixture.nativeElement, '2.000');
+    submit(fixture.nativeElement);
+    submit(fixture.nativeElement);
+
+    expect(http.match('/api/inventory/opening')).toHaveLength(1);
+  });
+
+  it('keeps the newer stock page when an older response arrives later', async () => {
+    remember('Admin');
+    const fixture = create(StockPage);
+    const http = TestBed.inject(HttpTestingController);
+    const first = http.expectOne('/api/inventory/stock?status=all&limit=50&offset=0');
+    submit(fixture.nativeElement);
+    const second = http.expectOne('/api/inventory/stock?status=all&limit=50&offset=0');
+    second.flush([
+      {
+        productId: 'product-1',
+        productName: 'Rice',
+        productIsActive: true,
+        onHand: 1.5,
+        minimumStock: 10,
+        status: 'low',
+      },
+    ]);
+    await turn();
+    fixture.detectChanges();
+    first.flush([]);
+    await turn();
+    fixture.detectChanges();
+
+    expect(fixture.nativeElement.textContent).toContain('Rice');
+    expect(fixture.nativeElement.textContent).toContain('Low stock');
+    expect(fixture.nativeElement.textContent).not.toContain('No stock rows match this search.');
+  });
+
+  it('searches catalog products by name for a stock post', async () => {
+    remember('Admin');
+    const fixture = create(StockPostPage);
+    const http = TestBed.inject(HttpTestingController);
+    http.expectOne('/api/products?activeOnly=false&limit=200&offset=0').flush([]);
+    http.expectOne('/api/shelves').flush([]);
+    await fixture.whenStable();
+    fixture.detectChanges();
+
+    const input = fixture.nativeElement.querySelector('.toolbar input') as HTMLInputElement;
+    input.value = 'Rice';
+    input.dispatchEvent(new Event('input'));
+    const find = [...fixture.nativeElement.querySelectorAll('button')].find(
+      (button: HTMLButtonElement) => button.textContent?.trim() === 'Find',
+    ) as HTMLButtonElement;
+    find.click();
+    const request = http.expectOne(
+      (candidate) => candidate.url.startsWith('/api/products') && candidate.params.get('name') === 'Rice',
+    );
+    request.flush([{ id: 'product-1', name: 'Rice', barcodes: ['RICE-5KG'] }]);
+    await fixture.whenStable();
+    fixture.detectChanges();
+
+    expect(fixture.nativeElement.textContent).toContain('Rice (RICE-5KG)');
+  });
 });
 
 function turn(): Promise<void> {

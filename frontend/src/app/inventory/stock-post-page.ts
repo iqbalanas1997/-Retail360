@@ -41,6 +41,9 @@ export class StockPostPage {
   protected readonly success = signal('');
   protected readonly products = signal<Product[]>([]);
   protected readonly shelves = signal<Shelf[]>([]);
+  protected readonly productQuery = signal('');
+  protected readonly finding = signal(false);
+  protected readonly productsTruncated = signal(false);
   protected readonly movements = signal<StockMovement[]>([]);
   protected readonly balances = signal<ShelfBalance[]>([]);
   protected readonly form = this.formBuilder.nonNullable.group({
@@ -96,6 +99,7 @@ export class StockPostPage {
         firstValueFrom(this.inventory.listShelves()),
       ]);
       this.products.set(products);
+      this.productsTruncated.set(products.length === 200);
       this.shelves.set(shelves);
     } catch (error) {
       this.loadFailed.set(true);
@@ -103,6 +107,38 @@ export class StockPostPage {
     } finally {
       this.loading.set(false);
     }
+  }
+
+  protected async findProducts(): Promise<void> {
+    if (this.finding() || this.saving()) {
+      return;
+    }
+
+    this.finding.set(true);
+    this.error.set('');
+    try {
+      const products = await firstValueFrom(
+        this.catalog.listProducts({
+          name: this.productQuery(),
+          activeOnly: false,
+          limit: 200,
+          offset: 0,
+        }),
+      );
+      const selected = this.products().find((product) => product.id === this.form.controls.productId.value);
+      const visible =
+        selected && !products.some((product) => product.id === selected.id) ? [selected, ...products] : products;
+      this.products.set(visible);
+      this.productsTruncated.set(products.length === 200);
+    } catch (error) {
+      this.error.set(error instanceof ApiError ? error.message : 'The request failed.');
+    } finally {
+      this.finding.set(false);
+    }
+  }
+
+  protected inputValue(event: Event): string {
+    return (event.target as HTMLInputElement).value;
   }
 
   protected async submit(): Promise<void> {

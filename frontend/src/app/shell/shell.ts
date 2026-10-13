@@ -1,4 +1,4 @@
-import { Component, inject } from '@angular/core';
+import { Component, effect, inject } from '@angular/core';
 import { toSignal } from '@angular/core/rxjs-interop';
 import { NavigationEnd, Router, RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
 import { filter, map, startWith } from 'rxjs';
@@ -13,6 +13,12 @@ import { SessionService } from '../core/session.service';
 export class Shell {
   private readonly router = inject(Router);
   protected readonly session = inject(SessionService);
+  private readonly leaveWhenSignedOut = effect(() => {
+    if (!this.session.hasSession()) {
+      void this.router.navigateByUrl('/login');
+    }
+  });
+
   protected readonly title = toSignal(
     this.router.events.pipe(
       filter((event) => event instanceof NavigationEnd),

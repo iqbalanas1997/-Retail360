@@ -10,6 +10,11 @@ Use this file for meaningful project-level changes that affect future AI context
 - Documentation updated
 
 ## Entries
+### 2026-10-14 — Frontend hardening
+- An open counter screen returns to sign-in when the access token expires. A second click does not send another sign-in, catalog save, or stock post while the first request is still running. A late stock or product list response does not replace a newer one. Opening stock, adjustments, and transfers can search catalog products by name.
+- Impacted modules: Identity, Catalog, Inventory.
+- Documentation updated: `README.md`, `TASKS.md`, `CHANGELOG.md`.
+
 ### 2026-10-14 — Inventory screens
 - Added Angular screens for stock, locations, opening stock, adjustments, and transfers. Stock posts keep one operation id for a retry of the same submission. Cashier can read stock and locations. Admin, Manager, and Inventory Staff can change them. The stock list has no product-name query, so the screen filters names in the loaded page.
 - Impacted modules: Inventory.

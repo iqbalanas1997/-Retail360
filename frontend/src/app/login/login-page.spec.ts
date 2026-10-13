@@ -45,6 +45,19 @@ describe('LoginPage', () => {
     expect(fixture.nativeElement.textContent).toContain('The user name or password is incorrect.');
     expect(sessionStorage.getItem('retail360.session')).toBeNull();
   });
+
+  it('sends one sign-in request when the button is clicked twice', () => {
+    const fixture = TestBed.createComponent(LoginPage);
+    fixture.detectChanges();
+    setInput(fixture.nativeElement, 'username', 'admin');
+    setInput(fixture.nativeElement, 'current-password', 'shop-secret');
+    submit(fixture.nativeElement);
+    submit(fixture.nativeElement);
+
+    const requests = TestBed.inject(HttpTestingController).match('/api/auth/login');
+    expect(requests).toHaveLength(1);
+    requests[0].flush({ error: 'The user name or password is incorrect.' }, { status: 401, statusText: 'Unauthorized' });
+  });
 });
 
 function setInput(root: HTMLElement, autocomplete: string, value: string): void {

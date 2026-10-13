@@ -20,6 +20,23 @@
     <p class="notice ok" role="status">{{ success() }}</p>
   }
 
+  <div class="toolbar">
+    <label>
+      Find product
+      <input
+        [value]="productQuery()"
+        (input)="productQuery.set(inputValue($event))"
+        (keydown.enter)="findProducts(); $event.preventDefault()"
+      />
+    </label>
+    <button type="button" class="secondary" [disabled]="finding() || saving()" (click)="findProducts()">
+      {{ finding() ? 'Finding…' : 'Find' }}
+    </button>
+  </div>
+  @if (productsTruncated()) {
+    <p class="hint">The catalog returned 200 products. Type a more specific name and find again.</p>
+  }
+
   <form class="form" [formGroup]="form" (ngSubmit)="submit()">
     <label>
       Product

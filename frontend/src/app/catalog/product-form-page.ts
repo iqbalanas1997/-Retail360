@@ -94,7 +94,7 @@ export class ProductFormPage {
       this.error.set(error instanceof ApiError ? error.message : 'The request failed.');
     } finally {
       const created = history.state as { success?: unknown } | null;
-      if (created && typeof created.success === 'string') {
+      if (!this.loadFailed() && created && typeof created.success === 'string') {
         this.success.set(created.success);
       }
       this.loading.set(false);
@@ -117,6 +117,10 @@ export class ProductFormPage {
   }
 
   protected async save(): Promise<void> {
+    if (this.saving()) {
+      return;
+    }
+
     this.error.set('');
     this.success.set('');
     let body: SaveProductBody;
@@ -152,7 +156,7 @@ export class ProductFormPage {
 
   protected async setOffered(active: boolean): Promise<void> {
     const existing = this.product();
-    if (!existing) {
+    if (!existing || this.saving()) {
       return;
     }
 
@@ -174,7 +178,7 @@ export class ProductFormPage {
 
   protected async remove(): Promise<void> {
     const existing = this.product();
-    if (!existing) {
+    if (!existing || this.saving()) {
       return;
     }
 

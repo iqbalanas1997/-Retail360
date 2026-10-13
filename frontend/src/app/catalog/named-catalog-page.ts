@@ -107,6 +107,10 @@ export class NamedCatalogPage {
   }
 
   private async run(work: () => Promise<void>): Promise<void> {
+    if (this.saving()) {
+      return;
+    }
+
     this.error.set('');
     this.success.set('');
     this.saving.set(true);

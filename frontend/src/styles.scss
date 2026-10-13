@@ -173,7 +173,8 @@ label {
 }
 
 .toolbar label {
-  min-width: 220px;
+  min-width: min(220px, 100%);
+  flex: 1 1 12rem;
 }
 
 .check {
@@ -224,6 +225,10 @@ td {
 .notice.ok {
   border-color: var(--green);
   color: var(--green);
+}
+
+.notice.error {
+  font-weight: 700;
 }
 
 .emphasis {

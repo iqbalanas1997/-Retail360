@@ -30,6 +30,7 @@ export class StockPage {
   protected readonly error = signal('');
   protected readonly balanceError = signal('');
   protected readonly hasMore = signal(false);
+  private loadGeneration = 0;
   protected readonly form = this.formBuilder.nonNullable.group({
     name: '',
     status: 'all',
@@ -65,19 +66,30 @@ export class StockPage {
   }
 
   protected async reload(): Promise<void> {
+    const generation = ++this.loadGeneration;
     this.loading.set(true);
+    this.loadingMore.set(false);
     this.error.set('');
     this.selectedId.set('');
     this.balances.set([]);
-    await this.load(0, false);
-    this.loading.set(false);
+    await this.load(0, false, generation);
+    if (generation === this.loadGeneration) {
+      this.loading.set(false);
+    }
   }
 
   protected async showMore(): Promise<void> {
+    if (this.loading() || this.loadingMore()) {
+      return;
+    }
+
+    const generation = this.loadGeneration;
     this.loadingMore.set(true);
     this.error.set('');
-    await this.load(this.rows().length, true);
-    this.loadingMore.set(false);
+    await this.load(this.rows().length, true, generation);
+    if (generation === this.loadGeneration) {
+      this.loadingMore.set(false);
+    }
   }
 
   protected async selectProduct(productId: string): Promise<void> {
@@ -94,14 +106,22 @@ export class StockPage {
     }
   }
 
-  private async load(offset: number, append: boolean): Promise<void> {
+  private async load(offset: number, append: boolean, generation: number): Promise<void> {
     try {
       const page = await firstValueFrom(
         this.api.listStock(this.form.controls.status.value, this.pageSize, offset),
       );
+      if (generation !== this.loadGeneration) {
+        return;
+      }
+
       this.rows.set(append ? [...this.rows(), ...page] : page);
       this.hasMore.set(page.length === this.pageSize);
     } catch (error) {
+      if (generation !== this.loadGeneration) {
+        return;
+      }
+
       this.error.set(error instanceof ApiError ? error.message : 'The request failed.');
       if (!append) {
         this.rows.set([]);

@@ -116,7 +116,7 @@
             </button>
           } @else {
             <span class="confirm">
-              Remove {{ current.name }} from the catalog?
+              Remove {{ current.name }} from the catalog? This fails if the product has stock history.
               <button type="button" [disabled]="saving()" (click)="remove()">Remove</button>
               <button type="button" class="secondary" (click)="confirmDelete.set(false)">Cancel</button>
             </span>

@@ -26,6 +26,7 @@ export class ProductListPage {
   protected readonly loadingMore = signal(false);
   protected readonly error = signal('');
   protected readonly hasMore = signal(false);
+  private loadGeneration = 0;
   protected readonly form = this.formBuilder.nonNullable.group({
     name: '',
     activeOnly: false,
@@ -48,28 +49,47 @@ export class ProductListPage {
   }
 
   protected async reload(): Promise<void> {
+    const generation = ++this.loadGeneration;
     this.loading.set(true);
+    this.loadingMore.set(false);
     this.error.set('');
-    await this.load(0, false);
-    this.loading.set(false);
+    await this.load(0, false, generation);
+    if (generation === this.loadGeneration) {
+      this.loading.set(false);
+    }
   }
 
   protected async showMore(): Promise<void> {
+    if (this.loading() || this.loadingMore()) {
+      return;
+    }
+
+    const generation = this.loadGeneration;
     this.loadingMore.set(true);
     this.error.set('');
-    await this.load(this.products().length, true);
-    this.loadingMore.set(false);
+    await this.load(this.products().length, true, generation);
+    if (generation === this.loadGeneration) {
+      this.loadingMore.set(false);
+    }
   }
 
-  private async load(offset: number, append: boolean): Promise<void> {
+  private async load(offset: number, append: boolean, generation: number): Promise<void> {
     const { name, activeOnly } = this.form.getRawValue();
     try {
       const page = await firstValueFrom(
         this.api.listProducts({ name, activeOnly, limit: this.pageSize, offset }),
       );
+      if (generation !== this.loadGeneration) {
+        return;
+      }
+
       this.products.set(append ? [...this.products(), ...page] : page);
       this.hasMore.set(page.length === this.pageSize);
     } catch (error) {
+      if (generation !== this.loadGeneration) {
+        return;
+      }
+
       this.error.set(error instanceof ApiError ? error.message : 'The request failed.');
       if (!append) {
         this.products.set([]);
