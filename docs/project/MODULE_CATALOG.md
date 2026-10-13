@@ -3,7 +3,7 @@
 | Module | Purpose | Main concepts | Status |
 |---|---|---|---|
 | Catalog | Product master data | Product, Category, Brand, Unit, ProductBarcode, current prices, minimum-stock threshold | Backend implemented. Angular screens cover list, create, edit, barcodes, and category, brand, and unit names. |
-| Inventory | On-hand stock and locations | Area, Shelf, stock balance per product and shelf, append-only movement | Backend implemented in `003_inventory.sql`. No stock column on Product. Angular UI is not started. |
+| Inventory | On-hand stock and locations | Area, Shelf, stock balance per product and shelf, append-only movement | Backend implemented in `003_inventory.sql`. No stock column on Product. Angular screens cover stock, locations, opening stock, adjustments, and transfers. |
 | Sales | POS and sales history | Sale, SaleLine, Payment | Planned |
 | Purchasing | Supplier purchases | Purchase, PurchaseLine | Planned |
 | Suppliers | Supplier records/payables | Supplier, SupplierPayment | Planned |

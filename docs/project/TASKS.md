@@ -1,7 +1,7 @@
 # Project Task Board
 
 ## Current phase
-Phase 0 — Foundation and architecture. The Catalog and Inventory backends are implemented and verified. Angular sign-in and Catalog screens are in place. Inventory screens are not started.
+Phase 0 — Foundation and architecture. The Catalog and Inventory backends are implemented and verified. Angular sign-in, Catalog screens, and Inventory screens are in place. Sales and Purchasing screens are not started.
 
 ## Rules
 - Only one primary task should be actively implemented at a time unless parallel work is explicitly planned.
@@ -28,7 +28,7 @@ Phase 0 — Foundation and architecture. The Catalog and Inventory backends are 
 - [x] Unit
 - [x] Barcode
 - [x] Verify the Catalog backend: build, automated tests, and migration repeatability
-- [x] Catalog screens for products, categories, brands, and units. Inventory, Sales, and Purchasing screens are not started.
+- [x] Catalog screens for products, categories, brands, and units. Sales and Purchasing screens are not started.
 
 ### Inventory
 - [x] Record the approved design: shelf balances, append-only movements, opening stock, adjustments, transfers, and shop-wide low stock.
@@ -40,6 +40,7 @@ Phase 0 — Foundation and architecture. The Catalog and Inventory backends are 
 - [x] Add a new SQL migration. Do not edit `001_initial_identity.sql` or `002_catalog.sql`.
 - [x] Add domain tests, service tests, and PostgreSQL tests on an isolated database.
 - [x] Add the reconciliation check that stored balances match movement history.
+- [x] Inventory screens for stock, locations, opening stock, adjustments, and transfers. Sales and Purchasing screens are not started.
 
 ### Sales / POS
 - [ ] Product scan/search
@@ -65,4 +66,4 @@ Phase 0 — Foundation and architecture. The Catalog and Inventory backends are 
 - [ ] Audit log
 
 ## Current task
-Inventory and Catalog backend review fixes are in place: area deletion locks before it rechecks, shelf creation waits on that same area lock, stock posts require a client operation id, and a failed post leaves no operation row. `005_numeric_scale.sql` rejects extra fractional digits instead of rounding them. A product with stock history cannot be soft-deleted. Catalog tests refuse any database other than `retail360_catalog_test`. Sign-in is a JWT baseline with failed-attempt lockout. Catalog and Inventory routes require a shop role. Angular sign-in and Catalog screens are in place. Inventory screens are not started. Sales and Purchasing are not started.
+Inventory and Catalog backend review fixes are in place: area deletion locks before it rechecks, shelf creation waits on that same area lock, stock posts require a client operation id, and a failed post leaves no operation row. `005_numeric_scale.sql` rejects extra fractional digits instead of rounding them. A product with stock history cannot be soft-deleted. Catalog tests refuse any database other than `retail360_catalog_test`. Sign-in is a JWT baseline with failed-attempt lockout. Catalog and Inventory routes require a shop role. Angular sign-in, Catalog screens, and Inventory screens are in place. The stock list has no product-name query, so the stock screen filters names in the loaded page. Sales and Purchasing are not started.

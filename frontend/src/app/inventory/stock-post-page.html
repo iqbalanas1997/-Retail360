@@ -1,0 +1,121 @@
+<p class="back"><a routerLink="/inventory/stock">Back to stock</a></p>
+
+@if (!canManage()) {
+  <p class="hint">You can view stock. Only an Admin, Manager, or Inventory Staff member can change it.</p>
+} @else if (loading()) {
+  <p class="status">Loading stock form…</p>
+} @else if (loadFailed()) {
+  @if (error()) {
+    <p class="notice error" role="alert">{{ error() }}</p>
+  }
+  <button type="button" (click)="load()">Try again</button>
+} @else {
+  @if (error()) {
+    <p class="notice error" role="alert">{{ error() }}</p>
+  }
+  @if (retryHint()) {
+    <p class="hint">{{ retryHint() }}</p>
+  }
+  @if (success()) {
+    <p class="notice ok" role="status">{{ success() }}</p>
+  }
+
+  <form class="form" [formGroup]="form" (ngSubmit)="submit()">
+    <label>
+      Product
+      <select formControlName="productId">
+        <option value="">Select a product</option>
+        @for (product of products(); track product.id) {
+          <option [value]="product.id">{{ productLabel(product) }}</option>
+        }
+      </select>
+    </label>
+
+    @if (mode() === 'transfer') {
+      <label>
+        Source shelf
+        <select formControlName="sourceShelfId">
+          <option value="">Select a shelf</option>
+          @for (shelf of shelves(); track shelf.id) {
+            <option [value]="shelf.id">{{ shelfLabel(shelf) }}</option>
+          }
+        </select>
+      </label>
+      <label>
+        Destination shelf
+        <select formControlName="destinationShelfId">
+          <option value="">Select a shelf</option>
+          @for (shelf of shelves(); track shelf.id) {
+            <option [value]="shelf.id">{{ shelfLabel(shelf) }}</option>
+          }
+        </select>
+      </label>
+    } @else {
+      <label>
+        Shelf
+        <select formControlName="shelfId">
+          <option value="">Select a shelf</option>
+          @for (shelf of shelves(); track shelf.id) {
+            <option [value]="shelf.id">{{ shelfLabel(shelf) }}</option>
+          }
+        </select>
+      </label>
+    }
+
+    <label>
+      {{ quantityLabel() }}
+      <input formControlName="quantity" inputmode="decimal" />
+    </label>
+    @if (mode() === 'adjustment') {
+      <p class="hint">Use a positive quantity to add stock and a negative quantity to remove it. At most 3 decimal places.</p>
+      <label>
+        Reason
+        <select formControlName="reasonChoice">
+          <option value="damaged">Damaged</option>
+          <option value="expired">Expired</option>
+          <option value="missing">Missing</option>
+          <option value="other">Other</option>
+        </select>
+      </label>
+      @if (form.controls.reasonChoice.value === 'other') {
+        <label>
+          Other reason
+          <input formControlName="reasonText" maxlength="200" />
+        </label>
+      }
+    } @else if (mode() === 'opening') {
+      <p class="hint">Quantity must be greater than zero, with at most 3 decimal places. An inactive shelf cannot receive stock.</p>
+      <label>
+        Reason
+        <input formControlName="reasonText" maxlength="200" />
+      </label>
+    } @else {
+      <p class="hint">Quantity must be greater than zero, with at most 3 decimal places. Reason can be left blank.</p>
+      <label>
+        Reason
+        <input formControlName="reasonText" maxlength="200" />
+      </label>
+    }
+
+    <button type="submit" [disabled]="saving()">
+      {{ saving() ? 'Saving…' : 'Save stock' }}
+    </button>
+  </form>
+
+  @if (balances().length > 0) {
+    <h2>Balance</h2>
+    <ul class="name-list">
+      @for (balance of balances(); track balance.shelfId) {
+        <li>{{ balance.areaName }} / {{ balance.shelfName }}: {{ quantity(balance.quantity) }}</li>
+      }
+    </ul>
+  }
+  @if (movements().length > 0) {
+    <h2>Movements</h2>
+    <ul class="name-list">
+      @for (movement of movements(); track movement.id) {
+        <li>{{ movement.movementType }} {{ movement.direction }} {{ quantity(movement.quantity) }}</li>
+      }
+    </ul>
+  }
+}

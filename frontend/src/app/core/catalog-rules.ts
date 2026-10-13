@@ -16,11 +16,27 @@ export function parseName(raw: string): string {
 }
 
 export function parsePrice(raw: string): number {
-  return parseScaled(raw, 2, MAX_PRICE_TEXT, PRICE_MESSAGE);
+  return parseScaledAmount(raw, 2, MAX_PRICE_TEXT, PRICE_MESSAGE);
 }
 
 export function parseMinimumStock(raw: string): number {
-  return parseScaled(raw, 3, MAX_QUANTITY_TEXT, QUANTITY_MESSAGE);
+  return parseScaledAmount(raw, 3, MAX_QUANTITY_TEXT, QUANTITY_MESSAGE);
+}
+
+export function parseScaledAmount(raw: string, scale: number, maximum: string, message: string): number {
+  const digits = scaledDigits(raw.trim(), scale);
+  const limit = scaledDigits(maximum, scale);
+  if (digits === null || limit === null || compareDigits(digits, limit) > 0) {
+    throw new Error(message);
+  }
+
+  const value = Number(raw.trim());
+  const roundTrip = scaledDigits(JSON.stringify(value), scale);
+  if (!Number.isFinite(value) || roundTrip !== digits) {
+    throw new Error(message);
+  }
+
+  return value;
 }
 
 export function parseBarcodes(raw: readonly string[]): string[] {
@@ -60,22 +76,6 @@ export function formatScaled(value: number, scale: number): string {
   const whole = digits.slice(0, -scale) || '0';
   const fraction = digits.slice(-scale);
   return `${whole}.${fraction}`;
-}
-
-function parseScaled(raw: string, scale: number, maximum: string, message: string): number {
-  const digits = scaledDigits(raw.trim(), scale);
-  const limit = scaledDigits(maximum, scale);
-  if (digits === null || limit === null || compareDigits(digits, limit) > 0) {
-    throw new Error(message);
-  }
-
-  const value = Number(raw.trim());
-  const roundTrip = scaledDigits(JSON.stringify(value), scale);
-  if (!Number.isFinite(value) || roundTrip !== digits) {
-    throw new Error(message);
-  }
-
-  return value;
 }
 
 function scaledDigits(text: string, scale: number): string | null {

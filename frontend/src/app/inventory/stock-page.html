@@ -1,0 +1,98 @@
+<form class="toolbar" [formGroup]="form" (ngSubmit)="reload()">
+  <label>
+    Search loaded products
+    <input formControlName="name" />
+  </label>
+  <label>
+    Stock status
+    <select formControlName="status">
+      <option value="all">All</option>
+      <option value="low">Low stock</option>
+      <option value="out">Out of stock</option>
+    </select>
+  </label>
+  <button type="submit">Search</button>
+  @if (canManage()) {
+    <a class="button" routerLink="/inventory/opening">Opening stock</a>
+  }
+</form>
+<p class="hint">Search checks product names in the rows loaded from the stock list. That list has no name filter.</p>
+
+@if (error()) {
+  <p class="notice error" role="alert">{{ error() }}</p>
+}
+
+@if (loading()) {
+  <p class="status">Loading stock…</p>
+} @else if (visibleRows().length === 0 && !error()) {
+  <p class="status">No stock rows match this search.</p>
+} @else if (visibleRows().length > 0) {
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>Product</th>
+          <th>On hand</th>
+          <th>Minimum</th>
+          <th>Status</th>
+          <th>Offered</th>
+        </tr>
+      </thead>
+      <tbody>
+        @for (row of visibleRows(); track row.productId) {
+          <tr>
+            <td>
+              <button type="button" class="secondary" (click)="selectProduct(row.productId)">
+                {{ row.productName }}
+              </button>
+            </td>
+            <td>{{ quantity(row.onHand) }}</td>
+            <td>{{ quantity(row.minimumStock) }}</td>
+            <td [class.emphasis]="row.status === 'low' || row.status === 'out'">{{ statusLabel(row.status) }}</td>
+            <td>{{ row.productIsActive ? 'Yes' : 'No' }}</td>
+          </tr>
+        }
+      </tbody>
+    </table>
+  </div>
+  @if (hasMore()) {
+    <button type="button" class="secondary" [disabled]="loadingMore()" (click)="showMore()">
+      {{ loadingMore() ? 'Loading…' : 'Show more' }}
+    </button>
+  }
+}
+
+@if (selectedId()) {
+  <h2>Shelf balances</h2>
+  @if (balanceError()) {
+    <p class="notice error" role="alert">{{ balanceError() }}</p>
+  }
+  @if (loadingBalances()) {
+    <p class="status">Loading shelf balances…</p>
+  } @else if (balances().length === 0 && !balanceError()) {
+    <p class="status">No shelf balance for this product.</p>
+  } @else if (balances().length > 0) {
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Area</th>
+            <th>Shelf</th>
+            <th>Quantity</th>
+            <th>Shelf active</th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (balance of balances(); track balance.shelfId) {
+            <tr>
+              <td>{{ balance.areaName }}</td>
+              <td>{{ balance.shelfName }}</td>
+              <td>{{ quantity(balance.quantity) }}</td>
+              <td>{{ balance.shelfIsActive ? 'Yes' : 'No' }}</td>
+            </tr>
+          }
+        </tbody>
+      </table>
+    </div>
+  }
+}

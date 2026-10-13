@@ -18,6 +18,9 @@ export class SessionService {
   readonly canWriteCatalog = computed(() =>
     this.roles().some((role) => role === 'Admin' || role === 'Manager'),
   );
+  readonly canManageInventory = computed(() =>
+    this.roles().some((role) => role === 'Admin' || role === 'Manager' || role === 'Inventory Staff'),
+  );
 
   isSignedIn(): boolean {
     return this.accessToken() !== null;

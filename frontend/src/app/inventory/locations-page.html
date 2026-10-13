@@ -1,0 +1,118 @@
+@if (error()) {
+  <p class="notice error" role="alert">{{ error() }}</p>
+}
+@if (success()) {
+  <p class="notice ok" role="status">{{ success() }}</p>
+}
+@if (!canManage()) {
+  <p class="hint">You can view locations. Only an Admin, Manager, or Inventory Staff member can change them.</p>
+}
+
+@if (canManage()) {
+  <form class="toolbar" (ngSubmit)="createArea()">
+    <label>
+      New area
+      <input [value]="newArea()" maxlength="200" (input)="newArea.set(inputValue($event))" />
+    </label>
+    <button type="submit" [disabled]="saving()">Add area</button>
+  </form>
+}
+
+@if (loading()) {
+  <p class="status">Loading locations…</p>
+} @else if (areas().length === 0 && !error()) {
+  <p class="status">No areas yet.</p>
+} @else if (areas().length > 0) {
+  <ul class="name-list">
+    @for (area of areas(); track area.id) {
+      <li>
+        <button type="button" class="secondary" (click)="chooseArea(area.id)">
+          {{ area.name }}{{ area.id === selectedAreaId() ? ' (selected)' : '' }}
+        </button>
+        <input
+          [value]="areaDrafts()[area.id]"
+          maxlength="200"
+          [readOnly]="!canManage()"
+          (input)="setAreaDraft(area.id, inputValue($event))"
+        />
+        <span>{{ area.isActive ? 'Active' : 'Inactive' }}</span>
+        @if (canManage()) {
+          <button type="button" class="secondary" [disabled]="saving()" (click)="saveArea(area)">Save</button>
+          @if (area.isActive) {
+            <button type="button" class="secondary" [disabled]="saving()" (click)="setAreaActive(area, false)">
+              Deactivate
+            </button>
+          } @else {
+            <button type="button" class="secondary" [disabled]="saving()" (click)="setAreaActive(area, true)">
+              Activate
+            </button>
+          }
+          @if (pendingDelete() !== area.id) {
+            <button type="button" class="secondary" [disabled]="saving()" (click)="pendingDelete.set(area.id)">
+              Remove
+            </button>
+          } @else {
+            <span class="confirm">
+              Remove {{ area.name }}? This fails if a shelf or stock history remains.
+              <button type="button" [disabled]="saving()" (click)="removeArea(area)">Remove</button>
+              <button type="button" class="secondary" (click)="pendingDelete.set('')">Cancel</button>
+            </span>
+          }
+        }
+      </li>
+    }
+  </ul>
+
+  <h2>Shelves</h2>
+  @if (canManage()) {
+    <form class="toolbar" (ngSubmit)="createShelf()">
+      <label>
+        New shelf
+        <input [value]="newShelf()" maxlength="200" (input)="newShelf.set(inputValue($event))" />
+      </label>
+      <button type="submit" [disabled]="saving()">Add shelf</button>
+    </form>
+  }
+  @if (loadingShelves()) {
+    <p class="status">Loading shelves…</p>
+  } @else if (shelves().length === 0) {
+    <p class="status">No shelves in this area.</p>
+  } @else {
+    <ul class="name-list">
+      @for (shelf of shelves(); track shelf.id) {
+        <li>
+          <input
+            [value]="shelfDrafts()[shelf.id]"
+            maxlength="200"
+            [readOnly]="!canManage()"
+            (input)="setShelfDraft(shelf.id, inputValue($event))"
+          />
+          <span>{{ shelf.isActive ? 'Active' : 'Inactive' }}</span>
+          @if (canManage()) {
+            <button type="button" class="secondary" [disabled]="saving()" (click)="saveShelf(shelf)">Save</button>
+            @if (shelf.isActive) {
+              <button type="button" class="secondary" [disabled]="saving()" (click)="setShelfActive(shelf, false)">
+                Deactivate
+              </button>
+            } @else {
+              <button type="button" class="secondary" [disabled]="saving()" (click)="setShelfActive(shelf, true)">
+                Activate
+              </button>
+            }
+            @if (pendingDelete() !== shelf.id) {
+              <button type="button" class="secondary" [disabled]="saving()" (click)="pendingDelete.set(shelf.id)">
+                Remove
+              </button>
+            } @else {
+              <span class="confirm">
+                Remove {{ shelf.name }}? This fails if stock history remains.
+                <button type="button" [disabled]="saving()" (click)="removeShelf(shelf)">Remove</button>
+                <button type="button" class="secondary" (click)="pendingDelete.set('')">Cancel</button>
+              </span>
+            }
+          }
+        </li>
+      }
+    </ul>
+  }
+}

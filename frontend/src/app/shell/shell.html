@@ -7,7 +7,13 @@
     <a routerLink="/catalog/brands" routerLinkActive="active">Brands</a>
     <a routerLink="/catalog/units" routerLinkActive="active">Units</a>
     <p class="nav-label">Inventory</p>
-    <a routerLink="/inventory" routerLinkActive="active">Inventory</a>
+    <a routerLink="/inventory/stock" routerLinkActive="active">Stock</a>
+    <a routerLink="/inventory/locations" routerLinkActive="active">Locations</a>
+    @if (session.canManageInventory()) {
+      <a routerLink="/inventory/opening" routerLinkActive="active">Opening</a>
+      <a routerLink="/inventory/adjustments" routerLinkActive="active">Adjust</a>
+      <a routerLink="/inventory/transfers" routerLinkActive="active">Transfer</a>
+    }
   </aside>
   <div class="workspace">
     <header class="topbar">

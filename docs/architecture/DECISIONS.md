@@ -108,7 +108,7 @@ Price scale, minimum-stock scale, and optional category and brand are approved. 
 ## ADR-011 — Inventory ledger and shelf balances
 Status: Accepted
 
-Inventory owns on-hand quantities, shelf locations, and the history of stock changes. Catalog keeps product identity, barcodes, current prices, and `minimum_stock`. The backend is implemented in `003_inventory.sql` and the Inventory API. Purchasing, Sales, and Inventory screens are not implemented.
+Inventory owns on-hand quantities, shelf locations, and the history of stock changes. Catalog keeps product identity, barcodes, current prices, and `minimum_stock`. The backend is implemented in `003_inventory.sql` and the Inventory API. Angular screens cover stock, locations, opening stock, adjustments, and transfers. Purchasing and Sales are not implemented.
 
 ### Location
 The shop is one shop. Branches are out of scope. An area contains shelves, and a shelf belongs to one area. Stock is kept per product and shelf. A product may be on more than one shelf. Transfers between shelves are part of Inventory. Product does not gain a stock quantity or a shelf column.

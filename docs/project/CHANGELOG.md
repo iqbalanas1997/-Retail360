@@ -10,6 +10,11 @@ Use this file for meaningful project-level changes that affect future AI context
 - Documentation updated
 
 ## Entries
+### 2026-10-14 — Inventory screens
+- Added Angular screens for stock, locations, opening stock, adjustments, and transfers. Stock posts keep one operation id for a retry of the same submission. Cashier can read stock and locations. Admin, Manager, and Inventory Staff can change them. The stock list has no product-name query, so the screen filters names in the loaded page.
+- Impacted modules: Inventory.
+- Documentation updated: `README.md`, `ARCHITECTURE.md`, `DECISIONS.md`, `MODULE_CATALOG.md`, `TASKS.md`, `CHANGELOG.md`.
+
 ### 2026-10-14 — Catalog screens
 - Added Angular sign-in and Catalog screens for products, categories, brands, and units. The dev server proxies `/api` because the API does not send CORS headers. The access token stays in `sessionStorage` until expiry. Inventory screens are not included.
 - Impacted modules: Catalog, Identity.

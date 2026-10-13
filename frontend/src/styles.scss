@@ -226,6 +226,15 @@ td {
   color: var(--green);
 }
 
+.emphasis {
+  font-weight: 700;
+}
+
+h2 {
+  margin: 1.25rem 0 0.5rem;
+  font-size: 1.1rem;
+}
+
 .name-list,
 .chips {
   list-style: none;
