@@ -1,10 +1,13 @@
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Retail360.Api.Identity;
 using Retail360.Application.Inventory;
 using Retail360.Domain.Inventory;
 
 namespace Retail360.Api.Inventory;
 
 [ApiController]
+[Authorize(Policy = ShopPolicies.InventoryRead)]
 [Route("api/inventory")]
 public sealed class InventoryController : ControllerBase
 {
@@ -15,6 +18,7 @@ public sealed class InventoryController : ControllerBase
         _stock = stock;
     }
 
+    [Authorize(Policy = ShopPolicies.InventoryManage)]
     [HttpPost("opening")]
     public async Task<ActionResult<IReadOnlyList<StockMovementResponse>>> Open(
         OpeningStockCommand command,
@@ -24,6 +28,7 @@ public sealed class InventoryController : ControllerBase
         return Ok(await _stock.OpenAsync(command, cancellationToken));
     }
 
+    [Authorize(Policy = ShopPolicies.InventoryManage)]
     [HttpPost("adjustments")]
     public async Task<ActionResult<IReadOnlyList<StockMovementResponse>>> Adjust(
         AdjustmentCommand command,
@@ -33,6 +38,7 @@ public sealed class InventoryController : ControllerBase
         return Ok(await _stock.AdjustAsync(command, cancellationToken));
     }
 
+    [Authorize(Policy = ShopPolicies.InventoryManage)]
     [HttpPost("transfers")]
     public async Task<ActionResult<IReadOnlyList<StockMovementResponse>>> Transfer(
         TransferCommand command,

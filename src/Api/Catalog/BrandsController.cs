@@ -1,10 +1,13 @@
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Retail360.Api.Identity;
 using Retail360.Application.Catalog;
 using Retail360.Domain.Catalog;
 
 namespace Retail360.Api.Catalog;
 
 [ApiController]
+[Authorize(Policy = ShopPolicies.CatalogRead)]
 [Route("api/brands")]
 public sealed class BrandsController : ControllerBase
 {
@@ -27,6 +30,7 @@ public sealed class BrandsController : ControllerBase
         return Ok(await _brands.GetAsync(id, cancellationToken));
     }
 
+    [Authorize(Policy = ShopPolicies.CatalogWrite)]
     [HttpPost]
     public async Task<ActionResult<NamedCatalogResponse>> Create(
         SaveNameCommand command,
@@ -37,6 +41,7 @@ public sealed class BrandsController : ControllerBase
         return CreatedAtAction(nameof(Get), new { id = created.Id }, created);
     }
 
+    [Authorize(Policy = ShopPolicies.CatalogWrite)]
     [HttpPut("{id:guid}")]
     public async Task<ActionResult<NamedCatalogResponse>> Update(
         Guid id,
@@ -47,6 +52,7 @@ public sealed class BrandsController : ControllerBase
         return Ok(await _brands.UpdateAsync(id, command, cancellationToken));
     }
 
+    [Authorize(Policy = ShopPolicies.CatalogWrite)]
     [HttpDelete("{id:guid}")]
     public async Task<IActionResult> Delete(Guid id, CancellationToken cancellationToken)
     {

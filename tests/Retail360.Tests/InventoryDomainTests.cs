@@ -63,6 +63,10 @@ public class InventoryDomainTests
         Assert.Equal((1.250m, StockDirection.In), inbound);
         Assert.Equal((2.000m, StockDirection.Out), outbound);
         Assert.Equal(InventoryRuleFailure.Invalid, zero.Failure);
+        Assert.Equal(InventoryText.MaxQuantity, InventoryText.RequirePositiveQuantity(InventoryText.MaxQuantity));
+        Assert.Throws<InventoryRuleException>(() =>
+            InventoryText.RequirePositiveQuantity(InventoryText.MaxQuantity + 0.001m));
+        Assert.Throws<InventoryRuleException>(() => InventoryText.SplitSignedQuantity(-1.2345m));
         Assert.Equal("damaged", InventoryText.Damaged);
         Assert.Equal("expired", InventoryText.Expired);
         Assert.Equal("missing", InventoryText.Missing);

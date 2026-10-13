@@ -1,4 +1,6 @@
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Retail360.Api.Identity;
 using Retail360.Application.Catalog;
 using Retail360.Application.Inventory;
 using Retail360.Domain.Inventory;
@@ -6,6 +8,7 @@ using Retail360.Domain.Inventory;
 namespace Retail360.Api.Inventory;
 
 [ApiController]
+[Authorize(Policy = ShopPolicies.InventoryRead)]
 [Route("api/shelves")]
 public sealed class ShelvesController : ControllerBase
 {
@@ -30,6 +33,7 @@ public sealed class ShelvesController : ControllerBase
         return Ok(await _shelves.GetAsync(id, cancellationToken));
     }
 
+    [Authorize(Policy = ShopPolicies.InventoryManage)]
     [HttpPost]
     public async Task<ActionResult<ShelfResponse>> Create(SaveShelfCommand command, CancellationToken cancellationToken)
     {
@@ -38,6 +42,7 @@ public sealed class ShelvesController : ControllerBase
         return CreatedAtAction(nameof(Get), new { id = created.Id }, created);
     }
 
+    [Authorize(Policy = ShopPolicies.InventoryManage)]
     [HttpPut("{id:guid}")]
     public async Task<ActionResult<ShelfResponse>> Rename(
         Guid id,
@@ -52,18 +57,21 @@ public sealed class ShelvesController : ControllerBase
         return Ok(await _shelves.RenameAsync(id, command.Name, cancellationToken));
     }
 
+    [Authorize(Policy = ShopPolicies.InventoryManage)]
     [HttpPost("{id:guid}/activate")]
     public async Task<ActionResult<ShelfResponse>> Activate(Guid id, CancellationToken cancellationToken)
     {
         return Ok(await _shelves.ActivateAsync(id, cancellationToken));
     }
 
+    [Authorize(Policy = ShopPolicies.InventoryManage)]
     [HttpPost("{id:guid}/deactivate")]
     public async Task<ActionResult<ShelfResponse>> Deactivate(Guid id, CancellationToken cancellationToken)
     {
         return Ok(await _shelves.DeactivateAsync(id, cancellationToken));
     }
 
+    [Authorize(Policy = ShopPolicies.InventoryManage)]
     [HttpDelete("{id:guid}")]
     public async Task<IActionResult> Delete(Guid id, CancellationToken cancellationToken)
     {

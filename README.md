@@ -31,8 +31,20 @@ Dependency direction: API → Application → Domain, and Infrastructure → App
 
 1. Install the .NET 8 SDK, Node.js, npm 11.21.0 or newer, and PostgreSQL.
 2. Create a local database named `retail360`.
-3. Set `ConnectionStrings:DefaultConnection` in `src/Api/appsettings.json`. The checked-in value is a local development placeholder.
-4. Start the API. Startup applies pending SQL scripts in `src/Infrastructure/Persistence/Sql/Migrations` and checks that the four shop roles exist.
+3. Set the local database password and the JWT signing key outside source control. `src/Api/appsettings.json` keeps an empty password and does not contain a signing key. From `src/Api`:
+
+```powershell
+dotnet user-secrets set "ConnectionStrings:DefaultConnection" "Host=localhost;Port=5432;Database=retail360;Username=postgres;Password=<local-password>"
+$signingKey = [Convert]::ToBase64String([System.Security.Cryptography.RandomNumberGenerator]::GetBytes(32))
+dotnet user-secrets set "Authentication:SigningKey" $signingKey
+```
+
+The same values can be environment variables: `ConnectionStrings__DefaultConnection` and `Authentication__SigningKey`. The signing key must be at least 32 bytes. A missing or short key stops the API before it applies migrations. Tests read `RETAIL360_DB_PASSWORD` when the tracked password is empty. Do not commit either secret.
+
+4. Optional first Admin. There is no public registration endpoint. Set `Authentication__Bootstrap__UserName` and `Authentication__Bootstrap__Password` before startup only when no active Admin exists. The password must be at least 8 characters. Startup locks the Admin role, rechecks, and creates at most one Admin. It does not log the password. After the user exists, remove both bootstrap variables from the environment and from user secrets. Do not put them in `appsettings.json`.
+
+Outside this computer, host the API behind HTTPS. The process redirects HTTP except in the test host. Development Swagger does not authenticate callers. The API does not write passwords, password hashes, signing keys, or bearer tokens to the log.
+5. Start the API. Startup applies pending SQL scripts in `src/Infrastructure/Persistence/Sql/Migrations`, checks that the four shop roles exist, and creates the bootstrap Admin only when those settings are present and no active Admin exists.
 
 ```powershell
 dotnet run --project src/Api/Retail360.Api.csproj --launch-profile http
@@ -40,7 +52,7 @@ dotnet run --project src/Api/Retail360.Api.csproj --launch-profile http
 
 Swagger is at [http://localhost:5117/swagger](http://localhost:5117/swagger).
 
-5. Start the Angular app:
+6. Start the Angular app:
 
 ```powershell
 cd frontend
@@ -66,8 +78,8 @@ npm run build
 
 PostgreSQL is accessed with Dapper and Npgsql from `src/Infrastructure`. Schema changes are numbered SQL scripts in `src/Infrastructure/Persistence/Sql/Migrations`. The API applies pending scripts at startup and records them in `schema_migrations`.
 
-The existing Identity tables are kept. Seeded roles are Admin, Manager, Cashier, and Inventory Staff. Sign-in is not implemented. New SQL should use snake_case and set `created_at`, `updated_at`, and `is_deleted` explicitly. There is no EF Core global query filter.
+The existing Identity tables are kept. Seeded roles are Admin, Manager, Cashier, and Inventory Staff. Sign-in is `POST /api/auth/login` and a short-lived JWT. Five wrong passwords lock that account for five minutes. Role checks use the database on each request. New SQL should use snake_case and set `created_at`, `updated_at`, and `is_deleted` explicitly. There is no EF Core global query filter.
 
 ## Current status
 
-Identity tables and the four shop roles are in place. Authentication and authorization are not implemented. The Catalog API covers categories, brands, units, and products, including activation, deactivation, logical delete, and barcode lookup. The Inventory API covers areas, shelves, opening stock, adjustments, transfers, balances, movement history, low stock, and reconciliation. Opening stock, adjustments, and transfers require a client-generated `operationId`. `004_stock_operations.sql` stores that id and a fingerprint of the normalized payload in `stock_operations`. The same operation id and an equivalent payload return the original movements. The same id with a different payload returns HTTP 409. The migration runner applies `002_catalog.sql`, `003_inventory.sql`, and `004_stock_operations.sql`. Product has no stock quantity. The Angular screens are still to be built. See `docs/project/TASKS.md` for the task board.
+Identity tables and the four shop roles are in place. Catalog and Inventory routes require a signed-in user. Admin and Manager can change the catalog. Admin, Manager, and Inventory Staff can change locations and stock. Cashier can read both. The Catalog API covers categories, brands, units, products, activation, deactivation, logical delete when the product has no stock history, and barcode lookup. The Inventory API covers areas, shelves, opening stock, adjustments, transfers, balances, movement history, low stock, and reconciliation. Opening stock, adjustments, and transfers require a client-generated `operationId`. `004_stock_operations.sql` stores that id and a fingerprint of the normalized payload in `stock_operations`. The same operation id and an equivalent payload return the original movements. The same id with a different payload returns HTTP 409. The migration runner applies `002_catalog.sql`, `003_inventory.sql`, `004_stock_operations.sql`, and `005_numeric_scale.sql`. Prices keep the `numeric(12,2)` limits and quantities keep the `numeric(14,3)` limits. Extra fractional digits are rejected. Product has no stock quantity. Authentication tests run with the solution suite against `retail360_identity_test`. This sign-in baseline is not a production identity platform: there is no multi-factor authentication, no external provider, and no permission table. The Angular screens are still to be built. See `docs/project/TASKS.md` for the task board.

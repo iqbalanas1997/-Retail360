@@ -42,7 +42,9 @@ public sealed class CatalogDatabaseTests
         await using var connection = await _database.OpenAsync();
         var versions = (await connection.QueryAsync<string>(
             "select version from schema_migrations order by version;")).ToArray();
-        Assert.Equal(["001_initial_identity", "002_catalog", "003_inventory", "004_stock_operations"], versions);
+        Assert.Equal(
+            ["001_initial_identity", "002_catalog", "003_inventory", "004_stock_operations", "005_numeric_scale"],
+            versions);
 
         var roles = new ShopRoleQuery(_database.Connections);
         await roles.EnsureRequiredRolesAsync(CancellationToken.None);
@@ -75,14 +77,31 @@ public sealed class CatalogDatabaseTests
             """)).ToDictionary(column => column.ColumnName, StringComparer.Ordinal);
 
         Assert.Equal("numeric", columns["purchase_price"].DataType);
-        Assert.Equal(12, columns["purchase_price"].NumericPrecision);
-        Assert.Equal(2, columns["purchase_price"].NumericScale);
+        Assert.Null(columns["purchase_price"].NumericPrecision);
+        Assert.Null(columns["purchase_price"].NumericScale);
         Assert.Equal("numeric", columns["selling_price"].DataType);
-        Assert.Equal(12, columns["selling_price"].NumericPrecision);
-        Assert.Equal(2, columns["selling_price"].NumericScale);
+        Assert.Null(columns["selling_price"].NumericPrecision);
+        Assert.Null(columns["selling_price"].NumericScale);
         Assert.Equal("numeric", columns["minimum_stock"].DataType);
-        Assert.Equal(14, columns["minimum_stock"].NumericPrecision);
-        Assert.Equal(3, columns["minimum_stock"].NumericScale);
+        Assert.Null(columns["minimum_stock"].NumericPrecision);
+        Assert.Null(columns["minimum_stock"].NumericScale);
+        var scaleChecks = (await connection.QueryAsync<string>(
+            """
+            select conname
+            from pg_constraint
+            where conname in (
+                'ck_products_purchase_price_scale',
+                'ck_products_selling_price_scale',
+                'ck_products_minimum_stock_scale')
+            order by conname;
+            """)).ToArray();
+        Assert.Equal(
+            [
+                "ck_products_minimum_stock_scale",
+                "ck_products_purchase_price_scale",
+                "ck_products_selling_price_scale"
+            ],
+            scaleChecks);
         Assert.Equal("YES", columns["category_id"].IsNullable);
         Assert.Equal("YES", columns["brand_id"].IsNullable);
         Assert.Equal("NO", columns["unit_id"].IsNullable);
@@ -132,6 +151,45 @@ public sealed class CatalogDatabaseTests
                 new { Id = Guid.NewGuid(), UnitId = unitId },
                 transaction));
             Assert.Equal(PostgresErrorCodes.CheckViolation, priceError.SqlState);
+            await transaction.RollbackAsync();
+        }
+
+        await using (var connection = await _database.OpenAsync())
+        await using (var transaction = await connection.BeginTransactionAsync())
+        {
+            var unitId = Guid.NewGuid();
+            await InsertUnitAsync(connection, transaction, unitId, $"Piece {unitId:N}");
+            var extraPrice = await RejectProductAsync(connection, transaction, unitId, 1.235m, 0m);
+            var extraStock = await RejectProductAsync(connection, transaction, unitId, 1.00m, 1.2345m);
+            var abovePrice = await RejectProductAsync(connection, transaction, unitId, 10000000000.00m, 0m);
+            var productId = Guid.NewGuid();
+            await connection.ExecuteAsync(
+                """
+                insert into products (
+                    id, name, category_id, brand_id, unit_id,
+                    purchase_price, selling_price, minimum_stock, is_active,
+                    created_at, updated_at, is_deleted)
+                values (
+                    @Id, 'Rice', null, null, @UnitId,
+                    10.10, 10.10, 1.2300, true,
+                    now(), now(), false);
+                """,
+                new { Id = productId, UnitId = unitId },
+                transaction);
+            var stored = await connection.QuerySingleAsync<(decimal PurchasePrice, decimal MinimumStock)>(
+                """
+                select purchase_price, minimum_stock
+                from products
+                where id = @Id;
+                """,
+                new { Id = productId },
+                transaction);
+
+            Assert.Equal(PostgresErrorCodes.CheckViolation, extraPrice.SqlState);
+            Assert.Equal(PostgresErrorCodes.CheckViolation, extraStock.SqlState);
+            Assert.Equal(PostgresErrorCodes.CheckViolation, abovePrice.SqlState);
+            Assert.Equal(10.10m, stored.PurchasePrice);
+            Assert.Equal(1.230m, stored.MinimumStock);
             await transaction.RollbackAsync();
         }
 
@@ -286,6 +344,38 @@ public sealed class CatalogDatabaseTests
             transaction);
     }
 
+    private static async Task<PostgresException> RejectProductAsync(
+        NpgsqlConnection connection,
+        NpgsqlTransaction transaction,
+        Guid unitId,
+        decimal purchasePrice,
+        decimal minimumStock)
+    {
+        await transaction.SaveAsync("product_scale");
+        try
+        {
+            await connection.ExecuteAsync(
+                """
+                insert into products (
+                    id, name, category_id, brand_id, unit_id,
+                    purchase_price, selling_price, minimum_stock, is_active,
+                    created_at, updated_at, is_deleted)
+                values (
+                    @Id, 'Rice', null, null, @UnitId,
+                    @PurchasePrice, 2.00, @MinimumStock, true,
+                    now(), now(), false);
+                """,
+                new { Id = Guid.NewGuid(), UnitId = unitId, PurchasePrice = purchasePrice, MinimumStock = minimumStock },
+                transaction);
+            throw new InvalidOperationException("The product insert was expected to fail.");
+        }
+        catch (PostgresException exception)
+        {
+            await transaction.RollbackAsync("product_scale");
+            return exception;
+        }
+    }
+
     private static Task InsertProductAsync(
         NpgsqlConnection connection,
         NpgsqlTransaction transaction,
@@ -356,7 +446,7 @@ public sealed class CatalogDatabaseFixture : IAsyncLifetime
     public async Task InitializeAsync()
     {
         DefaultTypeMap.MatchNamesWithUnderscores = true;
-        var shop = ReadShopConnectionString();
+        var shop = TestShopConnection.Read();
         var builder = new NpgsqlConnectionStringBuilder(shop)
         {
             Database = "postgres"
@@ -399,32 +489,5 @@ public sealed class CatalogDatabaseFixture : IAsyncLifetime
         }
 
         await connection.ExecuteAsync($"create database {CatalogDatabaseGuard.PermittedDatabase};");
-    }
-
-    private static string ReadShopConnectionString()
-    {
-        var directory = new DirectoryInfo(AppContext.BaseDirectory);
-        while (directory is not null && !File.Exists(Path.Combine(directory.FullName, "Retail360.sln")))
-        {
-            directory = directory.Parent;
-        }
-
-        if (directory is null)
-        {
-            throw new InvalidOperationException("Retail360.sln was not found above the test output directory.");
-        }
-
-        var path = Path.Combine(directory.FullName, "src", "Api", "appsettings.json");
-        using var document = JsonDocument.Parse(File.ReadAllText(path));
-        var connectionString = document.RootElement
-            .GetProperty("ConnectionStrings")
-            .GetProperty("DefaultConnection")
-            .GetString();
-        if (string.IsNullOrWhiteSpace(connectionString))
-        {
-            throw new InvalidOperationException("DefaultConnection is missing from appsettings.json.");
-        }
-
-        return connectionString;
     }
 }

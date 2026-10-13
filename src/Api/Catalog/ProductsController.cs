@@ -1,10 +1,13 @@
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Retail360.Api.Identity;
 using Retail360.Application.Catalog;
 using Retail360.Domain.Catalog;
 
 namespace Retail360.Api.Catalog;
 
 [ApiController]
+[Authorize(Policy = ShopPolicies.CatalogRead)]
 [Route("api/products")]
 public sealed class ProductsController : ControllerBase
 {
@@ -40,6 +43,7 @@ public sealed class ProductsController : ControllerBase
         return Ok(await _products.FindActiveByBarcodeAsync(barcode, cancellationToken));
     }
 
+    [Authorize(Policy = ShopPolicies.CatalogWrite)]
     [HttpPost]
     public async Task<ActionResult<ProductResponse>> Create(
         SaveProductCommand command,
@@ -50,6 +54,7 @@ public sealed class ProductsController : ControllerBase
         return CreatedAtAction(nameof(Get), new { id = created.Id }, created);
     }
 
+    [Authorize(Policy = ShopPolicies.CatalogWrite)]
     [HttpPut("{id:guid}")]
     public async Task<ActionResult<ProductResponse>> Update(
         Guid id,
@@ -60,18 +65,21 @@ public sealed class ProductsController : ControllerBase
         return Ok(await _products.UpdateAsync(id, command, cancellationToken));
     }
 
+    [Authorize(Policy = ShopPolicies.CatalogWrite)]
     [HttpPost("{id:guid}/activate")]
     public async Task<ActionResult<ProductResponse>> Activate(Guid id, CancellationToken cancellationToken)
     {
         return Ok(await _products.ActivateAsync(id, cancellationToken));
     }
 
+    [Authorize(Policy = ShopPolicies.CatalogWrite)]
     [HttpPost("{id:guid}/deactivate")]
     public async Task<ActionResult<ProductResponse>> Deactivate(Guid id, CancellationToken cancellationToken)
     {
         return Ok(await _products.DeactivateAsync(id, cancellationToken));
     }
 
+    [Authorize(Policy = ShopPolicies.CatalogWrite)]
     [HttpDelete("{id:guid}")]
     public async Task<IActionResult> Delete(Guid id, CancellationToken cancellationToken)
     {

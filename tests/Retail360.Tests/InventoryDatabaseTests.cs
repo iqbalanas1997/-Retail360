@@ -3,7 +3,9 @@ using Dapper;
 using Npgsql;
 using Retail360.Application.Catalog;
 using Retail360.Application.Inventory;
+using Retail360.Domain.Catalog;
 using Retail360.Domain.Inventory;
+using Retail360.Infrastructure.Catalog;
 using Retail360.Infrastructure.Database;
 using Retail360.Infrastructure.Inventory;
 using Retail360.Infrastructure.Persistence.Sql;
@@ -45,7 +47,9 @@ public sealed class InventoryDatabaseTests
 
         var versions = (await connection.QueryAsync<string>(
             "select version from schema_migrations order by version;")).ToArray();
-        Assert.Equal(["001_initial_identity", "002_catalog", "003_inventory", "004_stock_operations"], versions);
+        Assert.Equal(
+            ["001_initial_identity", "002_catalog", "003_inventory", "004_stock_operations", "005_numeric_scale"],
+            versions);
 
         var tables = (await connection.QueryAsync<string>(
             """
@@ -300,6 +304,165 @@ public sealed class InventoryDatabaseTests
         Assert.Equal("A1", (await graph.Shelves.GetAsync(setup.ShelfId, CancellationToken.None)).Name);
         Assert.Equal(1.000m, await BalanceAsync(setup.ProductId, setup.ShelfId));
         Assert.Single(await graph.Stock.ListMovementsAsync(setup.ProductId, setup.ShelfId, 50, 0, CancellationToken.None));
+        Assert.Empty(await graph.Stock.ReconcileAsync(CancellationToken.None));
+    }
+
+    [Fact]
+    public async Task Product_soft_delete_rejects_stock_history_and_keeps_that_stock_visible()
+    {
+        await _database.ResetAsync();
+        var graph = _database.CreateGraph();
+        var products = CreateProducts();
+        var positive = await graph.SeedProductAndShelfAsync("Rice", 1.000m, "Front", "A1");
+        await graph.Stock.OpenAsync(
+            new OpeningStockCommand(positive.ProductId, positive.ShelfId, 2.000m, "opening", Guid.NewGuid()),
+            CancellationToken.None);
+        var zeroBalance = await graph.SeedProductAndShelfAsync("Flour", 1.000m, "Back", "B1");
+        await using (var connection = await _database.OpenAsync())
+        {
+            await connection.ExecuteAsync(
+                """
+                insert into stock_balances (id, product_id, shelf_id, quantity, created_at, updated_at)
+                values (@Id, @ProductId, @ShelfId, 0.000, now(), now());
+                """,
+                new { Id = Guid.NewGuid(), zeroBalance.ProductId, zeroBalance.ShelfId });
+        }
+
+        var drained = await graph.SeedProductAndShelfAsync("Soap", 1.000m, "Side", "C1");
+        await graph.Stock.OpenAsync(
+            new OpeningStockCommand(drained.ProductId, drained.ShelfId, 1.000m, "opening", Guid.NewGuid()),
+            CancellationToken.None);
+        await graph.Stock.AdjustAsync(
+            new AdjustmentCommand(drained.ProductId, drained.ShelfId, -1.000m, "count", Guid.NewGuid()),
+            CancellationToken.None);
+        var clean = await graph.SeedProductAndShelfAsync("Salt", 0.000m, "Dry", "D1");
+
+        var before = await StockSnapshotAsync(positive.ProductId);
+        var positiveError = await Assert.ThrowsAsync<CatalogRuleException>(() =>
+            products.DeleteAsync(positive.ProductId, CancellationToken.None));
+        var zeroError = await Assert.ThrowsAsync<CatalogRuleException>(() =>
+            products.DeleteAsync(zeroBalance.ProductId, CancellationToken.None));
+        var drainedError = await Assert.ThrowsAsync<CatalogRuleException>(() =>
+            products.DeleteAsync(drained.ProductId, CancellationToken.None));
+        await products.DeleteAsync(clean.ProductId, CancellationToken.None);
+        var after = await StockSnapshotAsync(positive.ProductId);
+
+        var balances = await graph.Stock.ListBalancesAsync(positive.ProductId, null, CancellationToken.None);
+        var listed = await graph.Stock.ListProductStockAsync("all", 50, 0, CancellationToken.None);
+        var catalog = await products.ListAsync(null, false, 50, 0, CancellationToken.None);
+
+        Assert.Equal(CatalogRuleFailure.Conflict, positiveError.Failure);
+        Assert.Equal("Product cannot be deleted because it has stock history.", positiveError.Message);
+        Assert.Equal(CatalogRuleFailure.Conflict, zeroError.Failure);
+        Assert.Equal(CatalogRuleFailure.Conflict, drainedError.Failure);
+        Assert.Equal(before, after);
+        Assert.Equal(2.000m, Assert.Single(balances).Quantity);
+        Assert.Contains(listed, row => row.ProductId == positive.ProductId && row.OnHand == 2.000m);
+        Assert.Contains(listed, row => row.ProductId == zeroBalance.ProductId && row.OnHand == 0.000m);
+        Assert.Contains(listed, row => row.ProductId == drained.ProductId && row.OnHand == 0.000m);
+        Assert.Equal(0.000m, Assert.Single(await graph.Stock.ListBalancesAsync(zeroBalance.ProductId, null, CancellationToken.None)).Quantity);
+        Assert.Equal(0.000m, Assert.Single(await graph.Stock.ListBalancesAsync(drained.ProductId, null, CancellationToken.None)).Quantity);
+        Assert.NotEmpty(await graph.Stock.ListMovementsAsync(drained.ProductId, null, 50, 0, CancellationToken.None));
+        Assert.Contains(catalog, row => row.Id == positive.ProductId);
+        Assert.DoesNotContain(catalog, row => row.Id == clean.ProductId);
+        Assert.Empty(await graph.Stock.ListBalancesAsync(clean.ProductId, null, CancellationToken.None));
+        Assert.Empty(await graph.Stock.ListMovementsAsync(clean.ProductId, null, 50, 0, CancellationToken.None));
+    }
+
+    [Fact]
+    public async Task Product_delete_waits_for_the_product_lock_and_rejects_history_created_while_waiting()
+    {
+        await _database.ResetAsync();
+        var graph = _database.CreateGraph();
+        var products = CreateProducts();
+        var setup = await graph.SeedProductAndShelfAsync("Rice", 1.000m, "Front", "A1");
+
+        await using var holder = await _database.OpenAsync();
+        await using var gate = await holder.BeginTransactionAsync();
+        await holder.ExecuteAsync(
+            "select id from products where id = @Id for update;",
+            new { Id = setup.ProductId },
+            gate);
+        var delete = RunOnOwnThread(async () =>
+        {
+            await products.DeleteAsync(setup.ProductId, CancellationToken.None);
+            return 0;
+        });
+        await WaitForWaitingSessionsAsync(holder, gate, 1);
+        await holder.ExecuteAsync(
+            """
+            insert into stock_balances (id, product_id, shelf_id, quantity, created_at, updated_at)
+            values (@Id, @ProductId, @ShelfId, 1.000, now(), now());
+            """,
+            new { Id = Guid.NewGuid(), setup.ProductId, setup.ShelfId },
+            gate);
+        await gate.CommitAsync();
+
+        var error = await Assert.ThrowsAsync<CatalogRuleException>(() => delete);
+        await using var connection = await _database.OpenAsync();
+        var deleted = await connection.ExecuteScalarAsync<bool>(
+            "select is_deleted from products where id = @Id;",
+            new { Id = setup.ProductId });
+
+        Assert.Equal(CatalogRuleFailure.Conflict, error.Failure);
+        Assert.False(deleted);
+        Assert.Equal(1.000m, await BalanceAsync(setup.ProductId, setup.ShelfId));
+        Assert.Contains(
+            await graph.Stock.ListBalancesAsync(setup.ProductId, null, CancellationToken.None),
+            row => row.Quantity == 1.000m);
+    }
+
+    [Fact]
+    public async Task Concurrent_product_delete_and_opening_stock_cannot_both_succeed()
+    {
+        await _database.ResetAsync();
+        var graph = _database.CreateGraph();
+        var products = CreateProducts();
+        var setup = await graph.SeedProductAndShelfAsync("Rice", 1.000m, "Front", "A1");
+        var operationId = Guid.NewGuid();
+
+        await using var holder = await _database.OpenAsync();
+        await using var gate = await holder.BeginTransactionAsync();
+        await holder.ExecuteAsync(
+            "select id from products where id = @Id for update;",
+            new { Id = setup.ProductId },
+            gate);
+        var delete = RunOnOwnThread(async () =>
+        {
+            await products.DeleteAsync(setup.ProductId, CancellationToken.None);
+            return 0;
+        });
+        var opening = RunOnOwnThread(() => graph.Stock.OpenAsync(
+            new OpeningStockCommand(setup.ProductId, setup.ShelfId, 1.000m, "opening", operationId),
+            CancellationToken.None));
+        await WaitForWaitingSessionsAsync(holder, gate, 2);
+        await gate.CommitAsync();
+
+        var deleteError = await WrapCatalogAsync(delete);
+        var openingError = await WrapAsync(opening);
+        await using var connection = await _database.OpenAsync();
+        var deleted = await connection.ExecuteScalarAsync<bool>(
+            "select is_deleted from products where id = @Id;",
+            new { Id = setup.ProductId });
+        var movements = await graph.Stock.ListMovementsAsync(setup.ProductId, null, 50, 0, CancellationToken.None);
+
+        Assert.NotEqual(deleted, movements.Count > 0);
+        if (deleted)
+        {
+            Assert.Null(deleteError);
+            Assert.Equal(InventoryRuleFailure.NotFound, openingError?.Failure);
+            Assert.Empty(await graph.Stock.ListBalancesAsync(setup.ProductId, null, CancellationToken.None));
+        }
+        else
+        {
+            Assert.Equal(CatalogRuleFailure.Conflict, deleteError?.Failure);
+            Assert.Null(openingError);
+            Assert.Equal(1.000m, Assert.Single(await graph.Stock.ListBalancesAsync(setup.ProductId, null, CancellationToken.None)).Quantity);
+            Assert.Contains(
+                await graph.Stock.ListProductStockAsync("all", 50, 0, CancellationToken.None),
+                row => row.ProductId == setup.ProductId && row.OnHand == 1.000m);
+        }
+
         Assert.Empty(await graph.Stock.ReconcileAsync(CancellationToken.None));
     }
 
@@ -665,10 +828,53 @@ public sealed class InventoryDatabaseTests
                 'opening', null, now(), now());
             """,
             new { Id = Guid.NewGuid(), OperationId = Guid.NewGuid(), setup.ProductId, setup.ShelfId }));
+        var extra = await Assert.ThrowsAsync<PostgresException>(() => connection.ExecuteAsync(
+            """
+            insert into stock_movements (
+                id, operation_id, product_id, shelf_id, quantity, direction, movement_type,
+                reason, other_shelf_id, occurred_at, created_at)
+            values (
+                @Id, @OperationId, @ProductId, @ShelfId, 1.2345, 'in', 'opening',
+                'opening', null, now(), now());
+            """,
+            new { Id = Guid.NewGuid(), OperationId = Guid.NewGuid(), setup.ProductId, setup.ShelfId }));
 
         Assert.Equal(PostgresErrorCodes.CheckViolation, negative.SqlState);
         Assert.Equal(PostgresErrorCodes.CheckViolation, zero.SqlState);
-        Assert.Equal(PostgresErrorCodes.NumericValueOutOfRange, overflow.SqlState);
+        Assert.Equal(PostgresErrorCodes.CheckViolation, overflow.SqlState);
+        Assert.Equal(PostgresErrorCodes.CheckViolation, extra.SqlState);
+    }
+
+    [Fact]
+    public async Task Opening_stock_rejects_extra_precision_and_a_balance_above_the_maximum()
+    {
+        await _database.ResetAsync();
+        var graph = _database.CreateGraph();
+        var setup = await graph.SeedProductAndShelfAsync("Rice", 1.000m, "Front", "A1");
+        var extra = await Assert.ThrowsAsync<InventoryRuleException>(() =>
+            graph.Stock.OpenAsync(
+                new OpeningStockCommand(setup.ProductId, setup.ShelfId, 1.2345m, "opening", Guid.NewGuid()),
+                CancellationToken.None));
+        await graph.Stock.OpenAsync(
+            new OpeningStockCommand(setup.ProductId, setup.ShelfId, InventoryText.MaxQuantity, "opening", Guid.NewGuid()),
+            CancellationToken.None);
+        var operationId = Guid.NewGuid();
+        var above = await Assert.ThrowsAsync<InventoryRuleException>(() =>
+            graph.Stock.AdjustAsync(
+                new AdjustmentCommand(setup.ProductId, setup.ShelfId, 0.001m, "count", operationId),
+                CancellationToken.None));
+
+        await using var connection = await _database.OpenAsync();
+        var operations = await connection.ExecuteScalarAsync<long>(
+            "select count(*) from stock_operations where id = @Id;",
+            new { Id = operationId });
+
+        Assert.Equal(InventoryRuleFailure.Invalid, extra.Failure);
+        Assert.Equal(InventoryRuleFailure.Conflict, above.Failure);
+        Assert.Equal("Shelf quantity exceeds the maximum.", above.Message);
+        Assert.Equal(InventoryText.MaxQuantity, await BalanceAsync(setup.ProductId, setup.ShelfId));
+        Assert.Equal(0, operations);
+        Assert.Empty(await graph.Stock.ReconcileAsync(CancellationToken.None));
     }
 
     private async Task<decimal> BalanceAsync(Guid productId, Guid shelfId)
@@ -783,6 +989,58 @@ public sealed class InventoryDatabaseTests
         return completion.Task;
     }
 
+    private ProductService CreateProducts()
+    {
+        var connections = _database.Connections;
+        return new ProductService(
+            new ProductCatalogStore(connections, new PostgresTransaction(connections)),
+            new CategoryCatalogStore(connections),
+            new BrandCatalogStore(connections),
+            new UnitCatalogStore(connections),
+            new SystemClock());
+    }
+
+    private async Task<StockSnapshot> StockSnapshotAsync(Guid productId)
+    {
+        await using var connection = await _database.OpenAsync();
+        return new StockSnapshot(
+            await connection.ExecuteScalarAsync<bool>(
+                "select is_deleted from products where id = @Id;",
+                new { Id = productId }),
+            await connection.ExecuteScalarAsync<long>(
+                "select count(*) from stock_balances where product_id = @Id;",
+                new { Id = productId }),
+            await connection.ExecuteScalarAsync<long>(
+                "select count(*) from stock_movements where product_id = @Id;",
+                new { Id = productId }),
+            await connection.ExecuteScalarAsync<long>(
+                "select count(*) from stock_operations where product_id = @Id;",
+                new { Id = productId }),
+            await connection.ExecuteScalarAsync<decimal>(
+                "select coalesce(sum(quantity), 0) from stock_balances where product_id = @Id;",
+                new { Id = productId }));
+    }
+
+    private sealed record StockSnapshot(
+        bool Deleted,
+        long Balances,
+        long Movements,
+        long Operations,
+        decimal Quantity);
+
+    private static async Task<CatalogRuleException?> WrapCatalogAsync(Task task)
+    {
+        try
+        {
+            await task;
+            return null;
+        }
+        catch (CatalogRuleException exception)
+        {
+            return exception;
+        }
+    }
+
     private static async Task<InventoryRuleException?> WrapAsync(Task task)
     {
         try
@@ -806,7 +1064,7 @@ public sealed class InventoryDatabaseFixture : IAsyncLifetime
     public async Task InitializeAsync()
     {
         DefaultTypeMap.MatchNamesWithUnderscores = true;
-        var shop = ReadShopConnectionString();
+        var shop = TestShopConnection.Read();
         var builder = new NpgsqlConnectionStringBuilder(shop)
         {
             Database = "postgres"
@@ -891,33 +1149,6 @@ public sealed class InventoryDatabaseFixture : IAsyncLifetime
         }
 
         await connection.ExecuteAsync($"create database {InventoryDatabaseGuard.PermittedDatabase};");
-    }
-
-    private static string ReadShopConnectionString()
-    {
-        var directory = new DirectoryInfo(AppContext.BaseDirectory);
-        while (directory is not null && !File.Exists(Path.Combine(directory.FullName, "Retail360.sln")))
-        {
-            directory = directory.Parent;
-        }
-
-        if (directory is null)
-        {
-            throw new InvalidOperationException("Retail360.sln was not found above the test output directory.");
-        }
-
-        var path = Path.Combine(directory.FullName, "src", "Api", "appsettings.json");
-        using var document = JsonDocument.Parse(File.ReadAllText(path));
-        var connectionString = document.RootElement
-            .GetProperty("ConnectionStrings")
-            .GetProperty("DefaultConnection")
-            .GetString();
-        if (string.IsNullOrWhiteSpace(connectionString))
-        {
-            throw new InvalidOperationException("DefaultConnection is missing from appsettings.json.");
-        }
-
-        return connectionString;
     }
 
     private sealed class FixedClock : IClock

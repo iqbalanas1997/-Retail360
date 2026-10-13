@@ -10,6 +10,30 @@ Use this file for meaningful project-level changes that affect future AI context
 - Documentation updated
 
 ## Entries
+### 2026-10-14 — Product delete keeps stock history
+- A product with a stock balance row or a stock movement cannot be soft-deleted, including when the quantity is zero. The check runs after the product row lock. A product with no Inventory history can still be soft-deleted.
+- Impacted modules: Catalog, Inventory.
+- Documentation updated: `API_CONTRACTS.md`, `DATABASE.md`, `DECISIONS.md`, `DOMAIN_MODEL.md`, `MODULE_CATALOG.md`, `TASKS.md`, `README.md`, `AGENTS.md`, `CHANGELOG.md`.
+
+### 2026-10-14 — Numeric scale checks
+- Prices and quantities are stored as unconstrained `numeric`. Checks reject a value that is not already rounded to 2 fractional digits for money or 3 for quantity, and reject a value above the old `numeric(12,2)` or `numeric(14,3)` maximum.
+- A shelf total above `99999999999.999` is a conflict, and that stock operation is rolled back.
+- Impacted modules: Catalog, Inventory.
+- Documentation updated: `DATABASE.md`, `DECISIONS.md`, `DOMAIN_MODEL.md`, `API_CONTRACTS.md`, `ARCHITECTURE.md`, `README.md`, `AGENTS.md`, `TASKS.md`, `CHANGELOG.md`.
+
+### 2026-10-13 — Sign-in lockout
+- A wrong password for an existing unlocked user increments `access_failed_count` in one update. The fifth failure sets `lockout_end` for five minutes and resets the count. A successful login clears the count only when that update still sees the account as unlocked.
+- Admin bootstrap locks the Admin role row and rechecks before insert, so two startups create one Admin.
+- Impacted modules: Identity.
+- Documentation updated: `API_CONTRACTS.md`, `DECISIONS.md`, `README.md`, `AGENTS.md`, `CHANGELOG.md`.
+
+### 2026-10-13 — Authentication baseline
+- Added `POST /api/auth/login` on the existing Identity tables. Passwords are hashed. Access tokens are short-lived JWTs. Each request loads roles from the database.
+- Catalog and Inventory routes now require a signed-in shop role. Cashier can read. Admin and Manager can change the catalog. Admin, Manager, and Inventory Staff can change locations and stock.
+- No migration was added. The signing key and the optional first-admin password stay outside source control. The tracked database password placeholder is empty.
+- Impacted modules: Identity, Catalog, Inventory, API.
+- Documentation updated: `API_CONTRACTS.md`, `ARCHITECTURE.md`, `DECISIONS.md`, `DATABASE.md`, `DOMAIN_MODEL.md`, `MODULE_CATALOG.md`, `TASKS.md`, `README.md`, `AGENTS.md`, `CHANGELOG.md`.
+
 ### 2026-10-13 — Remaining review coverage
 - Shelf creation now has a lock-wait test: it blocks on the area row, then receives not-found after that area is soft-deleted, and no shelf row remains.
 - A rejected stock check now asserts that the failed `operationId` is absent from `stock_operations` and `stock_movements`.

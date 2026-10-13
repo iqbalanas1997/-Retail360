@@ -234,6 +234,27 @@ public sealed class ProductCatalogStore : IProductStore
                     throw new CatalogRuleException(CatalogRuleFailure.NotFound, "Product was not found.");
                 }
 
+                if (product.IsDeleted)
+                {
+                    var hasStockHistory = await connection.ExecuteScalarAsync<bool>(new CommandDefinition(
+                        """
+                        select exists (
+                            select 1 from stock_balances where product_id = @Id
+                            union all
+                            select 1 from stock_movements where product_id = @Id
+                        );
+                        """,
+                        new { product.Id },
+                        transaction,
+                        cancellationToken: token));
+                    if (hasStockHistory)
+                    {
+                        throw new CatalogRuleException(
+                            CatalogRuleFailure.Conflict,
+                            "Product cannot be deleted because it has stock history.");
+                    }
+                }
+
                 var rows = await connection.ExecuteAsync(new CommandDefinition(
                     """
                     update products

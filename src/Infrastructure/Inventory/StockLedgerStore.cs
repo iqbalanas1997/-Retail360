@@ -170,6 +170,13 @@ public sealed class StockLedgerStore : IStockLedger, IInventoryProductLookup
                             "Shelf does not have enough stock.");
                     }
 
+                    if (next > InventoryText.MaxQuantity)
+                    {
+                        throw new InventoryRuleException(
+                            InventoryRuleFailure.Conflict,
+                            "Shelf quantity exceeds the maximum.");
+                    }
+
                     await connection.ExecuteAsync(new CommandDefinition(
                         """
                         update stock_balances

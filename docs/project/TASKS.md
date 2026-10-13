@@ -17,7 +17,7 @@ Phase 0 — Foundation and architecture. The Catalog and Inventory backends are 
 - [x] Configure PostgreSQL with Dapper and Npgsql. EF Core was removed; it is not the persistence stack.
 - [x] Keep Domain free of framework packages. Shop role names stay in Domain.
 - [x] Replace EF Core with Dapper and Npgsql. Keep the existing Identity tables.
-- [ ] Establish authentication/authorization baseline.
+- [x] Establish authentication/authorization baseline. JWT sign-in, database role checks, and protected Catalog and Inventory routes are in place. Permission tables, external identity, and multi-factor authentication are not.
 - [ ] Establish shared error/validation/logging conventions.
 - [ ] Add initial CI/build/test commands.
 
@@ -65,4 +65,4 @@ Phase 0 — Foundation and architecture. The Catalog and Inventory backends are 
 - [ ] Audit log
 
 ## Current task
-Inventory and Catalog backend review fixes are in place: area deletion locks before it rechecks, shelf creation waits on that same area lock, stock posts require a client operation id, and a failed post leaves no operation row. Catalog tests refuse any database other than `retail360_catalog_test`. Angular catalog and inventory screens are not started. Authentication is still not implemented. Sign-in and permission checks do not exist. Sales and Purchasing are not started.
+Inventory and Catalog backend review fixes are in place: area deletion locks before it rechecks, shelf creation waits on that same area lock, stock posts require a client operation id, and a failed post leaves no operation row. `005_numeric_scale.sql` rejects extra fractional digits instead of rounding them. A product with stock history cannot be soft-deleted. Catalog tests refuse any database other than `retail360_catalog_test`. Sign-in is a JWT baseline with failed-attempt lockout. Catalog and Inventory routes require a shop role. Angular screens are not started. Sales and Purchasing are not started.

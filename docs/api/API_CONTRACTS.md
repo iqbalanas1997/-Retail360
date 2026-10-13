@@ -11,8 +11,25 @@ This document starts as a contract policy and becomes a concrete endpoint catalo
 - Do not expose database entities directly.
 - Avoid duplicate endpoints that perform the same use case.
 
+## Authentication
+`POST /api/auth/login` is anonymous. Body: `{ "userName", "password" }`. A success returns `{ "accessToken", "tokenType", "expiresAt", "userId", "userName" }` and does not include a password hash. `tokenType` is `Bearer`. Send the token as `Authorization: Bearer <accessToken>`.
+
+Unknown user names, wrong passwords, soft-deleted users, and users whose `lockout_end` is still in the future all return 401 `{ "error": "The user name or password is incorrect." }`. Five wrong passwords for an existing unlocked user set that lockout for five minutes. A successful login clears the failed count only while the account is still unlocked. A missing body is 400. A missing or invalid token on any other route is 401 `{ "error": "Authentication is required." }`. A signed-in role that is not allowed is 403 `{ "error": "You do not have access to this action." }`. `POST /api/auth/login` is the only anonymous business route.
+
+The token is checked for signature, issuer, audience, and expiry. Roles are read from `asp_net_user_roles` for the user id in the token. A role claim that is not assigned in the database does not grant access. There is no public registration endpoint.
+
+### Access matrix
+Assumption: every shop role may look up products and stock. Only Admin and Manager may change catalog data, including prices, activation, and soft delete. Cashier must not post stock or edit locations. Inventory Staff may maintain locations and stock and may read the catalog, but may not change prices.
+
+| Action | Admin | Manager | Cashier | Inventory Staff |
+|---|---|---|---|---|
+| Catalog read | yes | yes | yes | yes |
+| Catalog create, update, activate, deactivate, delete | yes | yes | no | no |
+| Inventory read, including balances, movements, stock, and reconciliation | yes | yes | yes | yes |
+| Areas, shelves, opening stock, adjustments, transfers | yes | yes | no | yes |
+
 ## Errors
-Catalog failures return JSON `{ "error": "message" }`.
+Catalog failures return JSON `{ "error": "message" }`. A signed-in caller still receives these bodies after authorization succeeds.
 
 - `400` invalid input
 - `404` missing record, including a deleted record. A product create or update that names a missing unit, category, or brand is 404.
@@ -38,7 +55,7 @@ JSON property names are camelCase.
 | POST, PUT | `/api/products` and `/api/products/{id}` | Create or replace catalog fields and the product's current barcode list. Category and brand may be null. Unit is required. |
 | POST | `/api/products/{id}/activate` | Set `is_active` to true. |
 | POST | `/api/products/{id}/deactivate` | Set `is_active` to false. This does not delete the product. |
-| DELETE | `/api/products/{id}` | Logical delete only. Sets `is_deleted` and soft-deletes that product's barcodes. |
+| DELETE | `/api/products/{id}` | Logical delete only. Sets `is_deleted` and soft-deletes that product's barcodes. HTTP 409 when the product has a stock balance row or a stock movement, including a zero balance. |
 
 The Web API enables OpenAPI in Development at `/swagger`. That UI is host tooling, not a second contract.
 
@@ -70,5 +87,7 @@ Inventory uses the same `{ "error": "message" }` body as Catalog. Invalid input 
 | GET | `/api/inventory/reconciliation` | Rows whose stored balance does not equal inbound minus outbound history. An empty array means they match. |
 
 Repeating a stock request with the same `operationId` and the same payload returns the original movements and does not change stock again. The same `operationId` with a different payload is 409. A missing `operationId` is 400. Creating a shelf for a missing or soft-deleted area is 404.
+
+Prices are from 0 through `9999999999.99` with at most 2 fractional digits. Minimum stock and stock quantities have at most 3 fractional digits and are at most `99999999999.999`. A stock quantity must be greater than zero. An extra digit is rejected. A shelf total above the maximum is HTTP 409, and that operation is not stored.
 
 Opening and adjustment reasons are required and are at most 200 characters. `damaged`, `expired`, and `missing` are standard reasons. Other correction text is allowed. A soft-deleted product is rejected. An inactive product may still be adjusted. An inactive shelf rejects opening stock, a positive adjustment, and a transfer in. It allows a negative adjustment and a transfer out when the shelf still has enough stock. Reading an inactive shelf balance is allowed. Stock on an inactive shelf is included in the shop total. Out of stock means that total is zero. Low stock means the total is greater than zero and less than or equal to Catalog `minimum_stock`. A product with no balance rows is on hand zero. Purchasing and Sales endpoints are not part of this contract.

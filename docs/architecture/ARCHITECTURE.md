@@ -39,6 +39,9 @@ The operation locks the product row, records the client operation key, then lock
 
 Opening stock, an adjustment, and a transfer require a client-generated `operationId`. Migration `004_stock_operations.sql` stores that id and a fingerprint of the normalized payload in `stock_operations`. The same operation id and an equivalent payload return the original movements and do not change stock again. Reusing the id with a different payload returns HTTP 409. The operation row, movements, and balance updates commit or roll back together.
 
+## Authentication
+Sign-in is a JWT bearer baseline on the existing Identity tables. See ADR-012. `POST /api/auth/login` checks `user_name` and the stored password hash. Five wrong passwords lock the account for five minutes. The API validates the token signature, issuer, audience, and expiry. Role checks use `asp_net_user_roles` on each request. Catalog and Inventory endpoints require authentication. Admin and Manager can change the catalog. Admin, Manager, and Inventory Staff can change locations and stock. Cashier can read both. There is no public registration. A signing key shorter than 32 bytes, or a missing key, stops startup. The key is not kept in source control. A shared or production host must use HTTPS.
+
 Shop-wide on-hand quantity is the sum of the product's shelf balances. Low stock compares that sum with Catalog `minimum_stock`.
 
 ## Repository layout
@@ -52,4 +55,4 @@ See ADR-007.
 - `src/Api` — Web API composition host. References Application and Infrastructure.
 - `frontend` — Angular application.
 
-Catalog is implemented in Domain, Application, Infrastructure, and the API. Its schema script is `002_catalog.sql`. Inventory is implemented in the same layers. Its schema scripts are `003_inventory.sql` and `004_stock_operations.sql`. Do not edit `001_initial_identity.sql`, `002_catalog.sql`, `003_inventory.sql`, or `004_stock_operations.sql`. Authentication and authorization are not implemented. Sales, purchases, and the Angular screens are not implemented. See ADR-009, ADR-010, and ADR-011.
+Catalog is implemented in Domain, Application, Infrastructure, and the API. Its schema script is `002_catalog.sql`. Inventory is implemented in the same layers. Its schema scripts are `003_inventory.sql`, `004_stock_operations.sql`, and `005_numeric_scale.sql`. Do not edit `001_initial_identity.sql`, `002_catalog.sql`, `003_inventory.sql`, or `004_stock_operations.sql`. Sign-in is the JWT baseline in ADR-012. It is not a production identity platform. Sales, purchases, and the Angular screens are not implemented. See ADR-009, ADR-010, ADR-011, and ADR-012.
