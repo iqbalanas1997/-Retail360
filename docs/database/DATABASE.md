@@ -13,7 +13,7 @@ On-hand quantity is a stored balance per product and shelf. Every change also in
 
 - `areas` and `shelves`. A shelf references one area. Both are master data with `is_active`, `created_at`, `updated_at`, and `is_deleted`. Area names are unique among non-deleted rows, case-insensitively. Shelf names are unique per area among non-deleted rows.
 - `stock_balances`. One row per product and shelf, unique on `(product_id, shelf_id)`. `quantity` is `numeric`, must be `>= 0`, must be `<= 99999999999.999`, and must equal `round(quantity, 3)`. Foreign keys reference `products` and `shelves` with no cascade delete. A balance row is not soft-deleted.
-- `stock_movements`. Append-only. Columns are `id`, `operation_id`, `product_id`, `shelf_id`, `quantity numeric`, `direction`, `movement_type` (`opening`, `adjustment`, or `transfer`), `reason`, `other_shelf_id`, `occurred_at`, and `created_at`. Movement quantity is `> 0`, `<= 99999999999.999`, and equal to `round(quantity, 3)`. A movement has no `updated_at` and no `is_deleted`. Opening must be inbound. A transfer requires a different `other_shelf_id`. Other types must leave `other_shelf_id` null. Trigger `stock_movements_append_only` rejects `UPDATE` and `DELETE`.
+- `stock_movements`. Append-only. Columns are `id`, `operation_id`, `product_id`, `shelf_id`, `quantity numeric`, `direction`, `movement_type` (`opening`, `adjustment`, `transfer`, `purchase`, or `sale`), `reason`, `other_shelf_id`, `occurred_at`, and `created_at`. Movement quantity is `> 0`, `<= 99999999999.999`, and equal to `round(quantity, 3)`. A movement has no `updated_at` and no `is_deleted`. Opening must be inbound. A transfer requires a different `other_shelf_id`. Other types must leave `other_shelf_id` null. Trigger `stock_movements_append_only` rejects `UPDATE` and `DELETE`.
 
 Indexes include `uq_areas_name`, `uq_shelves_area_name`, `ix_shelves_area_id`, `ix_stock_balances_product_id`, `ix_stock_balances_shelf_id`, `ix_stock_movements_product_id`, `ix_stock_movements_shelf_id`, `ix_stock_movements_operation_id`, and `ix_stock_movements_other_shelf_id`. The other-shelf index supports history checks that match `other_shelf_id` during shelf and area deletion.
 
@@ -23,7 +23,7 @@ A stock operation locks the product row, then records the operation key, then lo
 
 Reconciliation: for every product and shelf, inbound quantity minus outbound quantity equals `stock_balances.quantity`. The two rows of a transfer net to zero. `GET /api/inventory/reconciliation` returns mismatches.
 
-An inactive shelf rejects inbound stock and allows outbound stock that does not go below zero. A shelf or area with a balance or any movement is not soft-deleted. A product with a balance row or any movement is not soft-deleted. A soft-deleted product is not a valid target. An inactive product remains a valid target. Shop-wide on-hand quantity sums every shelf balance for the product, including a deactivated shelf, and is compared with `products.minimum_stock`.
+An inactive shelf rejects inbound stock and allows outbound stock that does not go below zero. A shelf or area with a balance or any movement is not soft-deleted. A product with a balance row or any movement is not soft-deleted. A soft-deleted product is not a valid target. An inactive product remains a valid Inventory target. A cash sale rejects an inactive product before it posts. Shop-wide on-hand quantity sums every shelf balance for the product, including a deactivated shelf, and is compared with `products.minimum_stock`.
 
 ## Catalog schema
 `002_catalog.sql` adds `categories`, `brands`, `units`, `products`, and `product_barcodes`. Do not edit `001_initial_identity.sql`.
@@ -35,6 +35,11 @@ Identifiers are `uuid`. Each table has `created_at`, `updated_at`, and `is_delet
 
 ## Purchasing schema
 `007_purchases.sql` adds `purchases` and `purchase_lines`, and extends the stock movement type check to include `purchase`. Do not edit `001` through `006`.
+
+## Sales schema
+`008_sales.sql` adds `sales`, `sale_lines`, and `sale_receipt_counter`, and extends the stock movement type check to include outbound `sale`. Do not edit `001` through `007`.
+
+A sale stores the receipt number, client operation id, operation fingerprint, sold time, `cash` payment method, server total, and the audit columns. `is_deleted` stays false. There is no cancellation. A line stores the product, the shelf, the line number, the product name copied at sale time, quantity, unit price, and line total. Quantity follows the `numeric(14,3)` checks. Money follows the `numeric(12,2)` checks. The line total must equal `round(quantity * unit_price, 2)`. Receipt numbers come from `sale_receipt_counter`, which is a single row updated inside the sale transaction.
 
 A purchase stores the supplier, purchase date, optional reference, optional notes, `recorded` or `received` status, server total, receive operation id, receive fingerprint, and the audit columns. A received purchase cannot be soft-deleted. A line stores the product, line number, quantity, unit cost, line total, and the shelf assigned when the goods are received. Quantity follows the `numeric(14,3)` checks. Money follows the `numeric(12,2)` checks. The line total must equal `round(quantity * unit_cost, 2)`.
 

@@ -9,8 +9,11 @@ import { StockPage } from './inventory/stock-page';
 import { StockPostPage } from './inventory/stock-post-page';
 import { LoginPage } from './login/login-page';
 import { Shell } from './shell/shell';
+import { PosPage } from './pos/pos-page';
 import { PurchaseFormPage } from './purchases/purchase-form-page';
 import { PurchaseListPage } from './purchases/purchase-list-page';
+import { SaleDetailPage } from './sales/sale-detail-page';
+import { SaleListPage } from './sales/sale-list-page';
 import { SupplierFormPage } from './suppliers/supplier-form-page';
 import { SupplierListPage } from './suppliers/supplier-list-page';
 
@@ -48,6 +51,9 @@ export const routes: Routes = [
       { path: 'purchases', component: PurchaseListPage, data: { title: 'Purchases' } },
       { path: 'purchases/new', component: PurchaseFormPage, data: { title: 'New purchase' } },
       { path: 'purchases/:id', component: PurchaseFormPage, data: { title: 'Purchase' } },
+      { path: 'pos', component: PosPage, data: { title: 'POS' } },
+      { path: 'sales', component: SaleListPage, data: { title: 'Sales' } },
+      { path: 'sales/:id', component: SaleDetailPage, data: { title: 'Receipt' } },
       { path: '**', redirectTo: 'catalog/products' },
     ],
   },

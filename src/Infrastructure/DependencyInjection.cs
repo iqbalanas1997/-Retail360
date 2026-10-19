@@ -5,10 +5,12 @@ using Retail360.Application.Catalog;
 using Retail360.Application.Identity;
 using Retail360.Application.Inventory;
 using Retail360.Application.Purchasing;
+using Retail360.Application.Sales;
 using Retail360.Application.Suppliers;
 using Retail360.Infrastructure.Catalog;
 using Retail360.Infrastructure.Inventory;
 using Retail360.Infrastructure.Purchasing;
+using Retail360.Infrastructure.Sales;
 using Retail360.Infrastructure.Suppliers;
 using Retail360.Infrastructure.Database;
 using Retail360.Infrastructure.Identity;
@@ -54,6 +56,7 @@ public static class DependencyInjection
         services.AddSingleton<IInventoryProductLookup>(provider => provider.GetRequiredService<StockLedgerStore>());
         services.AddSingleton<ISupplierStore, SupplierStore>();
         services.AddSingleton<IPurchaseStore, PurchaseStore>();
+        services.AddSingleton<ISaleStore, SaleStore>();
 
         return services;
     }

@@ -1,0 +1,45 @@
+<p class="no-print"><a class="back" routerLink="/sales">Back to sales</a></p>
+
+@if (success()) {
+  <p class="notice ok" role="status">{{ success() }}</p>
+}
+
+@if (error()) {
+  <p class="notice error" role="alert">{{ error() }}</p>
+}
+
+@if (loading()) {
+  <p class="status">Loading receipt…</p>
+} @else if (sale(); as receipt) {
+  <article class="receipt">
+    <h2>Receipt {{ receipt.receiptNumber }}</h2>
+    <p>{{ soldAt(receipt) }}</p>
+    <p>Payment {{ receipt.paymentMethod }}</p>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Product</th>
+            <th>Shelf</th>
+            <th>Quantity</th>
+            <th>Unit price</th>
+            <th>Line total</th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (line of receipt.lines; track line.id) {
+            <tr>
+              <td>{{ line.productName }}</td>
+              <td>{{ line.shelfName }}</td>
+              <td>{{ line.quantity }}</td>
+              <td>{{ money(line.unitPrice) }}</td>
+              <td>{{ money(line.lineTotal) }}</td>
+            </tr>
+          }
+        </tbody>
+      </table>
+    </div>
+    <p class="pos-total">Total {{ money(receipt.total) }}</p>
+    <button type="button" class="secondary no-print" (click)="print()">Print</button>
+  </article>
+}

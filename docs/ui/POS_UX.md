@@ -16,5 +16,8 @@ Scan/search -> quantity -> cart -> payment -> receipt.
 - Use no more than three primary visual colors unless accessibility/usability requires otherwise.
 - Keep common actions reachable without deep navigation.
 
+## Implemented counter
+`/pos` scans or searches a product, takes a quantity and a shelf, and completes a cash sale. `/sales` lists receipts and opens the API receipt, which the browser can print. Inventory Staff can open the sales list and cannot complete a sale.
+
 ## Important
 Do not implement UI details only from imagination. When a screen is requested, first inspect existing components and the latest approved requirements/design.

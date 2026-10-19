@@ -1,7 +1,7 @@
 # Project Task Board
 
 ## Current phase
-Phase 0 — Foundation and architecture. The Catalog, Inventory, Suppliers, and Purchasing backends are implemented. Angular sign-in, Catalog screens, Inventory screens, Supplier screens, and Purchase screens are in place. Sales are not started.
+Phase 0 — Foundation and architecture. The Catalog, Inventory, Suppliers, Purchasing, and Sales backends are implemented. Angular sign-in, Catalog screens, Inventory screens, Supplier screens, and Purchase screens are in place. Angular POS screens are not started.
 
 ## Rules
 - Only one primary task should be actively implemented at a time unless parallel work is explicitly planned.
@@ -48,13 +48,14 @@ Phase 0 — Foundation and architecture. The Catalog, Inventory, Suppliers, and 
 - [x] Angular supplier screens.
 
 ### Sales / POS
-- [ ] Product scan/search
-- [ ] Cart
-- [ ] Quantity
-- [ ] Cash/credit payment
-- [ ] Stock reduction
-- [ ] Receipt
-- [ ] Sales history
+- [x] Product scan/search
+- [x] Cart
+- [x] Quantity
+- [x] Cash sale. Credit is not included.
+- [x] Stock reduction through the Inventory ledger
+- [x] Receipt data from the sale API
+- [x] Sales history
+- [x] Angular POS screens for the counter, receipt, and sales history
 
 ### Purchases
 - [x] Purchase entry
@@ -73,4 +74,4 @@ Phase 0 — Foundation and architecture. The Catalog, Inventory, Suppliers, and 
 - [ ] Audit log
 
 ## Current task
-Inventory and Catalog backend review fixes are in place: area deletion locks before it rechecks, shelf creation waits on that same area lock, stock posts require a client operation id, and a failed post leaves no operation row. `005_numeric_scale.sql` rejects extra fractional digits instead of rounding them. A product with stock history cannot be soft-deleted. Catalog tests refuse any database other than `retail360_catalog_test`. Sign-in is a JWT baseline with failed-attempt lockout. Catalog and Inventory routes require a shop role. Angular sign-in, Catalog screens, and Inventory screens are in place. An expired access token returns the open counter screen to sign-in. The stock list has no product-name query, so the stock screen filters names in the loaded page. Opening stock, adjustments, and transfers search catalog products by name. The Suppliers backend stores supplier records in `006_suppliers.sql`. Admin and Manager can change them. Every shop role can read them. Angular supplier screens cover the list, create, edit, activation, and soft delete. The Purchasing backend records a purchase and receives its goods through the Inventory ledger. Angular purchase screens list purchases, record or change a recorded purchase, and receive it onto shelves. The screen does not post stock itself. Payments and Sales are not started.
+Inventory and Catalog backend review fixes are in place: area deletion locks before it rechecks, shelf creation waits on that same area lock, stock posts require a client operation id, and a failed post leaves no operation row. `005_numeric_scale.sql` rejects extra fractional digits instead of rounding them. A product with stock history cannot be soft-deleted. Catalog tests refuse any database other than `retail360_catalog_test`. Sign-in is a JWT baseline with failed-attempt lockout. Catalog and Inventory routes require a shop role. Angular sign-in, Catalog screens, and Inventory screens are in place. An expired access token returns the open counter screen to sign-in. The stock list has no product-name query, so the stock screen filters names in the loaded page. Opening stock, adjustments, and transfers search catalog products by name. The Suppliers backend stores supplier records in `006_suppliers.sql`. Admin and Manager can change them. Every shop role can read them. Angular supplier screens cover the list, create, edit, activation, and soft delete. The Purchasing backend records a purchase and receives its goods through the Inventory ledger. Angular purchase screens list purchases, record or change a recorded purchase, and receive it onto shelves. The screen does not post stock itself. Payments are not started. The Sales backend completes a cash sale, returns receipt data, and deducts stock through the Inventory ledger. Angular POS is at `/pos`. Sales history and the receipt are at `/sales`. Admin, Manager, and Cashier can complete a sale. Every shop role can read sales. Inventory Staff cannot complete one.

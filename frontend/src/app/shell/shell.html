@@ -18,6 +18,12 @@
     <a routerLink="/suppliers" routerLinkActive="active">Suppliers</a>
     <p class="nav-label">Purchases</p>
     <a routerLink="/purchases" routerLinkActive="active">Purchases</a>
+    @if (session.canCompleteSales()) {
+      <p class="nav-label">Counter</p>
+      <a routerLink="/pos" routerLinkActive="active">POS</a>
+    }
+    <p class="nav-label">Sales</p>
+    <a routerLink="/sales" routerLinkActive="active">Sales</a>
   </aside>
   <div class="workspace">
     <header class="topbar">

@@ -124,3 +124,16 @@ Purchase failures use the same `{ "error": "message" }` body. Invalid input is 4
 | POST | `/api/purchases/{id}/receive` | Receive every current line from `{ "operationId", "lines": [{ "lineId", "shelfId" }] }`. Posts inbound `purchase` movements and sets the purchase to `received`. |
 
 The supplier must be active when the purchase is recorded or replaced. An inactive product is allowed. A soft-deleted product is 404. Quantity is greater than zero with at most 3 decimal places. Unit cost is zero or greater with at most 2 decimal places. Line total is `round(quantity * unitCost, 2)`, half away from zero. An inactive shelf cannot receive stock, and that failure rolls the receive back. The same `operationId` and the same shelf assignment return the received purchase. A different assignment or a second receive is 409. There is no payment, return, or cancellation route.
+
+## Sales
+Sale failures use the same `{ "error": "message" }` body. Invalid input is 400. A missing product, shelf, or sale is 404. A conflict is 409.
+
+`SaleRead` allows every shop role. `SaleComplete` allows Admin, Manager, and Cashier. Inventory Staff can read sales and cannot complete one.
+
+| Method | Route | Behavior |
+|---|---|---|
+| GET | `/api/sales?receiptNumber=&limit=&offset=` | List completed sales, newest first. `receiptNumber` is an exact match. `limit` defaults to 50 and cannot exceed 200. |
+| GET | `/api/sales/{id}` | Read one sale and its lines, including the snapshotted product name and unit price and the current shelf name. |
+| POST | `/api/sales` | Complete a cash sale from `{ "operationId", "lines": [{ "productId", "shelfId", "quantity" }] }`. The server copies the catalog selling price and calculates totals. Returns 201. |
+
+The product must be active and not soft-deleted. Quantity is greater than zero with at most 3 decimal places. The client does not send a price or a total. Line total is `round(quantity * sellingPrice, 2)`, half away from zero. The caller names the shelf. An inactive shelf can be sold from. A shelf that does not have enough stock is 409, and the sale is not stored. The same `operationId` and the same lines return the original sale. A different payload is 409. There is no credit, discount, return, refund, or cancellation route.

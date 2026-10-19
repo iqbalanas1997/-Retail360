@@ -4,7 +4,7 @@
 |---|---|---|---|
 | Catalog | Product master data | Product, Category, Brand, Unit, ProductBarcode, current prices, minimum-stock threshold | Backend implemented. Angular screens cover list, create, edit, barcodes, and category, brand, and unit names. |
 | Inventory | On-hand stock and locations | Area, Shelf, stock balance per product and shelf, append-only movement | Backend implemented in `003_inventory.sql`. No stock column on Product. Angular screens cover stock, locations, opening stock, adjustments, and transfers. |
-| Sales | POS and sales history | Sale, SaleLine, Payment | Planned |
+| Sales | Cash sales and sales history | Sale, SaleLine, receipt number | Backend implemented in `008_sales.sql`. Angular POS, receipt, and sales history. Cash only. No credit, return, or discount. |
 | Purchasing | Supplier purchases | Purchase, PurchaseLine | Backend implemented in `007_purchases.sql`. Angular list, record, and receive screens. No payment, return, or cancellation. |
 | Suppliers | Supplier records | Supplier | Backend implemented in `006_suppliers.sql`. Angular screens cover list, create, edit, activation, and soft delete. No payment, payable balance, or purchase history. |
 | Customers | Customer records/receivables | Customer, CustomerPayment | Planned |
@@ -18,7 +18,10 @@ Inventory depends on Catalog for product identity, the product's unit, and `mini
 
 A product that has a stock balance or a stock movement is not soft-deleted. The implemented Inventory scope is areas, shelves, opening stock, adjustments, and transfers. Damaged, expired, and missing goods are adjustment reasons. Shop-wide on-hand quantity is the sum of shelf balances, including inactive shelves. Low stock compares that sum with `minimum_stock`. An inactive shelf rejects inbound stock and allows outbound stock.
 
-Inventory does not include Purchasing, Sales, suppliers, branches, batch or expiry dates, or a stock quantity on `products`. Movement rows are not edited or soft-deleted.
+Inventory does not include Purchasing, Sales, suppliers, branches, batch or expiry dates, or a stock quantity on `products`. Purchasing and Sales post through this ledger. Movement rows are not edited or soft-deleted.
+
+## Sales scope
+A sale is one completed cash document. The server copies the catalog selling price and product name onto each line and calculates the totals. The caller names the shelf the goods leave. Admin, Manager, and Cashier can complete a sale. Every shop role can read sales. Inventory Staff cannot sell. The Angular counter is `/pos`. It searches by name, looks up a barcode, and sends only the operation id, product, shelf, and quantity. `/sales` lists receipts and opens the API receipt.
 
 ## Suppliers scope
 A supplier is the shop's record of a business or person it can buy from. The record is the supplier id, name, optional contact details, and `is_active`. Names are unique among non-deleted rows, compared case-insensitively. Admin and Manager can change suppliers. Every shop role can read them. The Angular screens use those same routes. Supplier payment is a separate concern and is not implemented. Purchasing references the supplier id and is implemented separately.

@@ -276,6 +276,26 @@ a {
   color: var(--green);
 }
 
+.pos-total {
+  font-size: 1.4rem;
+}
+
+@media print {
+  .sidebar,
+  .topbar,
+  .no-print {
+    display: none;
+  }
+
+  .shell {
+    display: block;
+  }
+
+  .page {
+    padding: 0;
+  }
+}
+
 @media (max-width: 800px) {
   .shell {
     grid-template-columns: 1fr;

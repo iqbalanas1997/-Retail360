@@ -1,0 +1,49 @@
+<form class="toolbar" [formGroup]="form" (ngSubmit)="search()">
+  <label>
+    Receipt number
+    <input formControlName="receiptNumber" inputmode="numeric" />
+  </label>
+  <button type="submit">Search</button>
+  @if (canSell()) {
+    <a class="button" routerLink="/pos">New sale</a>
+  }
+</form>
+
+@if (error()) {
+  <p class="notice error" role="alert">{{ error() }}</p>
+  <button type="button" class="secondary" (click)="reload()">Try again</button>
+}
+
+@if (loading()) {
+  <p class="status">Loading sales…</p>
+} @else if (sales().length === 0 && !error()) {
+  <p class="status">No sales match this filter.</p>
+} @else if (sales().length > 0) {
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>Receipt</th>
+          <th>Sold</th>
+          <th>Total</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        @for (sale of sales(); track sale.id) {
+          <tr>
+            <td>{{ sale.receiptNumber }}</td>
+            <td>{{ soldAt(sale) }}</td>
+            <td>{{ money(sale.total) }}</td>
+            <td><a [routerLink]="['/sales', sale.id]">Open</a></td>
+          </tr>
+        }
+      </tbody>
+    </table>
+  </div>
+  @if (hasMore()) {
+    <button type="button" class="secondary" (click)="showMore()" [disabled]="loadingMore()">
+      {{ loadingMore() ? 'Loading…' : 'Show more' }}
+    </button>
+  }
+}

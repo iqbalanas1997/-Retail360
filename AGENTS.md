@@ -78,3 +78,6 @@ Suppliers owns the supplier record: name, optional contact person, phone, email,
 
 ## Purchasing
 Purchasing owns the purchase document and its lines. A recorded purchase does not change stock. Receiving posts one inbound `purchase` movement per line through the Inventory ledger in the same transaction. The server calculates line totals and the document total. A new purchase requires an active supplier. An inactive product can still be purchased. An inactive shelf cannot receive the goods. Admin and Manager record purchases. Admin, Manager, and Inventory Staff receive them. All four shop roles can read them. There is no supplier payment, return, or cancellation in this module.
+
+## Sales
+Sales owns the completed cash sale and its lines. Completing a sale posts one outbound `sale` movement per line through the Inventory ledger in the same transaction. The server copies the product name and Catalog selling price and calculates the totals. The caller names the shelf the goods leave. An inactive product cannot be sold. A missing or soft-deleted product is rejected. An inactive shelf can be sold from. Admin, Manager, and Cashier complete sales. All four shop roles can read them. Inventory Staff cannot sell. There is no credit, return, refund, discount, or cancellation in this module. The Angular counter is `/pos`, and sales history is `/sales`.

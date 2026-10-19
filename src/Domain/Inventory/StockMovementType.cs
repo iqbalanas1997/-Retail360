@@ -11,7 +11,8 @@ public enum StockMovementType
     Opening,
     Adjustment,
     Transfer,
-    Purchase
+    Purchase,
+    Sale
 }
 
 public static class StockCodes
@@ -29,6 +30,7 @@ public static class StockCodes
             StockMovementType.Adjustment => "adjustment",
             StockMovementType.Transfer => "transfer",
             StockMovementType.Purchase => "purchase",
+            StockMovementType.Sale => "sale",
             _ => throw new InventoryRuleException(InventoryRuleFailure.Invalid, "Movement type is invalid.")
         };
     }
@@ -51,6 +53,7 @@ public static class StockCodes
             "adjustment" => StockMovementType.Adjustment,
             "transfer" => StockMovementType.Transfer,
             "purchase" => StockMovementType.Purchase,
+            "sale" => StockMovementType.Sale,
             _ => throw new InventoryRuleException(InventoryRuleFailure.Invalid, "Movement type is invalid.")
         };
     }

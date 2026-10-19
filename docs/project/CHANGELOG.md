@@ -10,6 +10,16 @@ Use this file for meaningful project-level changes that affect future AI context
 - Documentation updated
 
 ## Entries
+### 2026-10-20 — POS screens
+- Added the counter screen at `/pos`, the sales list, and the printable receipt. Admin, Manager, and Cashier can complete a cash sale. Every shop role can read sales. Inventory Staff cannot complete one. The screen sends the operation id, product, shelf, and quantity. The server calculates the price and totals.
+- Impacted modules: Sales.
+- Documentation updated: `README.md`, `AGENTS.md`, `MODULE_CATALOG.md`, `TASKS.md`, `POS_UX.md`, `CHANGELOG.md`.
+
+### 2026-10-20 — Cash sales
+- Added completed cash sales. The server copies the catalog selling price and product name, calculates totals, and posts outbound `sale` movements through the Inventory ledger in the same transaction. Admin, Manager, and Cashier can sell. Every shop role can read a sale. Inventory Staff cannot sell. There is no Angular POS screen.
+- Impacted modules: Sales, Inventory.
+- Documentation updated: `README.md`, `AGENTS.md`, `ARCHITECTURE.md`, `DECISIONS.md`, `DATABASE.md`, `DOMAIN_MODEL.md`, `API_CONTRACTS.md`, `MODULE_CATALOG.md`, `TASKS.md`, `CHANGELOG.md`.
+
 ### 2026-10-20 — Purchase screens
 - Added Angular screens for the purchase list, recording a purchase, and receiving it. Every shop role can read purchases. Admin and Manager can record or change a recorded purchase. Admin, Manager, and Inventory Staff can receive one. The list filters by supplier and status. The screen shows a working total and saves the server total. Receiving sends a client operation id and a shelf for every line. The screen does not post stock itself.
 - Impacted modules: Purchasing.

@@ -1,0 +1,150 @@
+<form class="toolbar" (ngSubmit)="findBarcode()">
+  <label>
+    Barcode
+    <input
+      name="barcode"
+      [value]="barcode()"
+      (input)="barcode.set($any($event.target).value)"
+      autocomplete="off"
+      [disabled]="selling()"
+    />
+  </label>
+  <button type="submit" [disabled]="finding() || selling()">Find barcode</button>
+</form>
+
+<form class="toolbar" (ngSubmit)="searchProducts()">
+  <label>
+    Product
+    <input
+      name="productName"
+      [value]="productQuery()"
+      (input)="productQuery.set($any($event.target).value)"
+      autocomplete="off"
+      [disabled]="selling()"
+    />
+  </label>
+  <button type="submit" [disabled]="finding() || selling()">Search</button>
+  <label>
+    Quantity
+    <input
+      name="quantity"
+      [value]="quantity()"
+      (input)="quantity.set($any($event.target).value)"
+      inputmode="decimal"
+      [disabled]="selling()"
+    />
+  </label>
+  <label>
+    Shelf
+    <select name="shelf" (change)="shelfId.set($any($event.target).value)" [disabled]="selling()">
+      <option value="" [selected]="shelfId() === ''">Choose a shelf</option>
+      @for (shelf of shelves(); track shelf.id) {
+        <option [value]="shelf.id" [selected]="shelfId() === shelf.id">{{ shelfLabel(shelf) }}</option>
+      }
+    </select>
+  </label>
+</form>
+
+@if (error()) {
+  <p class="notice error" role="alert">{{ error() }}</p>
+}
+
+@if (loading()) {
+  <p class="status">Loading shelves…</p>
+} @else if (shelves().length === 0 && !error()) {
+  <p class="status">No shelves are available.</p>
+}
+
+@if (matches().length > 0) {
+  <h2>Matches</h2>
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>Product</th>
+          <th>Selling price</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        @for (product of matches(); track product.id) {
+          <tr>
+            <td>{{ product.name }}</td>
+            <td>{{ money(product.sellingPrice) }}</td>
+            <td>
+              <button type="button" (click)="addProduct(product)" [disabled]="selling() || lines().length >= maxLines">
+                Add
+              </button>
+            </td>
+          </tr>
+        }
+      </tbody>
+    </table>
+  </div>
+}
+
+<h2>Sale</h2>
+@if (lines().length === 0) {
+  <p class="status">Scan a barcode or search for a product.</p>
+} @else {
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>Product</th>
+          <th>Shelf</th>
+          <th>Quantity</th>
+          <th>Unit price</th>
+          <th>Line total</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        @for (line of lines(); track line.key) {
+          <tr>
+            <td>{{ line.productName }}</td>
+            <td>
+              <select
+                name="lineShelf"
+                (change)="updateShelf(line.key, $any($event.target).value)"
+                [disabled]="selling()"
+              >
+                <option value="" [selected]="line.shelfId === ''">Choose a shelf</option>
+                @for (shelf of shelves(); track shelf.id) {
+                  <option [value]="shelf.id" [selected]="line.shelfId === shelf.id">{{ shelfLabel(shelf) }}</option>
+                }
+              </select>
+            </td>
+            <td>
+              <input
+                name="lineQuantity"
+                [value]="line.quantity"
+                (input)="updateQuantity(line.key, $any($event.target).value)"
+                inputmode="decimal"
+                [disabled]="selling()"
+              />
+            </td>
+            <td>{{ money(line.unitPrice) }}</td>
+            <td>{{ lineMoney(line) }}</td>
+            <td>
+              <button type="button" class="secondary" (click)="removeLine(line.key)" [disabled]="selling()">
+                Remove
+              </button>
+            </td>
+          </tr>
+        }
+      </tbody>
+    </table>
+  </div>
+  <p class="pos-total">Total {{ documentTotal() }}</p>
+}
+
+@if (canSell()) {
+  <button type="button" (click)="complete()" [disabled]="selling() || lines().length === 0">
+    {{ selling() ? 'Completing sale…' : 'Complete sale' }}
+  </button>
+} @else {
+  <p class="hint">Inventory staff can read sales and cannot complete one.</p>
+}
+
+<p class="hint">The charged total is calculated by the server. <a routerLink="/sales">Sales history</a></p>

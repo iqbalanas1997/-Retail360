@@ -19,4 +19,8 @@ public static class ShopPolicies
     public const string PurchaseRecord = "PurchaseRecord";
 
     public const string PurchaseReceive = "PurchaseReceive";
+
+    public const string SaleRead = "SaleRead";
+
+    public const string SaleComplete = "SaleComplete";
 }

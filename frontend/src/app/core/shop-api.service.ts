@@ -30,6 +30,10 @@ export class ShopApi {
     return this.http.get<Product>(`/api/products/${id}`);
   }
 
+  findProductByBarcode(barcode: string): Observable<Product> {
+    return this.http.get<Product>(`/api/products/by-barcode/${encodeURIComponent(barcode)}`);
+  }
+
   createProduct(body: SaveProductBody): Observable<Product> {
     return this.http.post<Product>('/api/products', body);
   }
