@@ -33,6 +33,11 @@ Identifiers are `uuid`. Each table has `created_at`, `updated_at`, and `is_delet
 ## Suppliers schema
 `006_suppliers.sql` adds `suppliers`. Do not edit `001_initial_identity.sql`, `002_catalog.sql`, `003_inventory.sql`, `004_stock_operations.sql`, or `005_numeric_scale.sql`.
 
+## Purchasing schema
+`007_purchases.sql` adds `purchases` and `purchase_lines`, and extends the stock movement type check to include `purchase`. Do not edit `001` through `006`.
+
+A purchase stores the supplier, purchase date, optional reference, optional notes, `recorded` or `received` status, server total, receive operation id, receive fingerprint, and the audit columns. A received purchase cannot be soft-deleted. A line stores the product, line number, quantity, unit cost, line total, and the shelf assigned when the goods are received. Quantity follows the `numeric(14,3)` checks. Money follows the `numeric(12,2)` checks. The line total must equal `round(quantity * unit_cost, 2)`.
+
 `suppliers` columns are `id`, `name`, `contact_person`, `phone`, `email`, `address`, `notes`, `is_active`, `created_at`, `updated_at`, and `is_deleted`. The name is required and at most 200 characters. Contact person is optional and at most 200. Phone is optional and at most 40. Email is optional and at most 200, and when present it is one address. Address is optional and at most 400. Notes are optional and at most 1000. `uq_suppliers_name` is unique on `lower(name)` where `is_deleted = false`. There is no `shop_id`, payment balance, or purchase foreign key.
 
 ## Naming

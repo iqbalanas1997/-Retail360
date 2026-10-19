@@ -1,5 +1,6 @@
 using Retail360.Domain.Catalog;
 using Retail360.Domain.Inventory;
+using Retail360.Domain.Purchasing;
 using Retail360.Domain.Suppliers;
 
 namespace Retail360.Api.Catalog;
@@ -47,6 +48,17 @@ public sealed class CatalogExceptionMiddleware
             {
                 SupplierRuleFailure.NotFound => StatusCodes.Status404NotFound,
                 SupplierRuleFailure.Conflict => StatusCodes.Status409Conflict,
+                _ => StatusCodes.Status400BadRequest
+            };
+            context.Response.ContentType = "application/json";
+            await context.Response.WriteAsJsonAsync(new { error = exception.Message });
+        }
+        catch (PurchaseRuleException exception)
+        {
+            context.Response.StatusCode = exception.Failure switch
+            {
+                PurchaseRuleFailure.NotFound => StatusCodes.Status404NotFound,
+                PurchaseRuleFailure.Conflict => StatusCodes.Status409Conflict,
                 _ => StatusCodes.Status400BadRequest
             };
             context.Response.ContentType = "application/json";

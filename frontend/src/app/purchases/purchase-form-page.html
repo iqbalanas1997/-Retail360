@@ -1,0 +1,137 @@
+<p class="back"><a routerLink="/purchases">Back to purchases</a></p>
+
+@if (loading()) {
+  <p class="status">Loading purchase…</p>
+} @else if (loadFailed()) {
+  @if (error()) {
+    <p class="notice error" role="alert">{{ error() }}</p>
+  }
+  <button type="button" class="secondary" (click)="load()">Try again</button>
+} @else {
+  @if (!canRecord() && !purchase()) {
+    <p class="hint">Only an Admin or Manager can record a purchase.</p>
+  } @else if (!canRecord() && !canReceive()) {
+    <p class="hint">You can view this purchase. Only an Admin or Manager can change it.</p>
+  } @else if (!canRecord() && recorded()) {
+    <p class="hint">You can receive this purchase. Only an Admin or Manager can change the document.</p>
+  } @else if (received()) {
+    <p class="hint">This purchase has been received and cannot be changed.</p>
+  }
+
+  @if (error()) {
+    <p class="notice error" role="alert">{{ error() }}</p>
+  }
+  @if (success()) {
+    <p class="notice ok" role="status">{{ success() }}</p>
+  }
+
+  <form class="form" [formGroup]="form" (ngSubmit)="save()">
+    <label>
+      Supplier
+      <select formControlName="supplierId">
+        <option value="">Select a supplier</option>
+        @for (supplier of suppliers(); track supplier.id) {
+          <option [value]="supplier.id">{{ supplier.name }}</option>
+        }
+      </select>
+    </label>
+    <label>
+      Purchase date
+      <input type="date" formControlName="purchaseDate" />
+    </label>
+    <label>
+      Reference
+      <input formControlName="reference" maxlength="40" />
+    </label>
+    <label>
+      Notes
+      <textarea formControlName="notes" maxlength="1000" rows="3"></textarea>
+    </label>
+
+    <div class="toolbar">
+      <label>
+        Find product
+        <input [value]="productQuery()" (input)="productQuery.set($any($event.target).value)" />
+      </label>
+      <button type="button" class="secondary" [disabled]="finding() || saving()" (click)="findProducts()">
+        {{ finding() ? 'Finding…' : 'Find' }}
+      </button>
+    </div>
+    @if (productsTruncated()) {
+      <p class="hint">The catalog returned 200 products. Type a more specific name and find again.</p>
+    }
+
+    @for (line of lines(); track line.key) {
+      <div class="toolbar">
+        <label>
+          Product
+          <select [disabled]="!editable()" (change)="updateLine(line.key, 'productId', $any($event.target).value)">
+            <option value="" [selected]="line.productId === ''">Select a product</option>
+            @for (product of products(); track product.id) {
+              <option [value]="product.id" [selected]="product.id === line.productId">{{ product.name }}</option>
+            }
+          </select>
+        </label>
+        <label>
+          Quantity
+          <input [value]="line.quantity" [disabled]="!editable()" (input)="updateLine(line.key, 'quantity', $any($event.target).value)" />
+        </label>
+        <label>
+          Unit cost
+          <input [value]="line.unitCost" [disabled]="!editable()" (input)="updateLine(line.key, 'unitCost', $any($event.target).value)" />
+        </label>
+        <p>Line total {{ lineMoney(line) }}</p>
+        @if (editable()) {
+          <button type="button" class="secondary" (click)="removeLine(line.key)">Remove line</button>
+        }
+      </div>
+    }
+
+    <p><strong>Total {{ documentTotal() }}</strong></p>
+    <p class="hint">The saved total is calculated by the shop API.</p>
+
+    @if (editable()) {
+      <div class="actions">
+        <button type="button" class="secondary" [disabled]="lines().length >= maxLines" (click)="addLine()">Add line</button>
+        <button type="submit" [disabled]="saving()">{{ saving() ? 'Saving…' : 'Save purchase' }}</button>
+        @if (purchase()) {
+          <button type="button" class="secondary" [disabled]="saving()" (click)="askDelete()">Remove purchase</button>
+        }
+      </div>
+    }
+  </form>
+
+  @if (confirmDelete()) {
+    <p class="notice" role="alert">Remove this purchase? This hides it from the list.</p>
+    <div class="actions">
+      <button type="button" [disabled]="saving()" (click)="remove()">Remove</button>
+      <button type="button" class="secondary" (click)="cancelDelete()">Cancel</button>
+    </div>
+  }
+
+  @if (purchase() && recorded() && canReceive()) {
+    <h2>Receive goods</h2>
+    <p class="hint">Choose an active shelf for each line. The shop API posts the stock.</p>
+    @for (line of purchase()!.lines; track line.id) {
+      <label>
+        {{ line.productName }}
+        <select [value]="shelfChoices()[line.id] || ''" (change)="setShelf(line.id, $any($event.target).value)">
+          <option value="">Select a shelf</option>
+          @for (shelf of activeShelves(); track shelf.id) {
+            <option [value]="shelf.id">{{ shelf.areaName }} / {{ shelf.name }}</option>
+          }
+        </select>
+      </label>
+    }
+    <button type="button" [disabled]="receiving()" (click)="receive()">
+      {{ receiving() ? 'Receiving…' : 'Receive purchase' }}
+    </button>
+  }
+
+  @if (received()) {
+    <h2>Received lines</h2>
+    @for (line of purchase()!.lines; track line.id) {
+      <p>{{ line.productName }} — {{ shelfName(line.shelfId) }}</p>
+    }
+  }
+}

@@ -14,10 +14,12 @@ public sealed class SupplierStore : ISupplierStore
         """;
 
     private readonly NpgsqlConnectionFactory _connections;
+    private readonly PostgresTransaction _transactions;
 
-    public SupplierStore(NpgsqlConnectionFactory connections)
+    public SupplierStore(NpgsqlConnectionFactory connections, PostgresTransaction transactions)
     {
         _connections = connections;
+        _transactions = transactions;
     }
 
     public async Task<Supplier?> FindAsync(Guid id, CancellationToken cancellationToken)
@@ -119,15 +121,50 @@ public sealed class SupplierStore : ISupplierStore
     {
         try
         {
-            await using var connection = await _connections.OpenConnectionAsync(cancellationToken);
-            var rows = await connection.ExecuteAsync(new CommandDefinition(
-                sql,
-                supplier,
-                cancellationToken: cancellationToken));
-            if (requireRow && rows == 0)
+            await _transactions.ExecuteAsync(async (connection, transaction, token) =>
             {
-                throw new SupplierRuleException(SupplierRuleFailure.NotFound, "Supplier was not found.");
-            }
+                if (supplier.IsDeleted)
+                {
+                    var locked = await connection.QuerySingleOrDefaultAsync<bool?>(new CommandDefinition(
+                        """
+                        select is_deleted
+                        from suppliers
+                        where id = @Id
+                        for update;
+                        """,
+                        new { supplier.Id },
+                        transaction,
+                        cancellationToken: token));
+                    if (locked is null || locked.Value)
+                    {
+                        throw new SupplierRuleException(SupplierRuleFailure.NotFound, "Supplier was not found.");
+                    }
+
+                    var referenced = await connection.ExecuteScalarAsync<bool>(new CommandDefinition(
+                        "select exists(select 1 from purchases where supplier_id = @Id);",
+                        new { supplier.Id },
+                        transaction,
+                        cancellationToken: token));
+                    if (referenced)
+                    {
+                        throw new SupplierRuleException(
+                            SupplierRuleFailure.Conflict,
+                            "Supplier cannot be deleted because it has purchase history.");
+                    }
+                }
+
+                var rows = await connection.ExecuteAsync(new CommandDefinition(
+                    sql,
+                    supplier,
+                    transaction,
+                    cancellationToken: token));
+                if (requireRow && rows == 0)
+                {
+                    throw new SupplierRuleException(SupplierRuleFailure.NotFound, "Supplier was not found.");
+                }
+
+                return 0;
+            }, cancellationToken);
         }
         catch (SupplierRuleException)
         {

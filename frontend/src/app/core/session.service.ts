@@ -25,6 +25,12 @@ export class SessionService {
   readonly canManageInventory = computed(() =>
     this.roles().some((role) => role === 'Admin' || role === 'Manager' || role === 'Inventory Staff'),
   );
+  readonly canRecordPurchases = computed(() =>
+    this.roles().some((role) => role === 'Admin' || role === 'Manager'),
+  );
+  readonly canReceivePurchases = computed(() =>
+    this.roles().some((role) => role === 'Admin' || role === 'Manager' || role === 'Inventory Staff'),
+  );
   readonly hasSession = computed(() => this.session() !== null);
 
   private readonly zone = inject(NgZone);

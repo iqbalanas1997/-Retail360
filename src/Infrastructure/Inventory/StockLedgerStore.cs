@@ -31,7 +31,23 @@ public sealed class StockLedgerStore : IStockLedger, IInventoryProductLookup
         return row is null ? null : new InventoryProduct(row.Id, row.Name, row.MinimumStock, row.IsActive);
     }
 
-    public async Task<IReadOnlyList<StockMovementResponse>> PostAsync(StockPosting posting, CancellationToken cancellationToken)
+    public Task<IReadOnlyList<StockMovementResponse>> PostAsync(StockPosting posting, CancellationToken cancellationToken)
+    {
+        if (posting.Lines.Count == 0)
+        {
+            throw new InventoryRuleException(InventoryRuleFailure.Invalid, "A stock operation needs a movement.");
+        }
+
+        return _transactions.ExecuteAsync(
+            (connection, transaction, token) => PostInTransactionAsync(connection, transaction, posting, token),
+            cancellationToken);
+    }
+
+    public async Task<IReadOnlyList<StockMovementResponse>> PostInTransactionAsync(
+        NpgsqlConnection connection,
+        NpgsqlTransaction transaction,
+        StockPosting posting,
+        CancellationToken cancellationToken)
     {
         if (posting.Lines.Count == 0)
         {
@@ -41,9 +57,29 @@ public sealed class StockLedgerStore : IStockLedger, IInventoryProductLookup
         var shelfIds = posting.Lines.Select(line => line.ShelfId).Distinct().OrderBy(id => id).ToArray();
         try
         {
-            return await _transactions.ExecuteAsync(async (connection, transaction, token) =>
-            {
-                var product = await connection.QuerySingleOrDefaultAsync<ProductLockRow>(new CommandDefinition(
+            return await PostCoreAsync(connection, transaction, posting, shelfIds, cancellationToken);
+        }
+        catch (InventoryRuleException)
+        {
+            throw;
+        }
+        catch (PostgresException exception) when (exception.SqlState == PostgresErrorCodes.CheckViolation)
+        {
+            var message = exception.ConstraintName == "ck_stock_balances_quantity"
+                ? "Shelf does not have enough stock."
+                : "The stock change was rejected.";
+            throw new InventoryRuleException(InventoryRuleFailure.Conflict, message);
+        }
+    }
+
+    private async Task<IReadOnlyList<StockMovementResponse>> PostCoreAsync(
+        NpgsqlConnection connection,
+        NpgsqlTransaction transaction,
+        StockPosting posting,
+        Guid[] shelfIds,
+        CancellationToken token)
+    {
+        var product = await connection.QuerySingleOrDefaultAsync<ProductLockRow>(new CommandDefinition(
                     """
                     select id, is_deleted
                     from products
@@ -214,20 +250,7 @@ public sealed class StockLedgerStore : IStockLedger, IInventoryProductLookup
                     rows,
                     transaction,
                     cancellationToken: token));
-                return await ReadOperationAsync(connection, transaction, posting.OperationId, token);
-            }, cancellationToken);
-        }
-        catch (InventoryRuleException)
-        {
-            throw;
-        }
-        catch (PostgresException exception) when (exception.SqlState == PostgresErrorCodes.CheckViolation)
-        {
-            var message = exception.ConstraintName == "ck_stock_balances_quantity"
-                ? "Shelf does not have enough stock."
-                : "The stock change was rejected.";
-            throw new InventoryRuleException(InventoryRuleFailure.Conflict, message);
-        }
+        return await ReadOperationAsync(connection, transaction, posting.OperationId, token);
     }
 
     public async Task<IReadOnlyList<ShelfBalanceResponse>> ListBalancesAsync(

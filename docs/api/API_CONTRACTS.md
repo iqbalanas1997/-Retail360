@@ -107,4 +107,20 @@ Supplier failures use the same `{ "error": "message" }` body. Invalid input is 4
 | POST | `/api/suppliers/{id}/deactivate` | Set `isActive` to false. This does not delete the supplier. |
 | DELETE | `/api/suppliers/{id}` | Logical delete. Returns 204. The name can be used by a later supplier. |
 
-Name is required and at most 200 characters. Contact person is at most 200. Phone is at most 40. Email, when present, is one address of at most 200 characters. Address is at most 400. Notes are at most 1000. There is no supplier payment or purchase endpoint.
+Name is required and at most 200 characters. Contact person is at most 200. Phone is at most 40. Email, when present, is one address of at most 200 characters. Address is at most 400. Notes are at most 1000. There is no supplier payment endpoint. A supplier referenced by a purchase cannot be soft-deleted.
+
+## Purchasing
+Purchase failures use the same `{ "error": "message" }` body. Invalid input is 400. A missing supplier, product, shelf, or purchase is 404. A conflict is 409. `DELETE` sets `is_deleted` and does not run a SQL `DELETE`.
+
+`PurchaseRead` allows every shop role. `PurchaseRecord` allows Admin and Manager. `PurchaseReceive` allows Admin, Manager, and Inventory Staff.
+
+| Method | Route | Behavior |
+|---|---|---|
+| GET | `/api/purchases?supplierId=&status=&limit=&offset=` | List purchases that are not soft-deleted. `status` is `recorded` or `received`. `limit` defaults to 50 and cannot exceed 200. |
+| GET | `/api/purchases/{id}` | Read one purchase and its current lines. |
+| POST | `/api/purchases` | Create a recorded purchase from `{ "supplierId", "purchaseDate", "reference", "notes", "lines": [{ "productId", "quantity", "unitCost" }] }`. The server calculates totals. Returns 201. |
+| PUT | `/api/purchases/{id}` | Replace a recorded purchase. A received purchase is 409. |
+| DELETE | `/api/purchases/{id}` | Soft-delete a recorded purchase. Returns 204. A received purchase is 409. |
+| POST | `/api/purchases/{id}/receive` | Receive every current line from `{ "operationId", "lines": [{ "lineId", "shelfId" }] }`. Posts inbound `purchase` movements and sets the purchase to `received`. |
+
+The supplier must be active when the purchase is recorded or replaced. An inactive product is allowed. A soft-deleted product is 404. Quantity is greater than zero with at most 3 decimal places. Unit cost is zero or greater with at most 2 decimal places. Line total is `round(quantity * unitCost, 2)`, half away from zero. An inactive shelf cannot receive stock, and that failure rolls the receive back. The same `operationId` and the same shelf assignment return the received purchase. A different assignment or a second receive is 409. There is no payment, return, or cancellation route.

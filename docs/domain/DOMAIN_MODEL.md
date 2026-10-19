@@ -29,20 +29,20 @@ A storage place in one area. Stock is held here, not on the product and not on t
 The current on-hand quantity of one product on one shelf. Quantity uses `decimal`, stays within `99999999999.999`, has at most 3 fractional digits, and cannot be negative. There is at most one balance per product and shelf. The balance is updated only in the same transaction as the movement that explains the change. It is not a column on Product. `minimum_stock` remains the Catalog threshold.
 
 ### Stock movement
-An append-only explanation of a stock change. Quantity is a positive `decimal` with at most 3 fractional digits. Direction is inbound or outbound. The initial types are opening, adjustment, and transfer. Damaged, expired, and missing are adjustment reasons, not types. A movement is not edited and is not soft-deleted. A correction is a new compensating movement with a reason.
+An append-only explanation of a stock change. Quantity is a positive `decimal` with at most 3 fractional digits. Direction is inbound or outbound. The movement types are opening, adjustment, transfer, and purchase. Damaged, expired, and missing are adjustment reasons, not types. A movement is not edited and is not soft-deleted. A correction is a new compensating movement with a reason.
 
 Opening stock records the product, shelf, positive quantity, time, and a required reason. It is not a purchase. An adjustment requires a reason. A transfer records the same positive quantity out of the source shelf and into the destination shelf. The shop total does not change.
 
-A product with a stock balance row or any stock movement cannot be soft-deleted, even when the quantity is zero. A product with no Inventory history can be soft-deleted. A soft-deleted product cannot receive a new movement. An inactive product can still be counted or adjusted. Purchasing and Sales may later cause movements. Their document contracts are not defined yet.
+A product with a stock balance row or any stock movement cannot be soft-deleted, even when the quantity is zero. A product with no Inventory history can be soft-deleted. A soft-deleted product cannot receive a new movement. An inactive product can still be counted, adjusted, or purchased. A purchase receipt is an inbound `purchase` movement. Its document contract is ADR-014. Sales may later cause movements. The sale document contract is not defined yet.
 
 ### Purchase
-Supplier-side acquisition of products and quantities.
+A supplier invoice for one or more products. It stores the supplier id, purchase date, optional reference, optional notes, status, and the server-calculated total. Each line stores the product id, quantity, unit cost, and line total. `recorded` does not change stock. `received` means every current line was posted to a shelf as an inbound `purchase` movement. A received purchase is not edited or soft-deleted. Payments, returns, and cancellation are not part of this document.
 
 ### Sale
 Customer-side transaction containing sale lines, quantities, prices and payment information.
 
 ### Supplier
-A business or person the shop can buy from. Fields are id, name, optional contact person, phone, email, address, and notes, plus `is_active`, created_at, updated_at, and is_deleted. The name is required and unique among non-deleted suppliers, compared case-insensitively. A soft-deleted name can be used again. An inactive supplier can still be edited. Deactivation does not delete the supplier. Purchase history, supplier payments, and payable balances are not part of this record. A future purchase references the supplier id.
+A business or person the shop can buy from. Fields are id, name, optional contact person, phone, email, address, and notes, plus `is_active`, created_at, updated_at, and is_deleted. The name is required and unique among non-deleted suppliers, compared case-insensitively. A soft-deleted name can be used again. An inactive supplier can still be edited. Deactivation does not delete the supplier. Supplier payments and payable balances are not part of this record. A purchase references the supplier id. A supplier referenced by a purchase cannot be soft-deleted.
 
 ### Customer
 Buyer with optional credit/receivable history.
@@ -70,7 +70,7 @@ A stock operation locks the product row, records the client operation key, then 
 
 ## Important invariants
 - On-hand quantity at a shelf is never negative. There is no override.
-- A purchase increases inventory according to received quantities. Purchasing is not implemented.
+- A purchase increases inventory only when its goods are received, and only by those received quantities.
 - Transfers move stock between shelves without changing total shop stock.
 - Opening stock and adjustments require a reason. Damaged, expired, and missing are adjustment reasons.
 - Movement and balance quantities use `decimal` and stay within the `numeric(14,3)` limits. Do not use floating point.

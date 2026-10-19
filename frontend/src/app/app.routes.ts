@@ -9,6 +9,8 @@ import { StockPage } from './inventory/stock-page';
 import { StockPostPage } from './inventory/stock-post-page';
 import { LoginPage } from './login/login-page';
 import { Shell } from './shell/shell';
+import { PurchaseFormPage } from './purchases/purchase-form-page';
+import { PurchaseListPage } from './purchases/purchase-list-page';
 import { SupplierFormPage } from './suppliers/supplier-form-page';
 import { SupplierListPage } from './suppliers/supplier-list-page';
 
@@ -43,6 +45,9 @@ export const routes: Routes = [
       { path: 'suppliers', component: SupplierListPage, data: { title: 'Suppliers' } },
       { path: 'suppliers/new', component: SupplierFormPage, data: { title: 'New supplier' } },
       { path: 'suppliers/:id', component: SupplierFormPage, data: { title: 'Supplier' } },
+      { path: 'purchases', component: PurchaseListPage, data: { title: 'Purchases' } },
+      { path: 'purchases/new', component: PurchaseFormPage, data: { title: 'New purchase' } },
+      { path: 'purchases/:id', component: PurchaseFormPage, data: { title: 'Purchase' } },
       { path: '**', redirectTo: 'catalog/products' },
     ],
   },

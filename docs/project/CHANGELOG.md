@@ -10,6 +10,16 @@ Use this file for meaningful project-level changes that affect future AI context
 - Documentation updated
 
 ## Entries
+### 2026-10-20 — Purchase screens
+- Added Angular screens for the purchase list, recording a purchase, and receiving it. Every shop role can read purchases. Admin and Manager can record or change a recorded purchase. Admin, Manager, and Inventory Staff can receive one. The list filters by supplier and status. The screen shows a working total and saves the server total. Receiving sends a client operation id and a shelf for every line. The screen does not post stock itself.
+- Impacted modules: Purchasing.
+- Documentation updated: `README.md`, `ARCHITECTURE.md`, `MODULE_CATALOG.md`, `TASKS.md`, `CHANGELOG.md`.
+
+### 2026-10-20 — Purchase records and receiving
+- Added purchase documents and lines. Recording a purchase does not change stock. Receiving posts inbound `purchase` movements through the existing Inventory ledger in one transaction. The server calculates totals. A supplier referenced by a purchase cannot be soft-deleted.
+- Impacted modules: Purchasing, Inventory, Suppliers.
+- Documentation updated: `README.md`, `AGENTS.md`, `ARCHITECTURE.md`, `DECISIONS.md`, `DATABASE.md`, `DOMAIN_MODEL.md`, `API_CONTRACTS.md`, `MODULE_CATALOG.md`, `TASKS.md`, `CHANGELOG.md`.
+
 ### 2026-10-19 — Supplier screens
 - Added Angular screens for the supplier list, supplier details, activation, and soft delete. Name search and paging use the supplier API. Admin and Manager can change a supplier. Cashier and Inventory Staff can read one. Payments and purchases are not included.
 - Impacted modules: Suppliers.

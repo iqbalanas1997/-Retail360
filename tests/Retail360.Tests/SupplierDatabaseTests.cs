@@ -374,7 +374,7 @@ public sealed class SupplierDatabaseFixture : IAsyncLifetime
 
     public SupplierService CreateService(DateTimeOffset utcNow)
     {
-        return new SupplierService(new SupplierStore(Connections), new FixedClock(utcNow));
+        return new SupplierService(new SupplierStore(Connections, new PostgresTransaction(Connections)), new FixedClock(utcNow));
     }
 
     public HttpClient CreateClient()
