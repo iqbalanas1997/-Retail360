@@ -9,4 +9,8 @@ public static class ShopPolicies
     public const string InventoryRead = "InventoryRead";
 
     public const string InventoryManage = "InventoryManage";
+
+    public const string SupplierRead = "SupplierRead";
+
+    public const string SupplierWrite = "SupplierWrite";
 }

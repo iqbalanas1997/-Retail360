@@ -30,6 +30,11 @@ An inactive shelf rejects inbound stock and allows outbound stock that does not 
 
 Identifiers are `uuid`. Each table has `created_at`, `updated_at`, and `is_deleted`. Soft delete is an update. Category, brand, and unit names are unique where `is_deleted = false`, compared case-insensitively. Product names are not unique. `products.category_id` and `products.brand_id` are nullable. `products.unit_id` is required. Prices and `minimum_stock` are unconstrained `numeric` with the scale checks from `005_numeric_scale.sql`. `product_barcodes.barcode` is unique where `is_deleted = false`, matched exactly. `products` has no stock, SKU, or shelf column.
 
+## Suppliers schema
+`006_suppliers.sql` adds `suppliers`. Do not edit `001_initial_identity.sql`, `002_catalog.sql`, `003_inventory.sql`, `004_stock_operations.sql`, or `005_numeric_scale.sql`.
+
+`suppliers` columns are `id`, `name`, `contact_person`, `phone`, `email`, `address`, `notes`, `is_active`, `created_at`, `updated_at`, and `is_deleted`. The name is required and at most 200 characters. Contact person is optional and at most 200. Phone is optional and at most 40. Email is optional and at most 200, and when present it is one address. Address is optional and at most 400. Notes are optional and at most 1000. `uq_suppliers_name` is unique on `lower(name)` where `is_deleted = false`. There is no `shop_id`, payment balance, or purchase foreign key.
+
 ## Naming
 Snake case is the fixed convention for PostgreSQL tables, columns, keys, foreign keys, and indexes. See ADR-008.
 

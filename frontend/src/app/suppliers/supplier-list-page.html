@@ -1,0 +1,61 @@
+<form class="toolbar" [formGroup]="form" (ngSubmit)="search()">
+  <label>
+    Search name
+    <input formControlName="name" />
+  </label>
+  <label class="check">
+    <input type="checkbox" formControlName="activeOnly" />
+    Active suppliers only
+  </label>
+  <button type="submit">Search</button>
+  @if (canWrite()) {
+    <a class="button" routerLink="/suppliers/new">New supplier</a>
+  }
+</form>
+
+@if (error()) {
+  <p class="notice error" role="alert">{{ error() }}</p>
+  <button type="button" class="secondary" (click)="reload()">Try again</button>
+}
+
+@if (success()) {
+  <p class="notice ok" role="status">{{ success() }}</p>
+}
+
+@if (loading()) {
+  <p class="status">Loading suppliers…</p>
+} @else if (suppliers().length === 0 && !error()) {
+  <p class="status">No suppliers match this search.</p>
+} @else if (suppliers().length > 0) {
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Contact</th>
+          <th>Phone</th>
+          <th>Email</th>
+          <th>Status</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        @for (supplier of suppliers(); track supplier.id) {
+          <tr>
+            <td>{{ supplier.name }}</td>
+            <td>{{ supplier.contactPerson }}</td>
+            <td>{{ supplier.phone }}</td>
+            <td>{{ supplier.email }}</td>
+            <td>{{ status(supplier) }}</td>
+            <td><a [routerLink]="['/suppliers', supplier.id]">Open</a></td>
+          </tr>
+        }
+      </tbody>
+    </table>
+  </div>
+  @if (hasMore()) {
+    <button type="button" class="secondary" [disabled]="loadingMore()" (click)="showMore()">
+      {{ loadingMore() ? 'Loading…' : 'Show more' }}
+    </button>
+  }
+}

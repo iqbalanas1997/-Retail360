@@ -148,3 +148,12 @@ The access token lifetime defaults to 15 minutes and must be from 1 to 60. Valid
 `Authentication:SigningKey` is required and must be at least 32 bytes. It is not stored in source control. A missing or short key stops startup before migrations run. The first Admin is created only when `Authentication:Bootstrap:UserName` and `Authentication:Bootstrap:Password` are both set and no active Admin exists. Creation locks the Admin role row, rechecks, and inserts in that transaction, so two startups do not create two Admins. Those values are environment or user-secret settings, not tracked files. Remove them after the Admin exists. The API does not log passwords, password hashes, signing keys, or bearer tokens. Outside this machine, the site must be served over HTTPS. Development Swagger is not an access check.
 
 Admin and Manager may change the catalog. Admin, Manager, and Inventory Staff may change areas, shelves, and stock. All four shop roles may read Catalog and Inventory. Cashier cannot change prices or stock. This is a single-shop baseline: no multi-factor authentication, no external identity provider, and no permission table. It is not a claim of production readiness.
+
+## ADR-013 — Supplier records
+Status: Accepted
+
+Suppliers owns the supplier master record. Purchasing will later reference `suppliers.id`. This module does not own purchases, purchase lines, supplier payments, payable balances, or stock movements.
+
+A supplier has a required name and optional contact person, phone, email, address, and notes. `is_active` means the supplier is currently used. `is_deleted` means the record is logically removed. An inactive supplier can still be edited. Deactivation is not deletion. Names are unique among rows where `is_deleted = false`, compared case-insensitively, matching Catalog category names. A soft-deleted name can be used by a new supplier. Nothing blocks deletion yet, because no purchase table exists. When Purchasing is added, a supplier referenced by a purchase must not be soft-deleted.
+
+Supplier routes are authenticated. `SupplierRead` allows Admin, Manager, Cashier, and Inventory Staff. `SupplierWrite` allows Admin and Manager. That write set matches catalog maintenance because a supplier is commercial master data, but it is a separate policy. Inventory Staff can read a supplier and cannot change one. Cashier can read and cannot change one.

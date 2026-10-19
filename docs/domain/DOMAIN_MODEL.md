@@ -42,7 +42,7 @@ Supplier-side acquisition of products and quantities.
 Customer-side transaction containing sale lines, quantities, prices and payment information.
 
 ### Supplier
-Business/person supplying products, with purchase and payable history.
+A business or person the shop can buy from. Fields are id, name, optional contact person, phone, email, address, and notes, plus `is_active`, created_at, updated_at, and is_deleted. The name is required and unique among non-deleted suppliers, compared case-insensitively. A soft-deleted name can be used again. An inactive supplier can still be edited. Deactivation does not delete the supplier. Purchase history, supplier payments, and payable balances are not part of this record. A future purchase references the supplier id.
 
 ### Customer
 Buyer with optional credit/receivable history.

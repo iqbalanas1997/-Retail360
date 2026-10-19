@@ -27,6 +27,8 @@ Assumption: every shop role may look up products and stock. Only Admin and Manag
 | Catalog create, update, activate, deactivate, delete | yes | yes | no | no |
 | Inventory read, including balances, movements, stock, and reconciliation | yes | yes | yes | yes |
 | Areas, shelves, opening stock, adjustments, transfers | yes | yes | no | yes |
+| Supplier read | yes | yes | yes | yes |
+| Supplier create, update, activate, deactivate, delete | yes | yes | no | no |
 
 ## Errors
 Catalog failures return JSON `{ "error": "message" }`. A signed-in caller still receives these bodies after authorization succeeds.
@@ -91,3 +93,18 @@ Repeating a stock request with the same `operationId` and the same payload retur
 Prices are from 0 through `9999999999.99` with at most 2 fractional digits. Minimum stock and stock quantities have at most 3 fractional digits and are at most `99999999999.999`. A stock quantity must be greater than zero. An extra digit is rejected. A shelf total above the maximum is HTTP 409, and that operation is not stored.
 
 Opening and adjustment reasons are required and are at most 200 characters. `damaged`, `expired`, and `missing` are standard reasons. Other correction text is allowed. A soft-deleted product is rejected. An inactive product may still be adjusted. An inactive shelf rejects opening stock, a positive adjustment, and a transfer in. It allows a negative adjustment and a transfer out when the shelf still has enough stock. Reading an inactive shelf balance is allowed. Stock on an inactive shelf is included in the shop total. Out of stock means that total is zero. Low stock means the total is greater than zero and less than or equal to Catalog `minimum_stock`. A product with no balance rows is on hand zero. Purchasing and Sales endpoints are not part of this contract.
+
+## Suppliers
+Supplier failures use the same `{ "error": "message" }` body. Invalid input is 400. A missing or soft-deleted supplier is 404. A case-insensitive duplicate name is 409. `DELETE` sets `is_deleted` and does not run a SQL `DELETE`.
+
+| Method | Route | Behavior |
+|---|---|---|
+| GET | `/api/suppliers?name=&activeOnly=&limit=&offset=` | List suppliers that are not soft-deleted. `name` matches part of the supplier name. `activeOnly` defaults to false. `limit` defaults to 50 and cannot exceed 200. |
+| GET | `/api/suppliers/{id}` | Read one supplier, including an inactive supplier. |
+| POST | `/api/suppliers` | Create from `{ "name", "contactPerson", "phone", "email", "address", "notes" }`. Optional fields may be null or blank. Returns 201. The supplier starts active. |
+| PUT | `/api/suppliers/{id}` | Replace those same fields. An inactive supplier can be updated. This does not change `isActive`. |
+| POST | `/api/suppliers/{id}/activate` | Set `isActive` to true. |
+| POST | `/api/suppliers/{id}/deactivate` | Set `isActive` to false. This does not delete the supplier. |
+| DELETE | `/api/suppliers/{id}` | Logical delete. Returns 204. The name can be used by a later supplier. |
+
+Name is required and at most 200 characters. Contact person is at most 200. Phone is at most 40. Email, when present, is one address of at most 200 characters. Address is at most 400. Notes are at most 1000. There is no supplier payment or purchase endpoint.

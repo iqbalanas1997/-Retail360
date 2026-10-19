@@ -10,6 +10,16 @@ Use this file for meaningful project-level changes that affect future AI context
 - Documentation updated
 
 ## Entries
+### 2026-10-19 — Supplier screens
+- Added Angular screens for the supplier list, supplier details, activation, and soft delete. Name search and paging use the supplier API. Admin and Manager can change a supplier. Cashier and Inventory Staff can read one. Payments and purchases are not included.
+- Impacted modules: Suppliers.
+- Documentation updated: `README.md`, `ARCHITECTURE.md`, `MODULE_CATALOG.md`, `TASKS.md`, `CHANGELOG.md`.
+
+### 2026-10-19 — Supplier records
+- Added supplier master data: name, optional contact details, activation, and soft delete. Names are unique among non-deleted rows, case-insensitively. Admin and Manager can change suppliers. Every shop role can read them. Payments, purchases, and supplier screens are not included.
+- Impacted modules: Suppliers, Identity.
+- Documentation updated: `README.md`, `AGENTS.md`, `ARCHITECTURE.md`, `DECISIONS.md`, `DATABASE.md`, `DOMAIN_MODEL.md`, `API_CONTRACTS.md`, `MODULE_CATALOG.md`, `TASKS.md`, `CHANGELOG.md`.
+
 ### 2026-10-14 — Frontend hardening
 - An open counter screen returns to sign-in when the access token expires. A second click does not send another sign-in, catalog save, or stock post while the first request is still running. A late stock or product list response does not replace a newer one. Opening stock, adjustments, and transfers can search catalog products by name.
 - Impacted modules: Identity, Catalog, Inventory.

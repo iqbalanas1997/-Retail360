@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Http;
 using Retail360.Api.Catalog;
 using Retail360.Domain.Catalog;
 using Retail360.Domain.Inventory;
+using Retail360.Domain.Suppliers;
 using Xunit;
 
 namespace Retail360.Tests;
@@ -32,6 +33,22 @@ public class CatalogExceptionMiddlewareTests
         using var document = await JsonDocument.ParseAsync(context.Response.Body);
         Assert.Equal(statusCode, context.Response.StatusCode);
         Assert.Equal(message, document.RootElement.GetProperty("error").GetString());
+    }
+
+    [Fact]
+    public async Task Supplier_conflict_uses_the_error_body()
+    {
+        var middleware = new CatalogExceptionMiddleware(_ =>
+            throw new SupplierRuleException(SupplierRuleFailure.Conflict, "A supplier with this name already exists."));
+        var context = new DefaultHttpContext();
+        context.Response.Body = new MemoryStream();
+
+        await middleware.InvokeAsync(context);
+
+        context.Response.Body.Position = 0;
+        using var document = await JsonDocument.ParseAsync(context.Response.Body);
+        Assert.Equal(StatusCodes.Status409Conflict, context.Response.StatusCode);
+        Assert.Equal("A supplier with this name already exists.", document.RootElement.GetProperty("error").GetString());
     }
 
     private static Exception Create(Type exceptionType, string failureName, string message)

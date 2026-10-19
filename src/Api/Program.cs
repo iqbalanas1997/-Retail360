@@ -8,6 +8,7 @@ using Retail360.Api.Identity;
 using Retail360.Application.Catalog;
 using Retail360.Application.Identity;
 using Retail360.Application.Inventory;
+using Retail360.Application.Suppliers;
 using Retail360.Domain.Identity;
 using Retail360.Infrastructure;
 using Retail360.Infrastructure.Identity;
@@ -24,6 +25,7 @@ builder.Services.AddScoped<ProductService>();
 builder.Services.AddScoped<AreaService>();
 builder.Services.AddScoped<ShelfService>();
 builder.Services.AddScoped<StockService>();
+builder.Services.AddScoped<SupplierService>();
 builder.Services.AddScoped<ShopSignInService>();
 builder.Services.AddSingleton<IAuthorizationMiddlewareResultHandler, ShopAuthorizationResultHandler>();
 
@@ -65,6 +67,10 @@ builder.Services.AddAuthorization(options =>
         ShopRoleNames.Admin, ShopRoleNames.Manager, ShopRoleNames.Cashier, ShopRoleNames.InventoryStaff));
     options.AddPolicy(ShopPolicies.InventoryManage, policy => policy.RequireRole(
         ShopRoleNames.Admin, ShopRoleNames.Manager, ShopRoleNames.InventoryStaff));
+    options.AddPolicy(ShopPolicies.SupplierRead, policy => policy.RequireRole(
+        ShopRoleNames.Admin, ShopRoleNames.Manager, ShopRoleNames.Cashier, ShopRoleNames.InventoryStaff));
+    options.AddPolicy(ShopPolicies.SupplierWrite, policy => policy.RequireRole(
+        ShopRoleNames.Admin, ShopRoleNames.Manager));
 });
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();

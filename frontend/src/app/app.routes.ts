@@ -9,6 +9,8 @@ import { StockPage } from './inventory/stock-page';
 import { StockPostPage } from './inventory/stock-post-page';
 import { LoginPage } from './login/login-page';
 import { Shell } from './shell/shell';
+import { SupplierFormPage } from './suppliers/supplier-form-page';
+import { SupplierListPage } from './suppliers/supplier-list-page';
 
 export const routes: Routes = [
   { path: 'login', component: LoginPage, canActivate: [guestGuard] },
@@ -38,6 +40,9 @@ export const routes: Routes = [
         data: { title: 'Stock adjustment', mode: 'adjustment' },
       },
       { path: 'inventory/transfers', component: StockPostPage, data: { title: 'Shelf transfer', mode: 'transfer' } },
+      { path: 'suppliers', component: SupplierListPage, data: { title: 'Suppliers' } },
+      { path: 'suppliers/new', component: SupplierFormPage, data: { title: 'New supplier' } },
+      { path: 'suppliers/:id', component: SupplierFormPage, data: { title: 'Supplier' } },
       { path: '**', redirectTo: 'catalog/products' },
     ],
   },

@@ -1,0 +1,78 @@
+<p class="back"><a routerLink="/suppliers">Back to suppliers</a></p>
+
+@if (loading()) {
+  <p class="status">Loading supplier…</p>
+} @else if (loadFailed()) {
+  @if (error()) {
+    <p class="notice error" role="alert">{{ error() }}</p>
+  }
+  <button type="button" (click)="load()">Try again</button>
+} @else {
+  @if (error()) {
+    <p class="notice error" role="alert">{{ error() }}</p>
+  }
+  @if (success()) {
+    <p class="notice ok" role="status">{{ success() }}</p>
+  }
+  @if (!canWrite()) {
+    <p class="hint">You can view this supplier. Only an Admin or Manager can change it.</p>
+  }
+
+  <form class="form" [formGroup]="form" (ngSubmit)="save()">
+    <label>
+      Name
+      <input formControlName="name" maxlength="200" />
+    </label>
+    <label>
+      Contact person
+      <input formControlName="contactPerson" maxlength="200" />
+    </label>
+    <label>
+      Phone
+      <input formControlName="phone" maxlength="40" />
+    </label>
+    <label>
+      Email
+      <input formControlName="email" maxlength="200" />
+    </label>
+    <label>
+      Address
+      <textarea formControlName="address" maxlength="400" rows="3"></textarea>
+    </label>
+    <label>
+      Notes
+      <textarea formControlName="notes" maxlength="1000" rows="4"></textarea>
+    </label>
+    <p class="hint">Leave a contact field blank when you do not have it. Saving these details does not change whether the supplier is active.</p>
+
+    @if (canWrite()) {
+      <div class="actions">
+        <button type="submit" [disabled]="saving()">
+          {{ saving() ? 'Saving…' : 'Save supplier' }}
+        </button>
+        @if (supplier(); as current) {
+          @if (current.isActive) {
+            <button type="button" class="secondary" [disabled]="saving()" (click)="setActive(false)">
+              Deactivate
+            </button>
+          } @else {
+            <button type="button" class="secondary" [disabled]="saving()" (click)="setActive(true)">
+              Activate
+            </button>
+          }
+          @if (!confirmDelete()) {
+            <button type="button" class="secondary" [disabled]="saving()" (click)="confirmDelete.set(true)">
+              Remove supplier
+            </button>
+          } @else {
+            <span class="confirm">
+              Remove {{ current.name }}? This hides the supplier from the list. The name can be used again.
+              <button type="button" [disabled]="saving()" (click)="remove()">Remove</button>
+              <button type="button" class="secondary" (click)="confirmDelete.set(false)">Cancel</button>
+            </span>
+          }
+        }
+      </div>
+    }
+  </form>
+}

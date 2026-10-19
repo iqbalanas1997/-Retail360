@@ -4,8 +4,10 @@ using Microsoft.Extensions.DependencyInjection;
 using Retail360.Application.Catalog;
 using Retail360.Application.Identity;
 using Retail360.Application.Inventory;
+using Retail360.Application.Suppliers;
 using Retail360.Infrastructure.Catalog;
 using Retail360.Infrastructure.Inventory;
+using Retail360.Infrastructure.Suppliers;
 using Retail360.Infrastructure.Database;
 using Retail360.Infrastructure.Identity;
 using Retail360.Infrastructure.Persistence.Sql;
@@ -48,6 +50,7 @@ public static class DependencyInjection
         services.AddSingleton<StockLedgerStore>();
         services.AddSingleton<IStockLedger>(provider => provider.GetRequiredService<StockLedgerStore>());
         services.AddSingleton<IInventoryProductLookup>(provider => provider.GetRequiredService<StockLedgerStore>());
+        services.AddSingleton<ISupplierStore, SupplierStore>();
 
         return services;
     }
