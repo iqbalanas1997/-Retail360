@@ -10,6 +10,11 @@ Use this file for meaningful project-level changes that affect future AI context
 - Documentation updated
 
 ## Entries
+### 2026-10-20 — POS reliability
+- A newer product search replaces an older one. A barcode scan still adds its line when the response arrives after a newer search, and a repeated scan does not add a second line while the first lookup is still running. A failed shelf load can be retried. A sale that the server has accepted is opened as a receipt instead of being submitted again, and a network failure leaves the cart in place.
+- Impacted modules: Sales.
+- Documentation updated: `TASKS.md`, `CHANGELOG.md`.
+
 ### 2026-10-20 — POS screens
 - Added the counter screen at `/pos`, the sales list, and the printable receipt. Admin, Manager, and Cashier can complete a cash sale. Every shop role can read sales. Inventory Staff cannot complete one. The screen sends the operation id, product, shelf, and quantity. The server calculates the price and totals.
 - Impacted modules: Sales.

@@ -43,12 +43,17 @@ export class PosPage {
   private readonly router = inject(Router);
   private readonly attempt = new OperationAttempt();
   private lineKey = 0;
+  private lookupGeneration = 0;
+  private shelfGeneration = 0;
+  private barcodeInFlight = '';
+  private completedSale: { id: string; key: string } | null = null;
 
   protected readonly canSell = this.session.canCompleteSales;
   protected readonly maxLines = MAX_SALE_LINES;
   protected readonly loading = signal(true);
   protected readonly finding = signal(false);
   protected readonly selling = signal(false);
+  protected readonly shelfError = signal(false);
   protected readonly error = signal('');
   protected readonly shelves = signal<Shelf[]>([]);
   protected readonly matches = signal<Product[]>([]);
@@ -88,29 +93,58 @@ export class PosPage {
 
   protected async findBarcode(): Promise<void> {
     const barcode = this.barcode().trim();
-    if (!barcode || this.finding() || this.selling()) {
+    if (!barcode || this.selling() || !this.session.isSignedIn()) {
       return;
     }
 
+    if (barcode === this.barcodeInFlight) {
+      return;
+    }
+
+    this.barcodeInFlight = barcode;
+    const generation = ++this.lookupGeneration;
     this.finding.set(true);
     this.error.set('');
     try {
       const product = await firstValueFrom(this.shopApi.findProductByBarcode(barcode));
-      this.matches.set([product]);
-      this.addProduct(product);
+      const current = generation === this.lookupGeneration;
+      if (!product.isActive) {
+        if (!current) {
+          return;
+        }
+
+        throw new ApiError(409, 'Product is inactive.');
+      }
+
+      if (current) {
+        this.matches.set([product]);
+      }
+
+      this.addProduct(product, current);
     } catch (error) {
+      if (generation !== this.lookupGeneration) {
+        return;
+      }
+
       this.matches.set([]);
       this.error.set(messageFrom(error));
     } finally {
-      this.finding.set(false);
+      if (this.barcodeInFlight === barcode) {
+        this.barcodeInFlight = '';
+      }
+
+      if (generation === this.lookupGeneration) {
+        this.finding.set(false);
+      }
     }
   }
 
   protected async searchProducts(): Promise<void> {
-    if (this.finding() || this.selling()) {
+    if (this.selling() || !this.session.isSignedIn()) {
       return;
     }
 
+    const generation = ++this.lookupGeneration;
     this.finding.set(true);
     this.error.set('');
     try {
@@ -122,19 +156,33 @@ export class PosPage {
           offset: 0,
         }),
       );
-      this.matches.set(products);
-      if (products.length === 0) {
+      if (generation !== this.lookupGeneration) {
+        return;
+      }
+
+      this.matches.set(products.filter((product) => product.isActive));
+      if (this.matches().length === 0) {
         this.error.set('No products match this search.');
       }
     } catch (error) {
+      if (generation !== this.lookupGeneration) {
+        return;
+      }
+
       this.error.set(messageFrom(error));
     } finally {
-      this.finding.set(false);
+      if (generation === this.lookupGeneration) {
+        this.finding.set(false);
+      }
     }
   }
 
-  protected addProduct(product: Product): void {
-    if (this.selling() || this.lines().length >= MAX_SALE_LINES) {
+  protected addProduct(product: Product, report = true): void {
+    if (this.selling() || this.lines().length >= MAX_SALE_LINES || !product.isActive) {
+      if (!product.isActive && report) {
+        this.error.set('Product is inactive.');
+      }
+
       return;
     }
 
@@ -142,16 +190,24 @@ export class PosPage {
     try {
       quantity = parseSaleQuantity(this.quantity());
     } catch (error) {
-      this.error.set(error instanceof Error ? error.message : 'The request failed.');
+      if (report) {
+        this.error.set(error instanceof Error ? error.message : 'The request failed.');
+      }
+
       return;
     }
 
     if (!this.shelfId()) {
-      this.error.set('Choose a shelf for every line.');
+      if (report) {
+        this.error.set('Choose a shelf for every line.');
+      }
+
       return;
     }
 
-    this.error.set('');
+    if (report) {
+      this.error.set('');
+    }
     this.lines.update((lines) => [
       ...lines,
       {
@@ -181,8 +237,12 @@ export class PosPage {
     this.lines.update((lines) => lines.filter((line) => line.key !== key));
   }
 
+  protected reloadShelves(): void {
+    void this.loadShelves();
+  }
+
   protected async complete(): Promise<void> {
-    if (!this.canSell() || this.selling()) {
+    if (!this.canSell() || this.selling() || !this.session.isSignedIn()) {
       return;
     }
 
@@ -195,11 +255,17 @@ export class PosPage {
       return;
     }
 
+    const key = saleAttemptKey(body.lines);
+    if (this.completedSale?.key === key) {
+      await this.openReceipt(this.completedSale.id);
+      return;
+    }
+
     this.selling.set(true);
     try {
       const sale = await firstValueFrom(this.salesApi.complete(body));
-      this.attempt.complete();
-      await this.router.navigate(['/sales', sale.id], { state: { success: 'Sale completed.' } });
+      this.completedSale = { id: sale.id, key };
+      await this.openReceipt(sale.id);
     } catch (error) {
       this.error.set(messageFrom(error));
     } finally {
@@ -208,14 +274,37 @@ export class PosPage {
   }
 
   private async loadShelves(): Promise<void> {
+    const generation = ++this.shelfGeneration;
     this.loading.set(true);
+    this.shelfError.set(false);
     this.error.set('');
     try {
-      this.shelves.set(await firstValueFrom(this.inventoryApi.listShelves()));
+      const shelves = await firstValueFrom(this.inventoryApi.listShelves());
+      if (generation !== this.shelfGeneration) {
+        return;
+      }
+
+      this.shelves.set(shelves);
     } catch (error) {
+      if (generation !== this.shelfGeneration) {
+        return;
+      }
+
+      this.shelves.set([]);
+      this.shelfError.set(true);
       this.error.set(messageFrom(error));
     } finally {
-      this.loading.set(false);
+      if (generation === this.shelfGeneration) {
+        this.loading.set(false);
+      }
+    }
+  }
+
+  private async openReceipt(saleId: string): Promise<void> {
+    const opened = await this.router.navigate(['/sales', saleId], { state: { success: 'Sale completed.' } });
+    if (opened) {
+      this.attempt.complete();
+      this.lines.set([]);
     }
   }
 

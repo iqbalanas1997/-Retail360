@@ -47,6 +47,9 @@
 
 @if (error()) {
   <p class="notice error" role="alert">{{ error() }}</p>
+  @if (shelfError()) {
+    <button type="button" class="secondary" (click)="reloadShelves()" [disabled]="loading()">Try again</button>
+  }
 }
 
 @if (loading()) {

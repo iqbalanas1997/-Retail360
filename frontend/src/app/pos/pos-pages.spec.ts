@@ -1,7 +1,8 @@
 import { provideHttpClient, withInterceptors } from '@angular/common/http';
+import { vi } from 'vitest';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { TestBed } from '@angular/core/testing';
-import { provideRouter } from '@angular/router';
+import { provideRouter, Router } from '@angular/router';
 import { RouterTestingHarness } from '@angular/router/testing';
 
 import { routes } from '../app.routes';
@@ -176,6 +177,214 @@ describe('POS and sales screens', () => {
     expect(text(harness)).toContain('Front B');
     expect(text(harness)).toContain('cash');
     expect(text(harness)).toContain('Print');
+    const print = vi.spyOn(window, 'print').mockImplementation(() => undefined);
+    clickButton(harness.fixture.nativeElement as HTMLElement, 'Print');
+    expect(print).toHaveBeenCalledOnce();
+    print.mockRestore();
+  });
+
+  it('keeps the newer product search and ignores a stale response', async () => {
+    remember('Cashier');
+    const harness = await open('/pos');
+    flushShelves();
+    await turn();
+    harness.detectChanges();
+    const root = harness.fixture.nativeElement as HTMLElement;
+    setNamed(root, 'productName', 'Tea');
+    submitForm(root, 'Product');
+    setNamed(root, 'productName', 'Rice');
+    submitForm(root, 'Product');
+    const http = TestBed.inject(HttpTestingController);
+    const tea = http.expectOne(
+      (request) => request.url === '/api/products' && request.params.get('name') === 'Tea',
+    );
+    const rice = http.expectOne(
+      (request) => request.url === '/api/products' && request.params.get('name') === 'Rice',
+    );
+    tea.flush([product()]);
+    rice.flush([{ ...product(), id: 'product-2', name: 'Rice', sellingPrice: 2 }]);
+    await turn();
+    harness.detectChanges();
+
+    expect(text(harness)).toContain('Rice');
+    expect(text(harness)).not.toContain('Tea');
+    expect(text(harness)).toContain('2.00');
+  });
+
+  it('adds a scanned product that returns after a newer search without replacing that search', async () => {
+    remember('Cashier');
+    const harness = await open('/pos');
+    flushShelves();
+    await turn();
+    harness.detectChanges();
+    const root = harness.fixture.nativeElement as HTMLElement;
+    setNamed(root, 'shelf', 'shelf-1');
+    setNamed(root, 'barcode', 'TEA');
+    submitForm(root, 'Barcode');
+    setNamed(root, 'productName', 'Rice');
+    submitForm(root, 'Product');
+    const http = TestBed.inject(HttpTestingController);
+    const barcode = http.expectOne((request) => request.url === '/api/products/by-barcode/TEA');
+    const rice = http.expectOne(
+      (request) => request.url === '/api/products' && request.params.get('name') === 'Rice',
+    );
+    rice.flush([{ ...product(), id: 'product-2', name: 'Rice', sellingPrice: 2 }]);
+    barcode.flush(product());
+    await turn();
+    harness.detectChanges();
+
+    expect(text(harness)).toContain('Rice');
+    expect(text(harness)).toContain('2.00');
+    expect(text(harness)).toContain('Tea');
+    expect(root.querySelectorAll('[name="lineQuantity"]').length).toBe(1);
+  });
+
+  it('ignores a repeated barcode scan while the first lookup is running', async () => {
+    remember('Cashier');
+    const harness = await open('/pos');
+    flushShelves();
+    await turn();
+    harness.detectChanges();
+    const root = harness.fixture.nativeElement as HTMLElement;
+    setNamed(root, 'shelf', 'shelf-1');
+    setNamed(root, 'barcode', 'TEA');
+    submitForm(root, 'Barcode');
+    submitForm(root, 'Barcode');
+    const http = TestBed.inject(HttpTestingController);
+    const lookup = http.expectOne((request) => request.url === '/api/products/by-barcode/TEA');
+    http.expectNone((request) => request.url === '/api/products/by-barcode/TEA');
+    lookup.flush(product());
+    await turn();
+    harness.detectChanges();
+
+    expect(root.querySelectorAll('[name="lineQuantity"]').length).toBe(1);
+  });
+
+  it('rejects an invalid quantity and preserves the cart after a network failure', async () => {
+    remember('Manager');
+    const harness = await open('/pos');
+    flushShelves();
+    await turn();
+    harness.detectChanges();
+    const root = harness.fixture.nativeElement as HTMLElement;
+    setNamed(root, 'quantity', '1.2501');
+    setNamed(root, 'shelf', 'shelf-1');
+    setNamed(root, 'productName', 'Tea');
+    submitForm(root, 'Product');
+    TestBed.inject(HttpTestingController)
+      .expectOne((request) => request.url === '/api/products')
+      .flush([product()]);
+    await turn();
+    harness.detectChanges();
+    clickButton(root, 'Add');
+    harness.detectChanges();
+
+    expect(text(harness)).toContain('Quantity must be greater than zero with at most 3 decimal places.');
+    expect(root.querySelector('[name="lineQuantity"]')).toBeNull();
+    setNamed(root, 'quantity', '1.250');
+    clickButton(root, 'Add');
+    harness.detectChanges();
+    expect(text(harness)).toContain('43.75');
+    clickButton(root, 'Complete sale');
+    const http = TestBed.inject(HttpTestingController);
+    const failed = http.expectOne((request) => request.method === 'POST' && request.url === '/api/sales');
+    const operationId = failed.request.body.operationId as string;
+    failed.error(new ProgressEvent('error'));
+    await turn();
+    harness.detectChanges();
+
+    expect(text(harness)).toContain('The shop API could not be reached.');
+    expect(text(harness)).toContain('Tea');
+    expect(root.querySelector('[name="lineQuantity"]')).not.toBeNull();
+    clickButton(root, 'Complete sale');
+    const retry = http.expectOne((request) => request.method === 'POST' && request.url === '/api/sales');
+    expect(retry.request.body.operationId).toBe(operationId);
+    retry.flush(sale());
+    await turn();
+    harness.detectChanges();
+    http.expectOne('/api/sales/sale-1').flush(sale());
+  });
+
+  it('retries a failed shelf load and shows an authorization error instead of an empty sale list', async () => {
+    remember('Cashier');
+    const harness = await open('/pos');
+    TestBed.inject(HttpTestingController)
+      .expectOne((request) => request.url === '/api/shelves')
+      .error(new ProgressEvent('error'));
+    await turn();
+    harness.detectChanges();
+
+    expect(text(harness)).toContain('The shop API could not be reached.');
+    clickButton(harness.fixture.nativeElement as HTMLElement, 'Try again');
+    flushShelves();
+    await turn();
+    harness.detectChanges();
+    expect(text(harness)).toContain('Front B');
+
+    await harness.navigateByUrl('/sales');
+    TestBed.inject(HttpTestingController)
+      .expectOne((request) => request.url === '/api/sales')
+      .flush({ error: 'You do not have access to this action.' }, { status: 403, statusText: 'Forbidden' });
+    await turn();
+    harness.detectChanges();
+
+    expect(text(harness)).toContain('You do not have access to this action.');
+    expect(text(harness)).not.toContain('No sales match this filter.');
+  });
+
+  it('keeps the cart when the saved sale cannot be opened and does not submit it again', async () => {
+    remember('Admin');
+    const harness = await open('/pos');
+    flushShelves();
+    await turn();
+    harness.detectChanges();
+    const root = harness.fixture.nativeElement as HTMLElement;
+    setNamed(root, 'shelf', 'shelf-1');
+    setNamed(root, 'productName', 'Tea');
+    submitForm(root, 'Product');
+    TestBed.inject(HttpTestingController)
+      .expectOne((request) => request.url === '/api/products')
+      .flush([product()]);
+    await turn();
+    harness.detectChanges();
+    clickButton(root, 'Add');
+    harness.detectChanges();
+    const navigate = vi.spyOn(TestBed.inject(Router), 'navigate').mockResolvedValue(false);
+    clickButton(root, 'Complete sale');
+    const http = TestBed.inject(HttpTestingController);
+    http.expectOne((request) => request.method === 'POST' && request.url === '/api/sales').flush(sale());
+    await turn();
+    harness.detectChanges();
+
+    expect(text(harness)).toContain('Tea');
+    expect(root.querySelector('[name="lineQuantity"]')).not.toBeNull();
+    clickButton(root, 'Complete sale');
+    await turn();
+    harness.detectChanges();
+    http.expectNone((request) => request.method === 'POST' && request.url === '/api/sales');
+    expect(navigate).toHaveBeenCalledTimes(2);
+    navigate.mockRestore();
+  });
+
+  it('returns to sign-in when the session expires on the counter', async () => {
+    remember('Cashier');
+    const harness = await open('/pos');
+    flushShelves();
+    await turn();
+    harness.detectChanges();
+    writeStoredSession({
+      accessToken: token('Cashier'),
+      expiresAt: new Date(Date.now() - 1000).toISOString(),
+      userId: 'user-1',
+      userName: 'Cashier',
+      roles: ['Cashier'],
+    });
+    Object.defineProperty(document, 'visibilityState', { configurable: true, get: () => 'visible' });
+    document.dispatchEvent(new Event('visibilitychange'));
+    harness.detectChanges();
+    await harness.fixture.whenStable();
+
+    expect(TestBed.inject(Router).url).toBe('/login');
   });
 });
 
@@ -191,14 +400,18 @@ function open(url: string): Promise<RouterTestingHarness> {
 }
 
 function remember(role: string): void {
-  const body = btoa(JSON.stringify({ role })).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/g, '');
   writeStoredSession({
-    accessToken: `header.${body}.signature`,
+    accessToken: token(role),
     expiresAt: new Date(Date.now() + 60_000).toISOString(),
     userId: 'user-1',
     userName: role,
     roles: [role],
   });
+}
+
+function token(role: string): string {
+  const body = btoa(JSON.stringify({ role })).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/g, '');
+  return `header.${body}.signature`;
 }
 
 function product() {
