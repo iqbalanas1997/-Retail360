@@ -247,7 +247,7 @@ public sealed class InventoryDatabaseTests
         var second = RunOnOwnThread(() => graph.Stock.AdjustAsync(
             new AdjustmentCommand(setup.ProductId, setup.ShelfId, -4.000m, "two", Guid.NewGuid()),
             CancellationToken.None));
-        await WaitForWaitingSessionsAsync(holder, gate, 2);
+        await WaitForWaitingSessionsAsync(2);
         await gate.CommitAsync();
 
         var results = await Task.WhenAll(WrapAsync(first), WrapAsync(second));
@@ -275,7 +275,7 @@ public sealed class InventoryDatabaseTests
             gate);
 
         var delete = graph.Shelves.DeleteAsync(setup.ShelfId, CancellationToken.None);
-        await WaitForWaitingSessionsAsync(holder, gate, 1);
+        await WaitForWaitingSessionsAsync(1);
 
         await holder.ExecuteAsync(
             """
@@ -388,7 +388,7 @@ public sealed class InventoryDatabaseTests
             await products.DeleteAsync(setup.ProductId, CancellationToken.None);
             return 0;
         });
-        await WaitForWaitingSessionsAsync(holder, gate, 1);
+        await WaitForWaitingSessionsAsync(1);
         await holder.ExecuteAsync(
             """
             insert into stock_balances (id, product_id, shelf_id, quantity, created_at, updated_at)
@@ -435,7 +435,7 @@ public sealed class InventoryDatabaseTests
         var opening = RunOnOwnThread(() => graph.Stock.OpenAsync(
             new OpeningStockCommand(setup.ProductId, setup.ShelfId, 1.000m, "opening", operationId),
             CancellationToken.None));
-        await WaitForWaitingSessionsAsync(holder, gate, 2);
+        await WaitForWaitingSessionsAsync(2);
         await gate.CommitAsync();
 
         var deleteError = await WrapCatalogAsync(delete);
@@ -483,7 +483,7 @@ public sealed class InventoryDatabaseTests
         var opening = graph.Stock.OpenAsync(
             new OpeningStockCommand(setup.ProductId, setup.ShelfId, 1.000m, "opening", Guid.NewGuid()),
             CancellationToken.None);
-        await WaitForWaitingSessionsAsync(holder, gate, 1);
+        await WaitForWaitingSessionsAsync(1);
         await holder.ExecuteAsync(
             "update products set is_deleted = true, updated_at = now() where id = @Id;",
             new { Id = setup.ProductId },
@@ -525,7 +525,7 @@ public sealed class InventoryDatabaseTests
         var second = RunOnOwnThread(() => graph.Stock.TransferAsync(
             new TransferCommand(source.ProductId, source.ShelfId, other.Id, 4.000m, "two", Guid.NewGuid()),
             CancellationToken.None));
-        await WaitForWaitingSessionsAsync(holder, gate, 2);
+        await WaitForWaitingSessionsAsync(2);
         await gate.CommitAsync();
 
         var results = await Task.WhenAll(WrapAsync(first), WrapAsync(second));
@@ -556,7 +556,7 @@ public sealed class InventoryDatabaseTests
             gate);
 
         var delete = graph.Areas.DeleteAsync(area.Id, CancellationToken.None);
-        await WaitForWaitingSessionsAsync(holder, gate, 1);
+        await WaitForWaitingSessionsAsync(1);
         await holder.ExecuteAsync(
             """
             insert into shelves (id, area_id, name, is_active, created_at, updated_at, is_deleted)
@@ -587,7 +587,7 @@ public sealed class InventoryDatabaseTests
             gate);
 
         var create = graph.Shelves.CreateAsync(new SaveShelfCommand(area.Id, "A1"), CancellationToken.None);
-        await WaitForWaitingSessionsAsync(holder, gate, 1, areaRowLock: true);
+        await WaitForWaitingSessionsAsync(1, areaRowLock: true);
         await holder.ExecuteAsync(
             "update areas set is_deleted = true, updated_at = now() where id = @Id;",
             new { Id = area.Id },
@@ -704,7 +704,7 @@ public sealed class InventoryDatabaseTests
             gate);
         var first = RunOnOwnThread(() => graph.Stock.OpenAsync(command, CancellationToken.None));
         var second = RunOnOwnThread(() => graph.Stock.OpenAsync(command, CancellationToken.None));
-        await WaitForWaitingSessionsAsync(holder, gate, 2);
+        await WaitForWaitingSessionsAsync(2);
         await gate.CommitAsync();
 
         var results = await Task.WhenAll(first, second);
@@ -903,35 +903,31 @@ public sealed class InventoryDatabaseTests
             new { ProductId = productId, ShelfId = shelfId });
     }
 
-    private static async Task WaitForWaitingSessionsAsync(
-        NpgsqlConnection connection,
-        NpgsqlTransaction transaction,
-        int sessionCount,
-        bool areaRowLock = false)
+    private async Task WaitForWaitingSessionsAsync(int sessionCount, bool areaRowLock = false)
     {
+        await using var watcher = await _database.OpenAsync();
         var deadline = DateTime.UtcNow.AddSeconds(15);
         long waiting = 0;
         while (DateTime.UtcNow < deadline)
         {
-            waiting = await connection.ExecuteScalarAsync<long>(
+            waiting = await watcher.ExecuteScalarAsync<long>(
                 areaRowLock
                     ? """
-                      select count(distinct a.pid)
-                      from pg_stat_activity a
-                      join pg_locks l on l.pid = a.pid
-                      where l.granted = false
-                        and a.datname = current_database()
-                        and a.query ilike '%from areas%'
-                        and a.query ilike '%for update%';
+                      select count(*)
+                      from pg_stat_activity
+                      where datname = current_database()
+                        and pid <> pg_backend_pid()
+                        and wait_event_type = 'Lock'
+                        and query ilike '%from areas%'
+                        and query ilike '%for update%';
                       """
                     : """
-                      select count(distinct l.pid)
-                      from pg_locks l
-                      join pg_stat_activity a on a.pid = l.pid
-                      where l.granted = false
-                        and a.datname = current_database();
-                      """,
-                transaction: transaction);
+                      select count(*)
+                      from pg_stat_activity
+                      where datname = current_database()
+                        and pid <> pg_backend_pid()
+                        and wait_event_type = 'Lock';
+                      """);
             if (waiting >= sessionCount)
             {
                 return;
@@ -940,14 +936,13 @@ public sealed class InventoryDatabaseTests
             await Task.Delay(20);
         }
 
-        var activity = (await connection.QueryAsync<LockWaitRow>(
+        var activity = (await watcher.QueryAsync<LockWaitRow>(
             """
             select a.pid, a.state, a.wait_event_type, a.wait_event, left(coalesce(a.query, ''), 160) as query
             from pg_stat_activity a
             where a.datname = current_database()
               and a.pid <> pg_backend_pid();
-            """,
-            transaction: transaction)).ToArray();
+            """)).ToArray();
         var detail = string.Join(
             " | ",
             activity.Select(row => $"{row.Pid} {row.State} {row.WaitEventType}/{row.WaitEvent} {row.Query}"));

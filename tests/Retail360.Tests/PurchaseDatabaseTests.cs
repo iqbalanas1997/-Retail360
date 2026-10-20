@@ -215,9 +215,9 @@ public sealed class PurchaseDatabaseTests
             "select id from purchases where id = @Id for update;",
             new { created.Id },
             gate);
-        var first = RunOnOwnThread(() => purchases.ReceiveAsync(created.Id, firstCommand, CancellationToken.None));
-        var second = RunOnOwnThread(() => purchases.ReceiveAsync(created.Id, secondCommand, CancellationToken.None));
-        await WaitForWaitingSessionsAsync(holder, gate, 2);
+        var first = purchases.ReceiveAsync(created.Id, firstCommand, CancellationToken.None);
+        var second = purchases.ReceiveAsync(created.Id, secondCommand, CancellationToken.None);
+        await WaitForWaitingSessionsAsync(2, first, second);
         await gate.CommitAsync();
 
         var results = await Task.WhenAll(WrapAsync(first), WrapAsync(second));
@@ -438,45 +438,27 @@ public sealed class PurchaseDatabaseTests
         return client.SendAsync(request);
     }
 
-    private static Task<T> RunOnOwnThread<T>(Func<Task<T>> work)
+    private async Task WaitForWaitingSessionsAsync(int sessionCount, params Task[] workers)
     {
-        var completion = new TaskCompletionSource<T>(TaskCreationOptions.RunContinuationsAsynchronously);
-        var thread = new Thread(() =>
-        {
-            try
-            {
-                completion.SetResult(work().GetAwaiter().GetResult());
-            }
-            catch (Exception error)
-            {
-                completion.SetException(error);
-            }
-        })
-        {
-            IsBackground = true
-        };
-        thread.Start();
-        return completion.Task;
-    }
-
-    private static async Task WaitForWaitingSessionsAsync(
-        NpgsqlConnection connection,
-        NpgsqlTransaction transaction,
-        int sessionCount)
-    {
+        await using var watcher = await _database.OpenAsync();
         var deadline = DateTime.UtcNow.AddSeconds(15);
         long waiting = 0;
         while (DateTime.UtcNow < deadline)
         {
-            waiting = await connection.ExecuteScalarAsync<long>(
+            var faulted = workers.FirstOrDefault(worker => worker.IsFaulted);
+            if (faulted is not null)
+            {
+                await faulted;
+            }
+
+            waiting = await watcher.ExecuteScalarAsync<long>(
                 """
-                select count(distinct l.pid)
-                from pg_locks l
-                join pg_stat_activity a on a.pid = l.pid
-                where l.granted = false
-                  and a.datname = current_database();
-                """,
-                transaction: transaction);
+                select count(*)
+                from pg_stat_activity
+                where datname = current_database()
+                  and pid <> pg_backend_pid()
+                  and wait_event_type = 'Lock';
+                """);
             if (waiting >= sessionCount)
             {
                 return;
@@ -485,7 +467,32 @@ public sealed class PurchaseDatabaseTests
             await Task.Delay(50);
         }
 
-        throw new TimeoutException($"Expected {sessionCount} waiting sessions but found {waiting}.");
+        var activity = (await watcher.QueryAsync<LockWaitRow>(
+            """
+            select a.pid, a.state, a.wait_event_type, a.wait_event, left(coalesce(a.query, ''), 160) as query
+            from pg_stat_activity a
+            where a.datname = current_database()
+              and a.pid <> pg_backend_pid();
+            """)).ToArray();
+        var detail = string.Join(
+            " | ",
+            activity.Select(row => $"{row.Pid} {row.State} {row.WaitEventType}/{row.WaitEvent} {row.Query}"));
+        var states = string.Join(", ", workers.Select(worker => worker.Status.ToString()));
+        throw new TimeoutException(
+            $"Expected {sessionCount} waiting sessions but found {waiting}. Task states: {states}. {detail}");
+    }
+
+    private sealed class LockWaitRow
+    {
+        public int Pid { get; init; }
+
+        public string State { get; init; } = string.Empty;
+
+        public string? WaitEventType { get; init; }
+
+        public string? WaitEvent { get; init; }
+
+        public string Query { get; init; } = string.Empty;
     }
 
     private static async Task<PurchaseRuleException?> WrapAsync(Task task)

@@ -31,7 +31,9 @@ Assumption: every shop role may look up products and stock. Only Admin and Manag
 | Supplier create, update, activate, deactivate, delete | yes | yes | no | no |
 
 ## Errors
-Catalog failures return JSON `{ "error": "message" }`. A signed-in caller still receives these bodies after authorization succeeds.
+Every module returns JSON `{ "error": "message" }`. The body has that one property. A signed-in caller still receives these bodies after authorization succeeds. Malformed JSON, a missing body, and a query value that cannot be read use the same body with HTTP 400. The messages are "The request body is invalid.", "Request body is required.", or the binder's short value message when that message does not include a type name or parser detail. An unexpected exception is HTTP 500 `{ "error": "The request could not be completed." }`. The response does not include the exception, SQL, a stack trace, or a connection string. The API logs that exception with the request method, path, and trace id. A shop rule rejection is logged as a warning with the same trace id and the client message. Authentication failure is an information log. Authorization failure is a warning. Those logs do not include passwords, tokens, signing keys, or authorization headers.
+
+Catalog failures return JSON `{ "error": "message" }`.
 
 - `400` invalid input
 - `404` missing record, including a deleted record. A product create or update that names a missing unit, category, or brand is 404.

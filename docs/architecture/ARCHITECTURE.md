@@ -44,6 +44,9 @@ Sign-in is a JWT bearer baseline on the existing Identity tables. See ADR-012. `
 
 Shop-wide on-hand quantity is the sum of the product's shelf balances. Low stock compares that sum with Catalog `minimum_stock`.
 
+## Errors and logging
+Application failures use one JSON body, `{ "error": "message" }`. Invalid input is 400, a missing or soft-deleted record is 404, and a conflict is 409. An unexpected exception is 500 with "The request could not be completed." The API logs that exception through `ILogger` with the request path and trace id. Shop rule rejections and authorization failures are logged without passwords, tokens, signing keys, or request bodies. Decimal prices and quantities stay on the existing domain checks and PostgreSQL scales. Clients do not send purchase or sale totals, and they do not override a sale price.
+
 ## Repository layout
 See ADR-007.
 

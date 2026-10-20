@@ -14,5 +14,11 @@ describe('API errors', () => {
     expect(toApiError(new HttpErrorResponse({ status: 500, error: 'proxy failed' })).message).toBe(
       'The shop API could not be reached.',
     );
+    expect(
+      toApiError(new HttpErrorResponse({ status: 500, error: { error: 'The request could not be completed.' } })).message,
+    ).toBe('The request could not be completed.');
+    expect(toApiError(new HttpErrorResponse({ status: 400, error: { title: 'One or more validation errors occurred.' } })).message).toBe(
+      'The request failed.',
+    );
   });
 });

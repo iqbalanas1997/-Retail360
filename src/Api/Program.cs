@@ -86,7 +86,11 @@ builder.Services.AddAuthorization(options =>
     options.AddPolicy(ShopPolicies.SaleComplete, policy => policy.RequireRole(
         ShopRoleNames.Admin, ShopRoleNames.Manager, ShopRoleNames.Cashier));
 });
-builder.Services.AddControllers();
+builder.Services.AddControllers()
+    .ConfigureApiBehaviorOptions(options =>
+    {
+        options.InvalidModelStateResponseFactory = Retail360.Api.ShopModelStateResponse.Create;
+    });
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen(options =>
 {

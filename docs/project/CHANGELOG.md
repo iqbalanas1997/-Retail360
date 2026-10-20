@@ -10,6 +10,17 @@ Use this file for meaningful project-level changes that affect future AI context
 - Documentation updated
 
 ## Entries
+### 2026-10-20 — CI and concurrency test waits
+- Added `.github/workflows/ci.yml`. It uses the pinned .NET SDK and Node.js 22, builds `Retail360.sln`, runs the .NET tests, runs the Angular tests once, and builds the Angular app. PostgreSQL 17 is started empty for that job. The password is generated in the job and is not stored in the repository. The workflow has not been executed on GitHub.
+- The purchase, sale, and inventory concurrency tests were counting only rows in `pg_locks` with `granted = false`, from the session that held the gate lock. A tuple-lock waiter does not appear there, so a second blocked session was reported as missing. Those tests now count `wait_event_type = 'Lock'` from a separate session. The stock and conflict assertions are unchanged.
+- Impacted modules: Purchasing, Sales, Inventory, and the build pipeline.
+- Documentation updated: `README.md`, `TASKS.md`, `CHANGELOG.md`.
+
+### 2026-10-20 — API errors and logging
+- Malformed input and unexpected exceptions now use the same `{ "error": "message" }` body as shop rule failures. Unexpected failures return a generic message and are logged with the trace id. Passwords, tokens, and connection strings stay out of the response and the auth logs.
+- Impacted modules: Identity, Catalog, Inventory, Suppliers, Purchasing, Sales.
+- Documentation updated: `API_CONTRACTS.md`, `ARCHITECTURE.md`, `TASKS.md`, `CHANGELOG.md`.
+
 ### 2026-10-20 — POS reliability
 - A newer product search replaces an older one. A barcode scan still adds its line when the response arrives after a newer search, and a repeated scan does not add a second line while the first lookup is still running. A failed shelf load can be retried. A sale that the server has accepted is opened as a receipt instead of being submitted again, and a network failure leaves the cart in place.
 - Impacted modules: Sales.

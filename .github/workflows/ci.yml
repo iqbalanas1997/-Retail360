@@ -1,0 +1,76 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  build-test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@v4
+
+      - name: Set up .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      # The password exists only for this job. Tests select their own database names.
+      # Do not set ConnectionStrings__DefaultConnection. Guards reject retail360 and retail360_dev.
+      - name: Start an isolated PostgreSQL
+        run: |
+          set -euo pipefail
+          password="$(openssl rand -hex 32)"
+          echo "::add-mask::$password"
+          echo "RETAIL360_DB_PASSWORD=$password" >> "$GITHUB_ENV"
+          docker run -d --name retail360-postgres \
+            -e POSTGRES_USER=postgres \
+            -e POSTGRES_PASSWORD="$password" \
+            -e POSTGRES_DB=postgres \
+            -p 5432:5432 \
+            postgres:17
+          for _ in $(seq 1 30); do
+            if docker exec retail360-postgres pg_isready -U postgres -d postgres; then
+              exit 0
+            fi
+            sleep 2
+          done
+          echo "PostgreSQL did not become ready."
+          exit 1
+
+      - name: Restore the solution
+        run: dotnet restore Retail360.sln
+
+      - name: Build the solution
+        run: dotnet build Retail360.sln --no-restore --nologo
+
+      - name: Run .NET tests
+        run: dotnet test Retail360.sln --no-build --nologo
+
+      - name: Use the pinned npm
+        run: corepack enable && corepack prepare npm@11.21.0 --activate
+
+      - name: Install Angular dependencies
+        working-directory: frontend
+        run: npm ci
+
+      - name: Run Angular tests
+        working-directory: frontend
+        run: npm test -- --watch=false
+
+      - name: Build the Angular app
+        working-directory: frontend
+        run: npm run build

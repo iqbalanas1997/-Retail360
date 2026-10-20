@@ -49,6 +49,27 @@ public sealed class AuthenticationTests
     }
 
     [Fact]
+    public async Task Malformed_json_and_an_invalid_query_use_the_error_body()
+    {
+        using var client = _database.CreateClient();
+        using var malformed = new StringContent("{", Encoding.UTF8, "application/json");
+        var login = await client.PostAsync("/api/auth/login", malformed);
+        var loginBody = await login.Content.ReadAsStringAsync();
+
+        Assert.Equal(HttpStatusCode.BadRequest, login.StatusCode);
+        AssertShopError(loginBody, "The request body is invalid.");
+
+        var userName = await CreateUserAsync(ShopRoleNames.Cashier, Password);
+        var token = await LoginAsync(client, userName);
+        var products = await SendAsync(client, "/api/products?limit=no", token);
+        var productBody = await products.Content.ReadAsStringAsync();
+
+        Assert.Equal(HttpStatusCode.BadRequest, products.StatusCode);
+        AssertShopError(productBody, null);
+        Assert.DoesNotContain("traceId", productBody, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
     public void Missing_signing_key_is_rejected()
     {
         var configuration = new ConfigurationBuilder()
@@ -577,6 +598,20 @@ public sealed class AuthenticationTests
             "select id from asp_net_users where normalized_user_name = @Name;",
             new { Name = userName.ToUpperInvariant() })
             ?? throw new InvalidOperationException("The test user was not stored.");
+    }
+
+    private static void AssertShopError(string body, string? expected)
+    {
+        using var document = JsonDocument.Parse(body);
+        var message = document.RootElement.GetProperty("error").GetString();
+        Assert.False(string.IsNullOrWhiteSpace(message));
+        if (expected is not null)
+        {
+            Assert.Equal(expected, message);
+        }
+
+        Assert.DoesNotContain("System.", body, StringComparison.Ordinal);
+        Assert.Single(document.RootElement.EnumerateObject());
     }
 
     private static async Task<string> LoginAsync(HttpClient client, string userName)
