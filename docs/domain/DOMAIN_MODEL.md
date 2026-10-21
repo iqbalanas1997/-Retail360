@@ -17,7 +17,7 @@ The product's brand. Optional. Fields are id, name, created_at, updated_at, and 
 How one product's quantity is measured or sold. A product has exactly one unit. There is no alternate unit and no conversion factor in the MVP.
 
 ### Barcode
-A Catalog scan code in `product_barcodes`. One product may have several barcodes, or none. One non-deleted barcode value identifies one product. POS lookup goes through Catalog. There is no separate Barcode module.
+A Catalog scan code in `product_barcodes`. One product may have several barcodes, or none. One non-deleted barcode value identifies one product. POS lookup goes through Catalog. There is no separate Barcode module. A package barcode is stored exactly as printed, including leading zeros. A shop-generated barcode starts with `R360-` and is not a manufacturer GTIN. Its label is Code 128 because that symbology encodes the full text, including the letters in the prefix. Generation avoids a code already listed on the same form. It does not search the database. The unique index rejects a non-deleted duplicate when the product is saved. The value is stored only after that save succeeds, and a label is printed only for a saved value.
 
 ### Area
 A named part of the single shop. An area contains shelves. There is no branch. Fields are id, name, `is_active`, created_at, updated_at, and is_deleted. Deactivation is not deletion.

@@ -10,6 +10,23 @@ Use this file for meaningful project-level changes that affect future AI context
 - Documentation updated
 
 ## Entries
+### 2026-10-21 — Barcode save check
+- A generated `R360-` code is unique only among the codes already on the form. The database unique index remains the check against other products, and a rejected save leaves the new code unsaved.
+- Impacted modules: Catalog.
+- Documentation updated: `DOMAIN_MODEL.md`, `POS_UX.md`, `MODULE_CATALOG.md`, `CHANGELOG.md`.
+
+### 2026-10-21 — Product barcode labels
+- The product form explains that barcodes belong to the product being edited. Enter adds a code, a blank code is rejected, and Save product is what stores the list.
+- Generate shop barcode adds an internal `R360-` code to the form. It is not a manufacturer number. The unique index still rejects a code that is already assigned. A label prints only after that code has been saved, using Code 128 in the browser.
+- Impacted modules: Catalog.
+- Documentation updated: `DOMAIN_MODEL.md`, `POS_UX.md`, `MODULE_CATALOG.md`, `TASKS.md`, `CHANGELOG.md`, `README.md`.
+
+### 2026-10-21 — Barcode scan field
+- Enter in the product barcode field adds that code. Saving a product still sends the barcodes already on the form, including codes with leading zeros.
+- The counter clears the barcode field when a lookup starts and returns focus to it. An unknown barcode names the code. A later scan is not appended to the previous one, and an in-flight lookup does not drop a different scan.
+- Impacted modules: Catalog, Sales.
+- Documentation updated: `POS_UX.md`, `MODULE_CATALOG.md`, `TASKS.md`, `CHANGELOG.md`.
+
 ### 2026-10-20 — CI and concurrency test waits
 - Added `.github/workflows/ci.yml`. It uses the pinned .NET SDK and Node.js 22, builds `Retail360.sln`, runs the .NET tests, runs the Angular tests once, and builds the Angular app. PostgreSQL 17 is started empty for that job. The password is generated in the job and is not stored in the repository. The workflow has not been executed on GitHub.
 - The purchase, sale, and inventory concurrency tests were counting only rows in `pg_locks` with `granted = false`, from the session that held the gate lock. A tuple-lock waiter does not appear there, so a second blocked session was reported as missing. Those tests now count `wait_event_type = 'Lock'` from a separate session. The stock and conflict assertions are unchanged.

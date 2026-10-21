@@ -280,6 +280,27 @@ a {
   font-size: 1.4rem;
 }
 
+.barcode-value,
+.barcode-digits {
+  font-family: ui-monospace, Consolas, monospace;
+  letter-spacing: 0.04em;
+}
+
+.barcode-label {
+  display: none;
+  page: barcode-label;
+}
+
+.barcode-name {
+  margin: 0;
+  font-weight: 700;
+}
+
+@page barcode-label {
+  size: 50mm 30mm;
+  margin: 2mm;
+}
+
 @media print {
   .sidebar,
   .topbar,
@@ -293,6 +314,24 @@ a {
 
   .page {
     padding: 0;
+  }
+
+  .printing-label .form,
+  .printing-label .notice,
+  .printing-label .hint,
+  .printing-label .status,
+  .printing-label .back {
+    display: none !important;
+  }
+
+  .printing-label .barcode-label {
+    display: block !important;
+    width: 46mm;
+  }
+
+  .printing-label .barcode-label svg {
+    width: 46mm;
+    height: 14mm;
   }
 }
 

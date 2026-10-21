@@ -260,6 +260,136 @@ describe('POS and sales screens', () => {
     expect(root.querySelectorAll('[name="lineQuantity"]').length).toBe(1);
   });
 
+  it('clears the scan field after Enter and keeps a leading zero in the lookup', async () => {
+    remember('Cashier');
+    const harness = await open('/pos');
+    flushShelves();
+    await turn();
+    harness.detectChanges();
+    const root = harness.fixture.nativeElement as HTMLElement;
+    setNamed(root, 'shelf', 'shelf-1');
+    setNamed(root, 'barcode', '00123');
+    submitForm(root, 'Barcode');
+    harness.detectChanges();
+
+    const barcode = root.querySelector('[name="barcode"]') as HTMLInputElement;
+    expect(barcode.value).toBe('');
+    expect(document.activeElement).toBe(barcode);
+    const lookup = TestBed.inject(HttpTestingController).expectOne(
+      (request) => request.url === '/api/products/by-barcode/00123',
+    );
+    lookup.flush({ ...product(), barcodes: ['00123'], sellingPrice: 35 });
+    await turn();
+    harness.detectChanges();
+
+    expect(text(harness)).toContain('Tea');
+    expect(text(harness)).toContain('35.00');
+    expect(barcode.value).toBe('');
+    expect(document.activeElement).toBe(barcode);
+    TestBed.inject(HttpTestingController).expectNone(
+      (request) => request.method === 'POST' && request.url === '/api/sales',
+    );
+  });
+
+  it('shows an unknown barcode and retries after the lookup fails', async () => {
+    remember('Cashier');
+    const harness = await open('/pos');
+    flushShelves();
+    await turn();
+    harness.detectChanges();
+    const root = harness.fixture.nativeElement as HTMLElement;
+    setNamed(root, 'shelf', 'shelf-1');
+    setNamed(root, 'barcode', '00999');
+    submitForm(root, 'Barcode');
+    const http = TestBed.inject(HttpTestingController);
+    http
+      .expectOne((request) => request.url === '/api/products/by-barcode/00999')
+      .flush({ error: 'Product was not found.' }, { status: 404, statusText: 'Not Found' });
+    await turn();
+    harness.detectChanges();
+
+    expect(text(harness)).toContain('No product has barcode 00999.');
+    expect(root.querySelector('[name="lineQuantity"]')).toBeNull();
+    setNamed(root, 'barcode', 'TEA');
+    submitForm(root, 'Barcode');
+    http
+      .expectOne((request) => request.url === '/api/products/by-barcode/TEA')
+      .error(new ProgressEvent('error'));
+    await turn();
+    harness.detectChanges();
+
+    expect(text(harness)).toContain('The shop API could not be reached.');
+    setNamed(root, 'barcode', 'TEA');
+    submitForm(root, 'Barcode');
+    http.expectOne((request) => request.url === '/api/products/by-barcode/TEA').flush(product());
+    await turn();
+    harness.detectChanges();
+
+    expect(text(harness)).toContain('Tea');
+    expect(root.querySelectorAll('[name="lineQuantity"]').length).toBe(1);
+  });
+
+  it('adds both products when two different scans overlap', async () => {
+    remember('Cashier');
+    const harness = await open('/pos');
+    flushShelves();
+    await turn();
+    harness.detectChanges();
+    const root = harness.fixture.nativeElement as HTMLElement;
+    setNamed(root, 'shelf', 'shelf-1');
+    setNamed(root, 'barcode', 'TEA');
+    submitForm(root, 'Barcode');
+    setNamed(root, 'barcode', 'RICE');
+    submitForm(root, 'Barcode');
+    const http = TestBed.inject(HttpTestingController);
+    const tea = http.expectOne((request) => request.url === '/api/products/by-barcode/TEA');
+    const rice = http.expectOne((request) => request.url === '/api/products/by-barcode/RICE');
+    tea.flush(product());
+    rice.flush({ ...product(), id: 'product-2', name: 'Rice', sellingPrice: 2, barcodes: ['RICE'] });
+    await turn();
+    harness.detectChanges();
+
+    expect(text(harness)).toContain('Tea');
+    expect(text(harness)).toContain('Rice');
+    expect(text(harness)).toContain('37.00');
+    expect(root.querySelectorAll('[name="lineQuantity"]').length).toBe(2);
+    http.expectNone((request) => request.method === 'POST' && request.url === '/api/sales');
+  });
+
+  it('adds a second line after the first scan finishes and refuses an inactive product', async () => {
+    remember('Cashier');
+    const harness = await open('/pos');
+    flushShelves();
+    await turn();
+    harness.detectChanges();
+    const root = harness.fixture.nativeElement as HTMLElement;
+    setNamed(root, 'shelf', 'shelf-1');
+    setNamed(root, 'barcode', 'TEA');
+    submitForm(root, 'Barcode');
+    const http = TestBed.inject(HttpTestingController);
+    http.expectOne((request) => request.url === '/api/products/by-barcode/TEA').flush(product());
+    await turn();
+    harness.detectChanges();
+    setNamed(root, 'barcode', 'TEA');
+    submitForm(root, 'Barcode');
+    http.expectOne((request) => request.url === '/api/products/by-barcode/TEA').flush(product());
+    await turn();
+    harness.detectChanges();
+
+    expect(root.querySelectorAll('[name="lineQuantity"]').length).toBe(2);
+    setNamed(root, 'barcode', 'OLD');
+    submitForm(root, 'Barcode');
+    http
+      .expectOne((request) => request.url === '/api/products/by-barcode/OLD')
+      .flush({ ...product(), isActive: false });
+    await turn();
+    harness.detectChanges();
+
+    expect(text(harness)).toContain('Product is inactive.');
+    expect(root.querySelectorAll('[name="lineQuantity"]').length).toBe(2);
+    http.expectNone((request) => request.method === 'POST' && request.url === '/api/sales');
+  });
+
   it('rejects an invalid quantity and preserves the cart after a network failure', async () => {
     remember('Manager');
     const harness = await open('/pos');

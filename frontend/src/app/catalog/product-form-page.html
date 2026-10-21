@@ -1,4 +1,4 @@
-<p class="back"><a routerLink="/catalog/products">Back to products</a></p>
+<p class="back no-print"><a routerLink="/catalog/products">Back to products</a></p>
 
 @if (loading()) {
   <p class="status">Loading product…</p>
@@ -8,6 +8,7 @@
   }
   <button type="button" (click)="load()">Try again</button>
 } @else {
+  <div class="product-editor" [class.printing-label]="labelToPrint()">
   @if (error()) {
     <p class="notice error" role="alert">{{ error() }}</p>
   }
@@ -68,16 +69,24 @@
     <p class="hint">Prices use at most 2 decimal places. Minimum stock uses at most 3. Stock quantity is kept in Inventory.</p>
 
     <fieldset>
-      <legend>Barcodes</legend>
+      <legend>Barcodes for this product</legend>
+      <p class="hint">Type the code printed on the package. Add it here, then choose Save product. The code is stored only after that save succeeds. A product can have several barcodes, or none. Leading zeros are kept.</p>
+      <p class="hint">If the package has no barcode, Generate shop barcode adds an internal Code 128 code that starts with R360-. It is not a manufacturer number. Other products are checked for that code only when you save. If the code is already used, the save fails and it stays not saved. Print the label only after it says Saved.</p>
       @if (barcodes().length === 0) {
         <p class="status">No barcodes yet.</p>
       } @else {
         <ul class="chips">
           @for (barcode of barcodes(); track barcode) {
             <li>
-              <span>{{ barcode }}</span>
+              <span class="barcode-value">{{ barcode }}</span>
+              @if (isSavedBarcode(barcode)) {
+                <span class="hint">Saved</span>
+                <button type="button" class="secondary no-print" (click)="printLabel(barcode)">Print label</button>
+              } @else {
+                <span class="hint">Not saved yet</span>
+              }
               @if (canWrite()) {
-                <button type="button" class="secondary" (click)="removeBarcode(barcode)">Remove</button>
+                <button type="button" class="secondary no-print" (click)="removeBarcode(barcode)">Remove</button>
               }
             </li>
           }
@@ -85,12 +94,22 @@
       }
       @if (canWrite()) {
         <div class="inline">
-          <input
-            [value]="barcodeDraft()"
-            maxlength="128"
-            (input)="barcodeDraft.set(inputValue($event))"
-          />
+          <label>
+            Barcode
+            <input
+              name="barcodeDraft"
+              type="text"
+              inputmode="text"
+              autocomplete="off"
+              spellcheck="false"
+              [value]="barcodeDraft()"
+              maxlength="128"
+              (input)="barcodeDraft.set(inputValue($event))"
+              (keydown.enter)="addBarcodeFromKeyboard($event)"
+            />
+          </label>
           <button type="button" class="secondary" (click)="addBarcode()">Add barcode</button>
+          <button type="button" class="secondary" (click)="generateBarcode()">Generate shop barcode</button>
         </div>
       }
     </fieldset>
@@ -125,4 +144,18 @@
       </div>
     }
   </form>
+  @if (labelToPrint(); as code) {
+    <article class="barcode-label">
+      <p class="barcode-name">{{ product()?.name }}</p>
+      @if (labelFor(code); as drawn) {
+        <svg [attr.viewBox]="'0 0 ' + drawn.width + ' 60'" role="img" [attr.aria-label]="code">
+          @for (bar of drawn.bars; track $index) {
+            <rect [attr.x]="bar.x" y="0" [attr.width]="bar.width" height="42" fill="currentColor" />
+          }
+        </svg>
+      }
+      <p class="barcode-digits">{{ code }}</p>
+    </article>
+  }
+  </div>
 }

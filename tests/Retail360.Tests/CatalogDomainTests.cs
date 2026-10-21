@@ -74,6 +74,25 @@ public class CatalogDomainTests
     }
 
     [Fact]
+    public void Create_keeps_several_barcodes_and_leading_zeros()
+    {
+        var product = Product.Create(
+            "Rice",
+            null,
+            null,
+            Guid.NewGuid(),
+            1.00m,
+            2.00m,
+            0m,
+            ["  00123  ", "SHOP-9"],
+            Now);
+
+        Assert.Equal(["00123", "SHOP-9"], product.Barcodes.Select(barcode => barcode.Barcode));
+        Assert.Throws<CatalogRuleException>(() =>
+            Product.Create("Rice", null, null, Guid.NewGuid(), 1.00m, 2.00m, 0m, ["   "], Now));
+    }
+
+    [Fact]
     public void Create_rejects_a_missing_unit_and_duplicate_barcodes()
     {
         Assert.Throws<CatalogRuleException>(() =>

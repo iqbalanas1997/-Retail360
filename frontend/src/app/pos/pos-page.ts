@@ -1,4 +1,4 @@
-import { Component, inject, signal } from '@angular/core';
+import { Component, ElementRef, inject, signal, viewChild } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { Router, RouterLink } from '@angular/router';
 import { firstValueFrom } from 'rxjs';
@@ -42,6 +42,7 @@ export class PosPage {
   private readonly session = inject(SessionService);
   private readonly router = inject(Router);
   private readonly attempt = new OperationAttempt();
+  private readonly barcodeInput = viewChild<ElementRef<HTMLInputElement>>('barcodeInput');
   private lineKey = 0;
   private lookupGeneration = 0;
   private shelfGeneration = 0;
@@ -105,6 +106,8 @@ export class PosPage {
     const generation = ++this.lookupGeneration;
     this.finding.set(true);
     this.error.set('');
+    this.barcode.set('');
+    this.focusBarcode();
     try {
       const product = await firstValueFrom(this.shopApi.findProductByBarcode(barcode));
       const current = generation === this.lookupGeneration;
@@ -127,7 +130,7 @@ export class PosPage {
       }
 
       this.matches.set([]);
-      this.error.set(messageFrom(error));
+      this.error.set(barcodeMessage(barcode, error));
     } finally {
       if (this.barcodeInFlight === barcode) {
         this.barcodeInFlight = '';
@@ -135,8 +138,22 @@ export class PosPage {
 
       if (generation === this.lookupGeneration) {
         this.finding.set(false);
+        this.focusBarcode();
       }
     }
+  }
+
+  private focusBarcode(): void {
+    const input = this.barcodeInput()?.nativeElement;
+    if (!input) {
+      return;
+    }
+
+    if (this.barcode() === '') {
+      input.value = '';
+    }
+
+    input.focus();
   }
 
   protected async searchProducts(): Promise<void> {
@@ -336,6 +353,15 @@ export class PosPage {
 
 function formatQuantity(value: number): string {
   return value.toFixed(3);
+}
+
+function barcodeMessage(barcode: string, error: unknown): string {
+  const failure = toApiError(error);
+  if (failure.status === 404) {
+    return `No product has barcode ${barcode}.`;
+  }
+
+  return failure.message;
 }
 
 function messageFrom(error: unknown): string {

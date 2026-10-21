@@ -2,10 +2,12 @@
   <label>
     Barcode
     <input
+      #barcodeInput
       name="barcode"
       [value]="barcode()"
       (input)="barcode.set($any($event.target).value)"
       autocomplete="off"
+      autofocus
       [disabled]="selling()"
     />
   </label>

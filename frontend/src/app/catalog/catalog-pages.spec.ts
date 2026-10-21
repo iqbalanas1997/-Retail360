@@ -1,4 +1,5 @@
 import { provideHttpClient, withInterceptors } from '@angular/common/http';
+import { vi } from 'vitest';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { TestBed } from '@angular/core/testing';
 import { provideRouter } from '@angular/router';
@@ -108,6 +109,165 @@ describe('catalog screens', () => {
     save.click();
 
     expect(http.match('/api/products')).toHaveLength(1);
+  });
+
+  it('adds a barcode with Enter and keeps existing barcodes on save', async () => {
+    remember('Manager');
+    const harness = await open('/catalog/products/product-1');
+    const http = TestBed.inject(HttpTestingController);
+    http.expectOne('/api/categories').flush([]);
+    http.expectOne('/api/brands').flush([]);
+    http.expectOne('/api/units').flush([{ id: 'unit-1', name: 'Piece', createdAt: '', updatedAt: '' }]);
+    await turn();
+    http.expectOne('/api/products/product-1').flush(product('Rice'));
+    await turn();
+    harness.detectChanges();
+
+    const root = harness.fixture.nativeElement as HTMLElement;
+    const draft = root.querySelector('[name="barcodeDraft"]') as HTMLInputElement;
+    draft.value = '00123';
+    draft.dispatchEvent(new Event('input'));
+    draft.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', cancelable: true, bubbles: true }));
+    harness.detectChanges();
+
+    expect(root.textContent).toContain('00123');
+    expect(root.textContent).toContain('RICE');
+    expect(http.match((request) => request.method === 'PUT')).toHaveLength(0);
+    clickButton(root, 'Save product');
+    const saved = http.expectOne((request) => request.method === 'PUT' && request.url === '/api/products/product-1');
+    expect(saved.request.body.barcodes).toEqual(['RICE', '00123']);
+    saved.flush({ ...product('Rice'), barcodes: ['RICE', '00123'] });
+    await turn();
+    harness.detectChanges();
+  });
+
+  it('shows a duplicate barcode without saving the product', async () => {
+    remember('Admin');
+    const harness = await open('/catalog/products/product-1');
+    const http = TestBed.inject(HttpTestingController);
+    http.expectOne('/api/categories').flush([]);
+    http.expectOne('/api/brands').flush([]);
+    http.expectOne('/api/units').flush([{ id: 'unit-1', name: 'Piece', createdAt: '', updatedAt: '' }]);
+    await turn();
+    http.expectOne('/api/products/product-1').flush(product('Rice'));
+    await turn();
+    harness.detectChanges();
+
+    const root = harness.fixture.nativeElement as HTMLElement;
+    const draft = root.querySelector('[name="barcodeDraft"]') as HTMLInputElement;
+    draft.value = 'RICE';
+    draft.dispatchEvent(new Event('input'));
+    draft.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', cancelable: true, bubbles: true }));
+    harness.detectChanges();
+
+    expect(root.textContent).toContain('Barcode is duplicated on the product.');
+    expect(http.match((request) => request.method === 'PUT')).toHaveLength(0);
+  });
+
+  it('rejects a blank barcode and removes one on the next save', async () => {
+    remember('Admin');
+    const harness = await open('/catalog/products/product-1');
+    const http = TestBed.inject(HttpTestingController);
+    http.expectOne('/api/categories').flush([]);
+    http.expectOne('/api/brands').flush([]);
+    http.expectOne('/api/units').flush([{ id: 'unit-1', name: 'Piece', createdAt: '', updatedAt: '' }]);
+    await turn();
+    http.expectOne('/api/products/product-1').flush(product('Rice'));
+    await turn();
+    harness.detectChanges();
+
+    const root = harness.fixture.nativeElement as HTMLElement;
+    const draft = root.querySelector('[name="barcodeDraft"]') as HTMLInputElement;
+    draft.value = '   ';
+    draft.dispatchEvent(new Event('input'));
+    draft.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', cancelable: true, bubbles: true }));
+    harness.detectChanges();
+
+    expect(root.textContent).toContain('Enter a barcode before adding it.');
+    expect(root.textContent).toContain('RICE');
+    clickButton(root, 'Remove');
+    harness.detectChanges();
+    clickButton(root, 'Save product');
+    const saved = http.expectOne((request) => request.method === 'PUT' && request.url === '/api/products/product-1');
+    expect(saved.request.body.barcodes).toEqual([]);
+    saved.flush({ ...product('Rice'), barcodes: [] });
+    await turn();
+    harness.detectChanges();
+  });
+
+  it('adds a generated shop barcode without saving and prints only a saved code', async () => {
+    remember('Manager');
+    const harness = await open('/catalog/products/product-1');
+    const http = TestBed.inject(HttpTestingController);
+    http.expectOne('/api/categories').flush([]);
+    http.expectOne('/api/brands').flush([]);
+    http.expectOne('/api/units').flush([{ id: 'unit-1', name: 'Piece', createdAt: '', updatedAt: '' }]);
+    await turn();
+    http.expectOne('/api/products/product-1').flush({ ...product('Rice'), barcodes: ['00123'] });
+    await turn();
+    harness.detectChanges();
+
+    const root = harness.fixture.nativeElement as HTMLElement;
+    expect(root.textContent).toContain('Barcodes for this product');
+    expect(root.textContent).toContain('stored only after that save succeeds');
+    clickButton(root, 'Generate shop barcode');
+    harness.detectChanges();
+
+    const generated = [...root.querySelectorAll('.chips li')].find((item) =>
+      /R360-[0-9A-F]{8}/.test(item.textContent ?? ''),
+    );
+    expect(generated?.textContent).toContain('Not saved yet');
+    expect(generated?.textContent).not.toContain('Print label');
+    expect(http.match((request) => request.method === 'PUT')).toHaveLength(0);
+    const print = vi.spyOn(window, 'print').mockImplementation(() => undefined);
+    clickButton(root, 'Print label');
+    harness.detectChanges();
+    await Promise.resolve();
+
+    const label = root.querySelector('.barcode-label');
+    expect(label?.textContent).toContain('Rice');
+    expect(label?.textContent).toContain('00123');
+    expect(label?.querySelector('svg')).not.toBeNull();
+    expect(label?.querySelector('button')).toBeNull();
+    expect(label?.querySelector('.barcode-digits')?.textContent).toBe('00123');
+    expect(print).toHaveBeenCalledOnce();
+    print.mockRestore();
+  });
+
+  it('keeps a new barcode unsaved when the product save is rejected', async () => {
+    remember('Admin');
+    const harness = await open('/catalog/products/product-1');
+    const http = TestBed.inject(HttpTestingController);
+    http.expectOne('/api/categories').flush([]);
+    http.expectOne('/api/brands').flush([]);
+    http.expectOne('/api/units').flush([{ id: 'unit-1', name: 'Piece', createdAt: '', updatedAt: '' }]);
+    await turn();
+    http.expectOne('/api/products/product-1').flush(product('Rice'));
+    await turn();
+    harness.detectChanges();
+
+    const root = harness.fixture.nativeElement as HTMLElement;
+    const draft = root.querySelector('[name="barcodeDraft"]') as HTMLInputElement;
+    draft.value = '00123';
+    draft.dispatchEvent(new Event('input'));
+    draft.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', cancelable: true, bubbles: true }));
+    harness.detectChanges();
+    clickButton(root, 'Save product');
+    http
+      .expectOne((request) => request.method === 'PUT' && request.url === '/api/products/product-1')
+      .flush(
+        { error: 'Barcode is already assigned to a product.' },
+        { status: 409, statusText: 'Conflict' },
+      );
+    await turn();
+    harness.detectChanges();
+
+    expect(root.textContent).toContain('Barcode is already assigned to a product.');
+    const added = [...root.querySelectorAll('.chips li')].find((item) => item.textContent?.includes('00123'));
+    const kept = [...root.querySelectorAll('.chips li')].find((item) => item.textContent?.includes('RICE'));
+    expect(added?.textContent).toContain('Not saved yet');
+    expect(added?.textContent).not.toContain('Print label');
+    expect(kept?.textContent).toContain('Saved');
   });
 });
 

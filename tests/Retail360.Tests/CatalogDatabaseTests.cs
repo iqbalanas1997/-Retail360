@@ -314,6 +314,31 @@ public sealed class CatalogDatabaseTests
         Assert.Equal(barcode, Assert.Single(reused.Barcodes));
     }
 
+    [Fact]
+    public async Task Stored_product_keeps_several_barcodes_including_leading_zeros()
+    {
+        var suffix = Guid.NewGuid().ToString("N");
+        var clock = new FixedClock(new DateTimeOffset(2026, 10, 10, 9, 0, 0, TimeSpan.Zero));
+        var products = new ProductService(
+            new ProductCatalogStore(_database.Connections, new PostgresTransaction(_database.Connections)),
+            new CategoryCatalogStore(_database.Connections),
+            new BrandCatalogStore(_database.Connections),
+            new UnitCatalogStore(_database.Connections),
+            clock);
+        var unit = await new UnitService(new UnitCatalogStore(_database.Connections), clock)
+            .CreateAsync(new SaveNameCommand($"Pack {suffix}"), CancellationToken.None);
+
+        var leadingZero = $"00{suffix}";
+        var created = await products.CreateAsync(
+            new SaveProductCommand($"Flour {suffix}", null, null, unit.Id, 1.00m, 2.00m, 0m, [leadingZero, $"SHOP-{suffix}"]),
+            CancellationToken.None);
+        var loaded = await products.GetAsync(created.Id, CancellationToken.None);
+
+        Assert.Equal([leadingZero, $"SHOP-{suffix}"], loaded.Barcodes);
+        var byBarcode = await products.FindActiveByBarcodeAsync(leadingZero, CancellationToken.None);
+        Assert.Equal(created.Id, byBarcode.Id);
+    }
+
     private static Task InsertUnitAsync(
         NpgsqlConnection connection,
         NpgsqlTransaction transaction,

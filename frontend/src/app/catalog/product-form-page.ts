@@ -4,6 +4,7 @@ import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { firstValueFrom } from 'rxjs';
 
 import { ApiError } from '../core/api-error';
+import { code128Bars, type Code128Label, nextInternalBarcode } from '../core/barcode-label';
 import { type NamedCatalogItem, type Product, type SaveProductBody } from '../core/catalog.models';
 import { formatScaled, parseBarcodes, parseMinimumStock, parseName, parsePrice } from '../core/catalog-rules';
 import { SessionService } from '../core/session.service';
@@ -33,6 +34,7 @@ export class ProductFormPage {
   protected readonly units = signal<NamedCatalogItem[]>([]);
   protected readonly barcodes = signal<string[]>([]);
   protected readonly barcodeDraft = signal('');
+  protected readonly labelToPrint = signal<string | null>(null);
   protected readonly product = signal<Product | null>(null);
   protected readonly form = this.formBuilder.nonNullable.group({
     name: ['', Validators.required],
@@ -101,15 +103,62 @@ export class ProductFormPage {
     }
   }
 
+  protected addBarcodeFromKeyboard(event: Event): void {
+    event.preventDefault();
+    this.addBarcode();
+  }
+
   protected addBarcode(): void {
     this.error.set('');
-    const next = [...this.barcodes(), this.barcodeDraft()];
+    const draft = this.barcodeDraft().trim();
+    if (draft.length === 0) {
+      this.error.set('Enter a barcode before adding it.');
+      return;
+    }
+
     try {
-      this.barcodes.set(parseBarcodes(next));
+      this.barcodes.set(parseBarcodes([...this.barcodes(), draft]));
       this.barcodeDraft.set('');
     } catch (error) {
       this.error.set(error instanceof Error ? error.message : 'The request failed.');
     }
+  }
+
+  protected generateBarcode(): void {
+    this.error.set('');
+    try {
+      this.barcodes.update((current) => [...current, nextInternalBarcode(current)]);
+    } catch (error) {
+      this.error.set(error instanceof Error ? error.message : 'The request failed.');
+    }
+  }
+
+  protected isSavedBarcode(barcode: string): boolean {
+    return this.product()?.barcodes.includes(barcode) ?? false;
+  }
+
+  protected labelFor(barcode: string): Code128Label | null {
+    try {
+      return code128Bars(barcode);
+    } catch {
+      return null;
+    }
+  }
+
+  protected printLabel(barcode: string): void {
+    if (!this.isSavedBarcode(barcode)) {
+      return;
+    }
+
+    try {
+      code128Bars(barcode);
+    } catch (error) {
+      this.error.set(error instanceof Error ? error.message : 'This barcode cannot be printed.');
+      return;
+    }
+
+    this.labelToPrint.set(barcode);
+    queueMicrotask(() => window.print());
   }
 
   protected removeBarcode(barcode: string): void {
