@@ -1,0 +1,72 @@
+<p class="back"><a routerLink="/expenses">Back to expenses</a></p>
+
+@if (loading()) {
+  <p class="status">Loading expense…</p>
+} @else if (loadFailed()) {
+  @if (error()) {
+    <p class="notice error" role="alert">{{ error() }}</p>
+  }
+  <button type="button" class="secondary" (click)="load()">Try again</button>
+} @else {
+  @if (!canWrite()) {
+    <p class="hint">You can view expenses. Only an Admin or Manager can change them.</p>
+  }
+
+  @if (error()) {
+    <p class="notice error" role="alert">{{ error() }}</p>
+  }
+  @if (success()) {
+    <p class="notice ok" role="status">{{ success() }}</p>
+  }
+
+  <form class="form" [formGroup]="form" (ngSubmit)="save()">
+    <label>
+      Category
+      <select formControlName="category">
+        <option value="">Choose a category</option>
+        @for (category of categories; track category.value) {
+          <option [value]="category.value">{{ category.label }}</option>
+        }
+      </select>
+    </label>
+    <label>
+      Amount
+      <input formControlName="amount" inputmode="decimal" autocomplete="off" />
+    </label>
+    <label>
+      Date
+      <input type="date" formControlName="expenseDate" />
+    </label>
+    <label>
+      Notes
+      <textarea formControlName="notes" rows="3"></textarea>
+    </label>
+    <label>
+      Payment
+      <select formControlName="paymentMethod">
+        <option value="cash">Cash</option>
+      </select>
+    </label>
+    @if (canWrite()) {
+      <button type="submit" [disabled]="saving()">
+        {{ saving() ? 'Saving…' : (creating ? 'Record expense' : 'Save expense') }}
+      </button>
+    }
+  </form>
+
+  @if (expense() && canWrite()) {
+    <div class="actions">
+      @if (!confirmDelete()) {
+        <button type="button" class="secondary" [disabled]="saving()" (click)="confirmDelete.set(true)">
+          Remove expense
+        </button>
+      } @else {
+        <span class="confirm">
+          Remove this expense? This hides it from the list.
+          <button type="button" [disabled]="saving()" (click)="remove()">Remove</button>
+          <button type="button" class="secondary" (click)="confirmDelete.set(false)">Cancel</button>
+        </span>
+      }
+    </div>
+  }
+}

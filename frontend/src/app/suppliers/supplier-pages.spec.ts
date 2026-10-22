@@ -276,6 +276,8 @@ describe('supplier screens', () => {
     await turn();
     http.expectOne('/api/suppliers/supplier-1').flush(supplier('Sufi'));
     await turn();
+    flushHistory();
+    await turn();
     harness.detectChanges();
 
     expect(TestBed.inject(Router).url).toBe('/suppliers/supplier-1');
@@ -345,6 +347,8 @@ describe('supplier screens', () => {
       isActive: false,
     });
     await turn();
+    flushHistory();
+    await turn();
     harness.detectChanges();
     const root = harness.fixture.nativeElement as HTMLElement;
     setInput(root, 'phone', '0311');
@@ -376,6 +380,8 @@ describe('supplier screens', () => {
     const harness = await open('/suppliers/supplier-1');
     TestBed.inject(HttpTestingController).expectOne('/api/suppliers/supplier-1').flush(supplier('Sufi'));
     await turn();
+    flushHistory();
+    await turn();
     harness.detectChanges();
     const root = harness.fixture.nativeElement as HTMLElement;
     const deactivate = [...root.querySelectorAll('button')].find(
@@ -395,7 +401,9 @@ describe('supplier screens', () => {
     harness.detectChanges();
 
     expect(text(harness)).toContain('This hides the supplier from the list. The name can be used again.');
-    expect(text(harness)).not.toContain('purchase');
+    expect((harness.fixture.nativeElement.querySelector('.confirm') as HTMLElement).textContent).not.toContain(
+      'purchase',
+    );
     clickButton(harness.fixture.nativeElement.querySelector('.confirm') as HTMLElement, 'Cancel');
     harness.detectChanges();
 
@@ -425,6 +433,8 @@ describe('supplier screens', () => {
     const http = TestBed.inject(HttpTestingController);
     http.expectOne('/api/suppliers/supplier-1').flush(supplier('Sufi'));
     await turn();
+    flushHistory();
+    await turn();
     harness.detectChanges();
     clickButton(harness.fixture.nativeElement, 'Remove supplier');
     harness.detectChanges();
@@ -444,9 +454,12 @@ describe('supplier screens', () => {
     const staff = await open('/suppliers/supplier-1');
     TestBed.inject(HttpTestingController).expectOne('/api/suppliers/supplier-1').flush(supplier('Sufi'));
     await turn();
+    flushHistory();
+    await turn();
     staff.detectChanges();
 
     expect(text(staff)).toContain('Only an Admin or Manager can change it.');
+    expect(text(staff)).toContain('No purchases for this supplier.');
     expect(text(staff)).not.toContain('Save supplier');
     expect(text(staff)).not.toContain('Deactivate');
     expect(text(staff)).not.toContain('Remove supplier');
@@ -460,6 +473,121 @@ describe('supplier screens', () => {
 
     expect(text(manager)).toContain('New supplier');
     expect(text(manager)).toContain('Suppliers');
+  });
+
+  it('shows an empty purchase history and still saves the supplier', async () => {
+    remember('Admin');
+    const harness = await open('/suppliers/supplier-1');
+    const http = TestBed.inject(HttpTestingController);
+    http.expectOne('/api/suppliers/supplier-1').flush(supplier('Sufi'));
+    await turn();
+    const history = expectHistory(http, 'supplier-1', '0');
+    expect(history.request.params.has('status')).toBe(false);
+    history.flush([]);
+    await turn();
+    harness.detectChanges();
+
+    expect(text(harness)).toContain('No purchases for this supplier.');
+    expect(text(harness)).toContain('Save supplier');
+    setInput(harness.fixture.nativeElement, 'phone', '0321');
+    clickButton(harness.fixture.nativeElement, 'Save supplier');
+    http.expectOne({ method: 'PUT', url: '/api/suppliers/supplier-1' }).flush({
+      ...supplier('Sufi'),
+      phone: '0321',
+    });
+    await turn();
+    harness.detectChanges();
+
+    expect(text(harness)).toContain('Supplier saved.');
+    expect(text(harness)).toContain('No purchases for this supplier.');
+  });
+
+  it('lists recorded and received purchases and links each one', async () => {
+    remember('Cashier');
+    const harness = await open('/suppliers/supplier-1');
+    const http = TestBed.inject(HttpTestingController);
+    http.expectOne('/api/suppliers/supplier-1').flush(supplier('Sufi'));
+    await turn();
+    expectHistory(http, 'supplier-1', '0').flush([
+      purchase('purchase-recorded', 'recorded', 'INV-1', 320.13, '2026-10-20'),
+      purchase('purchase-received', 'received', '', 0.13, '2026-10-19'),
+    ]);
+    await turn();
+    harness.detectChanges();
+    const root = harness.fixture.nativeElement as HTMLElement;
+
+    expect(text(harness)).toContain('Recorded');
+    expect(text(harness)).toContain('Received');
+    expect(text(harness)).toContain('INV-1');
+    expect(text(harness)).toContain('2026-10-20');
+    expect(text(harness)).toContain('320.13');
+    expect(text(harness)).toContain('purchase-received');
+    expect(text(harness)).toContain('0.13');
+    expect(root.querySelector('a[href="/purchases/purchase-recorded"]')).not.toBeNull();
+    expect(root.querySelector('a[href="/purchases/purchase-received"]')).not.toBeNull();
+    expect(text(harness)).not.toContain('Save supplier');
+    expect(text(harness)).toContain('Only an Admin or Manager can change it.');
+  });
+
+  it('pages purchase history the same way as the purchase list', async () => {
+    remember('Manager');
+    const harness = await open('/suppliers/supplier-1');
+    const http = TestBed.inject(HttpTestingController);
+    http.expectOne('/api/suppliers/supplier-1').flush(supplier('Sufi'));
+    await turn();
+    const page = Array.from({ length: 50 }, (_, index) =>
+      purchase(`purchase-${index}`, index % 2 === 0 ? 'recorded' : 'received', `REF-${index}`, index + 1, '2026-10-20'),
+    );
+    expectHistory(http, 'supplier-1', '0').flush(page);
+    await turn();
+    harness.detectChanges();
+
+    expect(text(harness)).toContain('REF-0');
+    expect(text(harness)).toContain('Recorded');
+    expect(text(harness)).toContain('Received');
+    clickButton(harness.fixture.nativeElement, 'Show more');
+    expectHistory(http, 'supplier-1', '50').flush([
+      purchase('purchase-last', 'recorded', 'LAST', 9, '2026-10-21'),
+    ]);
+    await turn();
+    harness.detectChanges();
+
+    expect(text(harness)).toContain('REF-0');
+    expect(text(harness)).toContain('LAST');
+    expect(text(harness)).not.toContain('Show more');
+  });
+
+  it('keeps the supplier form when purchase history cannot be loaded', async () => {
+    remember('Admin');
+    const harness = await open('/suppliers/supplier-1');
+    const http = TestBed.inject(HttpTestingController);
+    http.expectOne('/api/suppliers/supplier-1').flush(supplier('Sufi'));
+    await turn();
+    expectHistory(http, 'supplier-1', '0').error(new ProgressEvent('error'));
+    await turn();
+    harness.detectChanges();
+
+    expect(text(harness)).toContain('The shop API could not be reached.');
+    expect(text(harness)).not.toContain('No purchases for this supplier.');
+    expect(text(harness)).toContain('Save supplier');
+    setInput(harness.fixture.nativeElement, 'name', 'Sufi Mill');
+    clickButton(harness.fixture.nativeElement, 'Save supplier');
+    const update = http.expectOne({ method: 'PUT', url: '/api/suppliers/supplier-1' });
+    expect((update.request.body as { name: string }).name).toBe('Sufi Mill');
+    update.flush({ ...supplier('Sufi Mill') });
+    await turn();
+    harness.detectChanges();
+
+    expect(text(harness)).toContain('Supplier saved.');
+    clickButton(harness.fixture.nativeElement, 'Try again');
+    expectHistory(http, 'supplier-1', '0').flush([
+      purchase('purchase-recorded', 'recorded', 'INV-1', 15, '2026-10-20'),
+    ]);
+    await turn();
+    harness.detectChanges();
+
+    expect(text(harness)).toContain('INV-1');
+    expect(text(harness)).not.toContain('The shop API could not be reached.');
   });
 });
 
@@ -500,6 +628,46 @@ function supplier(name: string, id = 'supplier-1') {
     createdAt: '',
     updatedAt: '',
   };
+}
+
+function purchase(
+  id: string,
+  status: string,
+  reference: string,
+  total: number,
+  purchaseDate: string,
+) {
+  return {
+    id,
+    supplierId: 'supplier-1',
+    supplierName: 'Sufi',
+    purchaseDate,
+    reference,
+    notes: null,
+    status,
+    total,
+    receiveOperationId: null,
+    receivedAt: null,
+    lines: [],
+    createdAt: '',
+    updatedAt: '',
+  };
+}
+
+function flushHistory(body: ReturnType<typeof purchase>[] = [], id = 'supplier-1'): void {
+  expectHistory(TestBed.inject(HttpTestingController), id, '0').flush(body);
+}
+
+function expectHistory(http: HttpTestingController, id: string, offset: string) {
+  return http.expectOne(
+    (request) =>
+      request.method === 'GET' &&
+      request.url === '/api/purchases' &&
+      request.params.get('supplierId') === id &&
+      request.params.get('limit') === '50' &&
+      request.params.get('offset') === offset &&
+      !request.params.has('status'),
+  );
 }
 
 function flushList(body: ReturnType<typeof supplier>[]): void {

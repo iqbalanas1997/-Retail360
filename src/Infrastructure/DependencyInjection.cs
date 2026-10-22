@@ -5,11 +5,15 @@ using Retail360.Application.Catalog;
 using Retail360.Application.Identity;
 using Retail360.Application.Inventory;
 using Retail360.Application.Purchasing;
+using Retail360.Application.Expenses;
+using Retail360.Application.Reporting;
 using Retail360.Application.Sales;
 using Retail360.Application.Suppliers;
 using Retail360.Infrastructure.Catalog;
 using Retail360.Infrastructure.Inventory;
 using Retail360.Infrastructure.Purchasing;
+using Retail360.Infrastructure.Expenses;
+using Retail360.Infrastructure.Reporting;
 using Retail360.Infrastructure.Sales;
 using Retail360.Infrastructure.Suppliers;
 using Retail360.Infrastructure.Database;
@@ -57,6 +61,8 @@ public static class DependencyInjection
         services.AddSingleton<ISupplierStore, SupplierStore>();
         services.AddSingleton<IPurchaseStore, PurchaseStore>();
         services.AddSingleton<ISaleStore, SaleStore>();
+        services.AddSingleton<IExpenseStore, ExpenseStore>();
+        services.AddSingleton<IReportStore, ReportStore>();
 
         return services;
     }

@@ -6,9 +6,11 @@ using Microsoft.OpenApi.Models;
 using Retail360.Api.Catalog;
 using Retail360.Api.Identity;
 using Retail360.Application.Catalog;
+using Retail360.Application.Expenses;
 using Retail360.Application.Identity;
 using Retail360.Application.Inventory;
 using Retail360.Application.Purchasing;
+using Retail360.Application.Reporting;
 using Retail360.Application.Sales;
 using Retail360.Application.Suppliers;
 using Retail360.Domain.Identity;
@@ -30,6 +32,8 @@ builder.Services.AddScoped<StockService>();
 builder.Services.AddScoped<SupplierService>();
 builder.Services.AddScoped<PurchaseService>();
 builder.Services.AddScoped<SaleService>();
+builder.Services.AddScoped<ExpenseService>();
+builder.Services.AddScoped<ReportService>();
 builder.Services.AddScoped<ShopSignInService>();
 builder.Services.AddSingleton<IAuthorizationMiddlewareResultHandler, ShopAuthorizationResultHandler>();
 
@@ -85,6 +89,12 @@ builder.Services.AddAuthorization(options =>
         ShopRoleNames.Admin, ShopRoleNames.Manager, ShopRoleNames.Cashier, ShopRoleNames.InventoryStaff));
     options.AddPolicy(ShopPolicies.SaleComplete, policy => policy.RequireRole(
         ShopRoleNames.Admin, ShopRoleNames.Manager, ShopRoleNames.Cashier));
+    options.AddPolicy(ShopPolicies.ExpenseRead, policy => policy.RequireRole(
+        ShopRoleNames.Admin, ShopRoleNames.Manager, ShopRoleNames.Cashier, ShopRoleNames.InventoryStaff));
+    options.AddPolicy(ShopPolicies.ExpenseWrite, policy => policy.RequireRole(
+        ShopRoleNames.Admin, ShopRoleNames.Manager));
+    options.AddPolicy(ShopPolicies.ReportRead, policy => policy.RequireRole(
+        ShopRoleNames.Admin, ShopRoleNames.Manager));
 });
 builder.Services.AddControllers()
     .ConfigureApiBehaviorOptions(options =>

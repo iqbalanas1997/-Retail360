@@ -23,4 +23,10 @@ public static class ShopPolicies
     public const string SaleRead = "SaleRead";
 
     public const string SaleComplete = "SaleComplete";
+
+    public const string ExpenseRead = "ExpenseRead";
+
+    public const string ExpenseWrite = "ExpenseWrite";
+
+    public const string ReportRead = "ReportRead";
 }

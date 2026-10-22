@@ -45,10 +45,13 @@ A completed cash sale for one or more products. It stores the receipt number, so
 A business or person the shop can buy from. Fields are id, name, optional contact person, phone, email, address, and notes, plus `is_active`, created_at, updated_at, and is_deleted. The name is required and unique among non-deleted suppliers, compared case-insensitively. A soft-deleted name can be used again. An inactive supplier can still be edited. Deactivation does not delete the supplier. Supplier payments and payable balances are not part of this record. A purchase references the supplier id. A supplier referenced by a purchase cannot be soft-deleted.
 
 ### Customer
-Buyer with optional credit/receivable history.
+A buyer with optional credit or receivable history. This record is not implemented. A cash sale does not require a customer, and POS does not ask for one. Udhaar and customer payments remain future work.
 
 ### Expense
-Business expense categorized and dated.
+A shop cost that does not change stock, a purchase, a supplier balance, or a sale. Fields are id, category, amount, expense date, optional notes, payment method `cash`, created_at, updated_at, and is_deleted. The category is one of `rent`, `utilities`, `wages`, `transport`, `supplies`, `repairs`, or `other`. Amount is greater than zero within `numeric(12,2)`, and extra fractional digits are rejected. The same client operation id and the same payload record one expense. A different payload for that id is rejected. Soft delete hides the expense from the list and from its filtered total. There is no SQL `DELETE` and no separate category table.
+
+### Dashboard
+A read-only view of completed sales, recorded expenses, purchase documents, and current low stock. It does not store its own rows and does not change sales, purchases, expenses, or stock. There is no shop timezone. A sale belongs to the UTC calendar date of `sold_at`, matching the UTC time shown on a receipt. An expense belongs to its saved expense date. A purchase document belongs to its purchase date. Stock received belongs to the UTC calendar date of `received_at`. Those purchase figures stay separate. Sales total and average use the persisted sale total. Average is rounded to 2 decimal places, half away from zero, and is absent when the period has no sales. Soft-deleted expenses and purchases are excluded. Sales cannot be soft-deleted. Low stock is the current total of shelf balances for an active product, including an inactive shelf, and it is not filtered by the selected dates. The dashboard does not calculate profit, inventory value, supplier payables, or customer receivables.
 
 ### User / Role / Permission
 Controls system access.

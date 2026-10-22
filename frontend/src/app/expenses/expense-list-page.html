@@ -1,0 +1,74 @@
+<form class="toolbar" [formGroup]="form" (ngSubmit)="search()">
+  <label>
+    From
+    <input type="date" formControlName="from" />
+  </label>
+  <label>
+    To
+    <input type="date" formControlName="to" />
+  </label>
+  <label>
+    Category
+    <select formControlName="category">
+      <option value="">All categories</option>
+      @for (category of categories; track category.value) {
+        <option [value]="category.value">{{ category.label }}</option>
+      }
+    </select>
+  </label>
+  <button type="submit">Search</button>
+  @if (canWrite()) {
+    <a class="button" routerLink="/expenses/new">New expense</a>
+  }
+</form>
+
+@if (error()) {
+  <p class="notice error" role="alert">{{ error() }}</p>
+  <button type="button" class="secondary" (click)="reload()">Try again</button>
+}
+
+@if (success()) {
+  <p class="notice ok" role="status">{{ success() }}</p>
+}
+
+@if (!loading()) {
+  <p class="pos-total">Total {{ money(total()) }}</p>
+}
+
+@if (loading()) {
+  <p class="status">Loading expenses…</p>
+} @else if (expenses().length === 0 && !error()) {
+  <p class="status">No expenses match this filter.</p>
+} @else if (expenses().length > 0) {
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>Date</th>
+          <th>Category</th>
+          <th>Amount</th>
+          <th>Payment</th>
+          <th>Notes</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        @for (expense of expenses(); track expense.id) {
+          <tr>
+            <td>{{ expense.expenseDate }}</td>
+            <td>{{ categoryLabel(expense.category) }}</td>
+            <td>{{ money(expense.amount) }}</td>
+            <td>Cash</td>
+            <td>{{ expense.notes }}</td>
+            <td><a [routerLink]="['/expenses', expense.id]">Open</a></td>
+          </tr>
+        }
+      </tbody>
+    </table>
+  </div>
+  @if (hasMore()) {
+    <button type="button" class="secondary" (click)="showMore()" [disabled]="loadingMore()">
+      {{ loadingMore() ? 'Loading…' : 'Show more' }}
+    </button>
+  }
+}

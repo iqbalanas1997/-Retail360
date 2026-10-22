@@ -4,6 +4,9 @@ import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { firstValueFrom } from 'rxjs';
 
 import { ApiError } from '../core/api-error';
+import { PurchaseApi } from '../core/purchase-api.service';
+import { type Purchase } from '../core/purchase.models';
+import { formatMoney } from '../core/purchase-rules';
 import { SessionService } from '../core/session.service';
 import { SupplierApi } from '../core/supplier-api.service';
 import { type SaveSupplierBody, type Supplier } from '../core/supplier.models';
@@ -24,10 +27,13 @@ import {
 export class SupplierFormPage {
   private readonly formBuilder = inject(FormBuilder);
   private readonly api = inject(SupplierApi);
+  private readonly purchasesApi = inject(PurchaseApi);
   private readonly session = inject(SessionService);
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
+  private historyGeneration = 0;
 
+  protected readonly historyPageSize = 50;
   protected readonly canWrite = this.session.canWriteSuppliers;
   protected readonly loading = signal(true);
   protected readonly loadFailed = signal(false);
@@ -36,6 +42,11 @@ export class SupplierFormPage {
   protected readonly success = signal('');
   protected readonly confirmDelete = signal(false);
   protected readonly supplier = signal<Supplier | null>(null);
+  protected readonly purchases = signal<Purchase[]>([]);
+  protected readonly historyLoading = signal(false);
+  protected readonly historyLoadingMore = signal(false);
+  protected readonly historyError = signal('');
+  protected readonly historyHasMore = signal(false);
   protected readonly form = this.formBuilder.nonNullable.group({
     name: ['', Validators.required],
     contactPerson: '',
@@ -51,12 +62,45 @@ export class SupplierFormPage {
     });
   }
 
+  protected money(value: number): string {
+    return formatMoney(value);
+  }
+
+  protected reference(purchase: Purchase): string {
+    return purchase.reference?.trim() || purchase.id;
+  }
+
+  protected statusLabel(status: string): string {
+    if (status === 'recorded') {
+      return 'Recorded';
+    }
+
+    if (status === 'received') {
+      return 'Received';
+    }
+
+    return status;
+  }
+
+  protected reloadHistory(): void {
+    void this.loadPurchases(false);
+  }
+
+  protected showMorePurchases(): void {
+    if (this.historyLoading() || this.historyLoadingMore()) {
+      return;
+    }
+
+    void this.loadPurchases(true);
+  }
+
   protected async load(): Promise<void> {
     this.loading.set(true);
     this.loadFailed.set(false);
     this.error.set('');
     this.success.set('');
     this.confirmDelete.set(false);
+    this.clearHistory();
     const message = readSuccess(this.router);
     const id = this.route.snapshot.paramMap.get('id');
     try {
@@ -71,6 +115,7 @@ export class SupplierFormPage {
           address: supplier.address ?? '',
           notes: supplier.notes ?? '',
         });
+        void this.loadPurchases(false);
       } else {
         this.supplier.set(null);
       }
@@ -167,6 +212,63 @@ export class SupplierFormPage {
       this.error.set(error instanceof ApiError ? error.message : 'The request failed.');
     } finally {
       this.saving.set(false);
+    }
+  }
+
+  private clearHistory(): void {
+    this.historyGeneration += 1;
+    this.purchases.set([]);
+    this.historyLoading.set(false);
+    this.historyLoadingMore.set(false);
+    this.historyError.set('');
+    this.historyHasMore.set(false);
+  }
+
+  private async loadPurchases(append: boolean): Promise<void> {
+    const id = this.supplier()?.id;
+    if (!id) {
+      return;
+    }
+
+    const generation = append ? this.historyGeneration : ++this.historyGeneration;
+    if (append) {
+      this.historyLoadingMore.set(true);
+    } else {
+      this.historyLoading.set(true);
+      this.historyError.set('');
+    }
+
+    const offset = append ? this.purchases().length : 0;
+    try {
+      const page = await firstValueFrom(
+        this.purchasesApi.list({
+          supplierId: id,
+          status: '',
+          limit: this.historyPageSize,
+          offset,
+        }),
+      );
+      if (generation !== this.historyGeneration) {
+        return;
+      }
+
+      this.purchases.set(append ? [...this.purchases(), ...page] : page);
+      this.historyHasMore.set(page.length === this.historyPageSize);
+    } catch (error) {
+      if (generation !== this.historyGeneration) {
+        return;
+      }
+
+      this.historyError.set(error instanceof ApiError ? error.message : 'The request failed.');
+      if (!append) {
+        this.purchases.set([]);
+        this.historyHasMore.set(false);
+      }
+    } finally {
+      if (generation === this.historyGeneration) {
+        this.historyLoading.set(false);
+        this.historyLoadingMore.set(false);
+      }
     }
   }
 

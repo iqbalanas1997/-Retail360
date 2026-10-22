@@ -1,6 +1,8 @@
 using Retail360.Domain.Catalog;
+using Retail360.Domain.Expenses;
 using Retail360.Domain.Inventory;
 using Retail360.Domain.Purchasing;
+using Retail360.Domain.Reporting;
 using Retail360.Domain.Sales;
 using Retail360.Domain.Suppliers;
 
@@ -42,6 +44,14 @@ public sealed class CatalogExceptionMiddleware
             await WriteRuleAsync(context, exception, StatusFor(exception.Failure));
         }
         catch (PurchaseRuleException exception)
+        {
+            await WriteRuleAsync(context, exception, StatusFor(exception.Failure));
+        }
+        catch (ExpenseRuleException exception)
+        {
+            await WriteRuleAsync(context, exception, StatusFor(exception.Failure));
+        }
+        catch (ReportRuleException exception)
         {
             await WriteRuleAsync(context, exception, StatusFor(exception.Failure));
         }
@@ -133,6 +143,24 @@ public sealed class CatalogExceptionMiddleware
         {
             PurchaseRuleFailure.NotFound => StatusCodes.Status404NotFound,
             PurchaseRuleFailure.Conflict => StatusCodes.Status409Conflict,
+            _ => StatusCodes.Status400BadRequest
+        };
+    }
+
+    private static int StatusFor(ExpenseRuleFailure failure)
+    {
+        return failure switch
+        {
+            ExpenseRuleFailure.NotFound => StatusCodes.Status404NotFound,
+            ExpenseRuleFailure.Conflict => StatusCodes.Status409Conflict,
+            _ => StatusCodes.Status400BadRequest
+        };
+    }
+
+    private static int StatusFor(ReportRuleFailure failure)
+    {
+        return failure switch
+        {
             _ => StatusCodes.Status400BadRequest
         };
     }

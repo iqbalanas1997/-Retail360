@@ -4,6 +4,9 @@ import { NamedCatalogPage } from './catalog/named-catalog-page';
 import { ProductFormPage } from './catalog/product-form-page';
 import { ProductListPage } from './catalog/product-list-page';
 import { authGuard, guestGuard } from './core/auth.guard';
+import { DashboardPage } from './dashboard/dashboard-page';
+import { ExpenseFormPage } from './expenses/expense-form-page';
+import { ExpenseListPage } from './expenses/expense-list-page';
 import { LocationsPage } from './inventory/locations-page';
 import { StockPage } from './inventory/stock-page';
 import { StockPostPage } from './inventory/stock-post-page';
@@ -25,6 +28,7 @@ export const routes: Routes = [
     canActivate: [authGuard],
     children: [
       { path: '', pathMatch: 'full', redirectTo: 'catalog/products' },
+      { path: 'dashboard', component: DashboardPage, data: { title: 'Dashboard' } },
       { path: 'catalog/products', component: ProductListPage, data: { title: 'Products' } },
       { path: 'catalog/products/new', component: ProductFormPage, data: { title: 'New product' } },
       { path: 'catalog/products/:id', component: ProductFormPage, data: { title: 'Product' } },
@@ -51,6 +55,9 @@ export const routes: Routes = [
       { path: 'purchases', component: PurchaseListPage, data: { title: 'Purchases' } },
       { path: 'purchases/new', component: PurchaseFormPage, data: { title: 'New purchase' } },
       { path: 'purchases/:id', component: PurchaseFormPage, data: { title: 'Purchase' } },
+      { path: 'expenses', component: ExpenseListPage, data: { title: 'Expenses' } },
+      { path: 'expenses/new', component: ExpenseFormPage, data: { title: 'New expense' } },
+      { path: 'expenses/:id', component: ExpenseFormPage, data: { title: 'Expense' } },
       { path: 'pos', component: PosPage, data: { title: 'POS' } },
       { path: 'sales', component: SaleListPage, data: { title: 'Sales' } },
       { path: 'sales/:id', component: SaleDetailPage, data: { title: 'Receipt' } },

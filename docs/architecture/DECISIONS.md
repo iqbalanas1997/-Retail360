@@ -176,7 +176,7 @@ Receiving calls the existing stock ledger inside the purchase transaction. The m
 ## ADR-015 — Cash sales
 Status: Accepted
 
-Sales owns the completed cash sale and its lines. Inventory still owns balances and movements. A sale does not write a quantity on Product. Customer credit, receivables, returns, refunds, discounts, price overrides, tendered amount, and change are not part of this decision. There is no draft. `POST /api/sales` completes the sale and deducts stock in one transaction, or it rolls both back.
+Sales owns the completed cash sale and its lines. Inventory still owns balances and movements. A sale does not write a quantity on Product. Customer credit, receivables, returns, refunds, discounts, price overrides, tendered amount, and change are not part of this decision. There is no draft. `POST /api/sales` completes the sale and deducts stock in one transaction, or it rolls both back. A cash sale does not name a customer.
 
 Each line names the product, the shelf the goods leave, and the quantity. The client does not send a price or a total. The server copies the product name and the current Catalog `selling_price` onto the line. A later catalog edit does not rewrite that snapshot. Line total is `round(quantity * unit_price, 2)`, half away from zero, matching Purchasing and PostgreSQL `round(numeric, 2)`. The document total is the sum of the line totals. Quantity uses the `numeric(14,3)` contract. Money uses the `numeric(12,2)` contract. Payment method is `cash`. The sold time is the server clock in UTC. The receipt number comes from a counter row updated inside the transaction, so a rollback does not skip a number.
 
@@ -185,3 +185,23 @@ Each line names the product, the shelf the goods leave, and the quantity. The cl
 The movement type is `sale`, direction `out`, with a reason that identifies the sale. `008_sales.sql` extends the movement-type check. It does not edit `007_purchases.sql`. Each product in the sale gets its own stock operation id derived from the client operation id, a sale marker, and the product id. The sale stores the client operation id and a fingerprint of the request lines in order. The same operation id and the same lines return the original sale and do not deduct again. A different payload is a conflict. The existing sale row is locked first. The receipt counter is updated next, then products in ascending id order, then the ledger locks shelves in ascending id order. The sale, its lines, and the movements commit together.
 
 `SaleRead` allows all four shop roles. `SaleComplete` allows Admin, Manager, and Cashier. Inventory Staff can read a sale and cannot complete one. Cashier remains unable to change Catalog, Inventory, Suppliers, or Purchasing. There is no cancellation route. The receipt shelf name is the shelf's current name.
+
+## ADR-016 — Shop expenses
+Status: Accepted
+
+Expenses owns the shop expense record. It does not own inventory, purchases, supplier balances, sales, or customer receivables. Recording, editing, or soft-deleting an expense does not post a stock movement.
+
+The category is a fixed value: `rent`, `utilities`, `wages`, `transport`, `supplies`, `repairs`, or `other`. There is no category table and no category-management screen. The payment method is `cash`, the same value used by a cash sale. Amount uses the `numeric(12,2)` limits and must be greater than zero. It is stored as unconstrained `numeric`. `010_expense_amount_scale.sql` does that so extra fractional digits fail `ck_expenses_amount` instead of being rounded. The expense date is required. Notes are optional. `is_deleted` hides the row. There is no SQL `DELETE`.
+
+`POST /api/expenses` requires a client operation id. The same id and the same payload return the original expense. A different payload is a conflict. The list returns the page and the sum of every expense matching the date and category filter.
+
+`ExpenseRead` allows all four shop roles. `ExpenseWrite` allows Admin and Manager. These policies are separate from Catalog and Suppliers. Customers, receivables, and Udhaar remain unimplemented. A cash sale does not require a customer.
+
+## ADR-017 — Shop dashboard
+Status: Accepted
+
+Reporting is a read-only view. It does not add a table, and it does not change sales, purchases, expenses, or stock. `GET /api/reports/dashboard` takes an inclusive `from` and `to`. There is no configured shop timezone. Sale timestamps are already shown in UTC, so a sale counts on the UTC calendar date of `sold_at`. Received stock counts on the UTC calendar date of `received_at`. Expense dates and purchase document dates are the calendar dates stored on those rows.
+
+The sales total is the sum of persisted sale totals. The average is that sum divided by the count, rounded to 2 decimal places, half away from zero. It is null when there are no sales. Recorded purchase value uses `purchase_date`. Received purchase value uses `received_at`. A purchase can appear in both, and the two values are not added. Soft-deleted expenses and purchases are excluded. Low stock uses the existing shop-wide balance rule and lists active products only. It is current stock, not a date-filtered figure.
+
+The dashboard does not show profit, earnings, inventory value, supplier payables, or customer receivables. Sales minus expenses is not profit because the sale does not store the cost of the goods sold. A later gross-profit figure needs a cost snapshot on the sale line. `ReportRead` allows Admin and Manager. Cashier and Inventory Staff are not given the dashboard, matching the counter guidance that reporting stays off the cashier screen. Customers, receivables, and Udhaar remain unimplemented.

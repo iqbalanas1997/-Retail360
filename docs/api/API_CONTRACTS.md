@@ -29,6 +29,9 @@ Assumption: every shop role may look up products and stock. Only Admin and Manag
 | Areas, shelves, opening stock, adjustments, transfers | yes | yes | no | yes |
 | Supplier read | yes | yes | yes | yes |
 | Supplier create, update, activate, deactivate, delete | yes | yes | no | no |
+| Expense read, including the filtered total | yes | yes | yes | yes |
+| Expense create, update, delete | yes | yes | no | no |
+| Dashboard read | yes | yes | no | no |
 
 ## Errors
 Every module returns JSON `{ "error": "message" }`. The body has that one property. A signed-in caller still receives these bodies after authorization succeeds. Malformed JSON, a missing body, and a query value that cannot be read use the same body with HTTP 400. The messages are "The request body is invalid.", "Request body is required.", or the binder's short value message when that message does not include a type name or parser detail. An unexpected exception is HTTP 500 `{ "error": "The request could not be completed." }`. The response does not include the exception, SQL, a stack trace, or a connection string. The API logs that exception with the request method, path, and trace id. A shop rule rejection is logged as a warning with the same trace id and the client message. Authentication failure is an information log. Authorization failure is a warning. Those logs do not include passwords, tokens, signing keys, or authorization headers.
@@ -138,4 +141,31 @@ Sale failures use the same `{ "error": "message" }` body. Invalid input is 400. 
 | GET | `/api/sales/{id}` | Read one sale and its lines, including the snapshotted product name and unit price and the current shelf name. |
 | POST | `/api/sales` | Complete a cash sale from `{ "operationId", "lines": [{ "productId", "shelfId", "quantity" }] }`. The server copies the catalog selling price and calculates totals. Returns 201. |
 
-The product must be active and not soft-deleted. Quantity is greater than zero with at most 3 decimal places. The client does not send a price or a total. Line total is `round(quantity * sellingPrice, 2)`, half away from zero. The caller names the shelf. An inactive shelf can be sold from. A shelf that does not have enough stock is 409, and the sale is not stored. The same `operationId` and the same lines return the original sale. A different payload is 409. There is no credit, discount, return, refund, or cancellation route.
+The product must be active and not soft-deleted. Quantity is greater than zero with at most 3 decimal places. The client does not send a price or a total. Line total is `round(quantity * sellingPrice, 2)`, half away from zero. The caller names the shelf. An inactive shelf can be sold from. A shelf that does not have enough stock is 409, and the sale is not stored. The same `operationId` and the same lines return the original sale. A different payload is 409. There is no credit, discount, return, refund, or cancellation route. A cash sale does not require a customer.
+
+## Expenses
+Expense failures use the same `{ "error": "message" }` body. Invalid input is 400. A missing or soft-deleted expense is 404. A repeated operation id with a different payload is 409. `DELETE` sets `is_deleted` and does not run a SQL `DELETE`.
+
+`ExpenseRead` allows every shop role. `ExpenseWrite` allows Admin and Manager.
+
+| Method | Route | Behavior |
+|---|---|---|
+| GET | `/api/expenses?category=&from=&to=&limit=&offset=` | List expenses that are not soft-deleted, newest date first. `category` is one of the fixed keys. `from` and `to` are inclusive dates. `limit` defaults to 50 and cannot exceed 200. The response is `{ "expenses", "total" }`. `total` is the sum of every matching expense, not only the current page. |
+| GET | `/api/expenses/{id}` | Read one expense. |
+| POST | `/api/expenses` | Record an expense from `{ "operationId", "category", "amount", "expenseDate", "notes", "paymentMethod" }`. Returns 201. |
+| PUT | `/api/expenses/{id}` | Replace the category, amount, date, notes, and payment method. This does not change the original operation id. |
+| DELETE | `/api/expenses/{id}` | Soft-delete the expense. Returns 204. |
+
+Category is `rent`, `utilities`, `wages`, `transport`, `supplies`, `repairs`, or `other`. Amount is greater than zero, at most `9999999999.99`, with at most 2 decimal places. An extra digit, zero, and a negative amount are rejected. `paymentMethod` must be `cash`. Notes are optional and at most 1000 characters. The same `operationId` and the same payload return the original expense. Recording an expense does not change stock, purchases, suppliers, or sales. There is no customer, credit, or supplier-payment field.
+
+## Reporting
+Report failures use the same `{ "error": "message" }` body. A missing or reversed date range is 400. `ReportRead` allows Admin and Manager. Cashier and Inventory Staff receive 403. The routes are read-only. There is no profit, inventory-value, payable, or receivable field.
+
+There is no shop timezone. `from` and `to` are inclusive calendar dates. A sale is included by the UTC date of `sold_at`. An expense is included by `expense_date`. A recorded purchase is included by `purchase_date`. A received purchase is included by the UTC date of `received_at`. Soft-deleted expenses and purchases are excluded. Every stored sale is a completed sale. Totals are aggregated in the database from the persisted document totals. The average sale is `round(total / count, 2)`, half away from zero, and is null when the count is zero. An empty period returns zero counts and totals.
+
+| Method | Route | Behavior |
+|---|---|---|
+| GET | `/api/reports/dashboard?from=&to=` | Sales count, sales total, and average; expense count, expense total, and one row for each fixed category; recorded purchase count and total; received purchase count and total; up to 8 recent sales and 8 recent expenses in the same range. |
+| GET | `/api/reports/low-stock?limit=` | Current low-stock count for active products and a short list. `limit` defaults to 10 and cannot exceed 50. On-hand quantity is the sum of every shelf balance. Low stock means that sum is greater than zero and less than or equal to `minimum_stock`. Inactive and soft-deleted products are omitted. |
+
+A purchase whose document date and receive date both fall in the range is present in both purchase figures. Those figures are not added together. Low stock does not use `from` or `to`. Customers and receivables remain future work, and a cash sale does not require a customer. A future gross-profit figure would need a cost snapshot on each sale line. The current catalog purchase price is not that cost.

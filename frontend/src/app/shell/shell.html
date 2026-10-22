@@ -1,6 +1,10 @@
 <div class="shell">
   <aside class="sidebar">
     <p class="brand">Retail360</p>
+    @if (session.canViewReports()) {
+      <p class="nav-label">Shop</p>
+      <a routerLink="/dashboard" routerLinkActive="active">Dashboard</a>
+    }
     <p class="nav-label">Catalog</p>
     <a routerLink="/catalog/products" routerLinkActive="active">Products</a>
     <a routerLink="/catalog/categories" routerLinkActive="active">Categories</a>
@@ -18,6 +22,8 @@
     <a routerLink="/suppliers" routerLinkActive="active">Suppliers</a>
     <p class="nav-label">Purchases</p>
     <a routerLink="/purchases" routerLinkActive="active">Purchases</a>
+    <p class="nav-label">Expenses</p>
+    <a routerLink="/expenses" routerLinkActive="active">Expenses</a>
     @if (session.canCompleteSales()) {
       <p class="nav-label">Counter</p>
       <a routerLink="/pos" routerLinkActive="active">POS</a>

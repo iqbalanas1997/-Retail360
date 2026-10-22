@@ -10,6 +10,18 @@ Use this file for meaningful project-level changes that affect future AI context
 - Documentation updated
 
 ## Entries
+### 2026-10-22 — Shop dashboard
+- Added a read-only dashboard for completed sales, recorded expenses, purchase documents, and current low stock. Dates are inclusive. Sale and receive times use the UTC calendar date. The screen does not show profit.
+- Admin and Manager can open it. Cashier and Inventory Staff cannot. No new table was added.
+- Impacted modules: Reporting.
+- Documentation updated: `DOMAIN_MODEL.md`, `API_CONTRACTS.md`, `MODULE_CATALOG.md`, `TASKS.md`, `DECISIONS.md`, `DATABASE.md`, `CHANGELOG.md`, `README.md`.
+
+### 2026-10-22 — Shop expenses
+- Added expense records with a fixed category, a cash amount, a date, and optional notes. The list filters by date and category and returns the total for every matching expense. The same operation id and payload records one expense. Soft delete hides it. An expense does not change stock, purchases, suppliers, or sales. `010_expense_amount_scale.sql` stores the amount as unconstrained `numeric` so an extra fractional digit is rejected.
+- Admin and Manager can change expenses. Every shop role can read them. Customers and receivables remain future work, and a cash sale does not require a customer.
+- Impacted modules: Expenses.
+- Documentation updated: `DOMAIN_MODEL.md`, `API_CONTRACTS.md`, `MODULE_CATALOG.md`, `TASKS.md`, `DECISIONS.md`, `DATABASE.md`, `CHANGELOG.md`, `README.md`.
+
 ### 2026-10-21 — Barcode save check
 - A generated `R360-` code is unique only among the codes already on the form. The database unique index remains the check against other products, and a rejected save leaves the new code unsaved.
 - Impacted modules: Catalog.

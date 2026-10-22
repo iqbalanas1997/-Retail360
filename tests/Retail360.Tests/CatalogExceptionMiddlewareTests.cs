@@ -4,6 +4,8 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Retail360.Api.Catalog;
 using Retail360.Domain.Catalog;
+using Retail360.Domain.Expenses;
+using Retail360.Domain.Reporting;
 using Retail360.Domain.Inventory;
 using Retail360.Domain.Purchasing;
 using Retail360.Domain.Sales;
@@ -61,6 +63,8 @@ public class CatalogExceptionMiddlewareTests
     [Theory]
     [InlineData(typeof(SaleRuleException), nameof(SaleRuleFailure.Conflict), StatusCodes.Status409Conflict, "Product is inactive.")]
     [InlineData(typeof(PurchaseRuleException), nameof(PurchaseRuleFailure.Invalid), StatusCodes.Status400BadRequest, "A purchase needs at least one line.")]
+    [InlineData(typeof(ExpenseRuleException), nameof(ExpenseRuleFailure.Invalid), StatusCodes.Status400BadRequest, "Amount must be greater than zero with at most 2 decimal places.")]
+    [InlineData(typeof(ReportRuleException), nameof(ReportRuleFailure.Invalid), StatusCodes.Status400BadRequest, "The start date must be on or before the end date.")]
     public async Task Sale_and_purchase_rules_use_the_same_error_body(
         Type exceptionType,
         string failureName,
@@ -123,6 +127,18 @@ public class CatalogExceptionMiddlewareTests
         {
             var failure = Enum.Parse<PurchaseRuleFailure>(failureName);
             return new PurchaseRuleException(failure, message);
+        }
+
+        if (exceptionType == typeof(ExpenseRuleException))
+        {
+            var failure = Enum.Parse<ExpenseRuleFailure>(failureName);
+            return new ExpenseRuleException(failure, message);
+        }
+
+        if (exceptionType == typeof(ReportRuleException))
+        {
+            var failure = Enum.Parse<ReportRuleFailure>(failureName);
+            return new ReportRuleException(failure, message);
         }
 
         var inventoryFailure = Enum.Parse<InventoryRuleFailure>(failureName);

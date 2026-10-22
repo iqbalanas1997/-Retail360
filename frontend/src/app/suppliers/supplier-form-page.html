@@ -75,4 +75,48 @@
       </div>
     }
   </form>
+
+  @if (supplier()) {
+    <h2>Purchase history</h2>
+    <p class="hint">These are the purchases saved for this supplier. Recorded and received stay separate. A soft-deleted purchase is not listed.</p>
+    @if (historyError()) {
+      <p class="notice error" role="alert">{{ historyError() }}</p>
+      <button type="button" class="secondary" (click)="reloadHistory()">Try again</button>
+    }
+    @if (historyLoading()) {
+      <p class="status">Loading purchases…</p>
+    } @else if (purchases().length === 0 && !historyError()) {
+      <p class="status">No purchases for this supplier.</p>
+    } @else if (purchases().length > 0) {
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Date</th>
+              <th>Status</th>
+              <th>Reference</th>
+              <th>Total</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (purchase of purchases(); track purchase.id) {
+              <tr>
+                <td>{{ purchase.purchaseDate }}</td>
+                <td>{{ statusLabel(purchase.status) }}</td>
+                <td>{{ reference(purchase) }}</td>
+                <td>{{ money(purchase.total) }}</td>
+                <td><a [routerLink]="['/purchases', purchase.id]">Open</a></td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+      @if (historyHasMore()) {
+        <button type="button" class="secondary" [disabled]="historyLoadingMore()" (click)="showMorePurchases()">
+          {{ historyLoadingMore() ? 'Loading…' : 'Show more' }}
+        </button>
+      }
+    }
+  }
 }
