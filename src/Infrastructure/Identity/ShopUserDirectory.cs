@@ -20,7 +20,7 @@ public sealed class ShopUserDirectory : IShopUserDirectory
         CancellationToken cancellationToken)
     {
         const string sql = """
-            select id, user_name, password_hash, is_deleted, is_active, lockout_enabled, lockout_end
+            select id, user_name, password_hash, security_stamp, is_deleted, is_active, lockout_enabled, lockout_end
             from asp_net_users
             where normalized_user_name = @NormalizedUserName;
             """;
@@ -38,7 +38,7 @@ public sealed class ShopUserDirectory : IShopUserDirectory
         CancellationToken cancellationToken)
     {
         const string sql = """
-            select id, user_name, password_hash, is_deleted, is_active, lockout_enabled, lockout_end
+            select id, user_name, password_hash, security_stamp, is_deleted, is_active, lockout_enabled, lockout_end
             from asp_net_users
             where id = @Id;
             """;
@@ -316,7 +316,8 @@ public sealed class ShopUserDirectory : IShopUserDirectory
             row.IsDeleted,
             row.IsActive,
             row.LockoutEnabled,
-            row.LockoutEnd);
+            row.LockoutEnd,
+            row.SecurityStamp ?? string.Empty);
     }
 
     private sealed class ShopUserRow
@@ -326,6 +327,8 @@ public sealed class ShopUserDirectory : IShopUserDirectory
         public string? UserName { get; init; }
 
         public string? PasswordHash { get; init; }
+
+        public string? SecurityStamp { get; init; }
 
         public bool IsDeleted { get; init; }
 

@@ -15,7 +15,10 @@ public static class ShopTokenValidation
         var account = string.IsNullOrEmpty(userId)
             ? null
             : await users.FindActiveByIdAsync(userId, clock.UtcNow, context.HttpContext.RequestAborted);
-        if (account is null)
+        var stamp = context.Principal?.FindFirst(AccessTokenClaims.SecurityStamp)?.Value;
+        if (account is null
+            || string.IsNullOrEmpty(stamp)
+            || !string.Equals(stamp, account.SecurityStamp, StringComparison.Ordinal))
         {
             context.Fail("The access token is not valid.");
             return;

@@ -205,11 +205,14 @@ public sealed class AuthenticationTests
         var userName = await CreateUserAsync(ShopRoleNames.Cashier, Password);
         var userId = await UserIdAsync(userName);
         using var client = _database.CreateClient();
-        var forged = Token(userId, userName, ShopRoleNames.Admin, IdentityDatabaseFixture.SigningKey, IdentityDatabaseFixture.Issuer, IdentityDatabaseFixture.Audience, DateTime.UtcNow.AddMinutes(5));
+        await using var connection = await _database.OpenAsync();
+        var stamp = await connection.ExecuteScalarAsync<string>(
+            "select security_stamp from asp_net_users where id = @Id;",
+            new { Id = userId });
+        var forged = Token(userId, userName, ShopRoleNames.Admin, IdentityDatabaseFixture.SigningKey, IdentityDatabaseFixture.Issuer, IdentityDatabaseFixture.Audience, DateTime.UtcNow.AddMinutes(5), stamp);
         var response = await SendAsync(client, "/api/categories", forged, HttpMethod.Post, new { name = "Forged " + Guid.NewGuid().ToString("N") });
 
         Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
-        await using var connection = await _database.OpenAsync();
         var created = await connection.ExecuteScalarAsync<long>(
             "select count(*) from categories where name like 'Forged %';");
         Assert.Equal(0, created);
@@ -640,6 +643,164 @@ public sealed class AuthenticationTests
         return client.SendAsync(request);
     }
 
+    [Fact]
+    public async Task A_token_without_the_security_stamp_is_rejected()
+    {
+        var userName = await CreateUserAsync(ShopRoleNames.Cashier, Password);
+        var userId = await UserIdAsync(userName);
+        using var client = _database.CreateClient();
+        var missing = Token(userId, userName, ShopRoleNames.Cashier, IdentityDatabaseFixture.SigningKey, IdentityDatabaseFixture.Issuer, IdentityDatabaseFixture.Audience, DateTime.UtcNow.AddMinutes(5));
+        var wrong = Token(userId, userName, ShopRoleNames.Cashier, IdentityDatabaseFixture.SigningKey, IdentityDatabaseFixture.Issuer, IdentityDatabaseFixture.Audience, DateTime.UtcNow.AddMinutes(5), "not-the-stamp");
+        var noUser = Token(string.Empty, userName, ShopRoleNames.Cashier, IdentityDatabaseFixture.SigningKey, IdentityDatabaseFixture.Issuer, IdentityDatabaseFixture.Audience, DateTime.UtcNow.AddMinutes(5), "stamp", includeSubject: false);
+
+        Assert.Equal(HttpStatusCode.Unauthorized, (await SendAsync(client, "/api/products", missing)).StatusCode);
+        Assert.Equal(HttpStatusCode.Unauthorized, (await SendAsync(client, "/api/products", wrong)).StatusCode);
+        Assert.Equal(HttpStatusCode.Unauthorized, (await SendAsync(client, "/api/products", noUser)).StatusCode);
+    }
+
+    [Fact]
+    public async Task An_inactive_user_token_is_rejected()
+    {
+        var userName = await CreateUserAsync(ShopRoleNames.Cashier, Password);
+        using var client = _database.CreateClient();
+        var token = await LoginAsync(client, userName);
+        await using var connection = await _database.OpenAsync();
+        await connection.ExecuteAsync(
+            "update asp_net_users set is_active = false, updated_at = now() where normalized_user_name = @Name;",
+            new { Name = userName.ToUpperInvariant() });
+
+        Assert.Equal(HttpStatusCode.Unauthorized, (await SendAsync(client, "/api/products", token)).StatusCode);
+    }
+
+    [Fact]
+    public async Task Changing_a_password_rejects_that_users_old_token_and_leaves_another_session()
+    {
+        var firstName = await CreateUserAsync(ShopRoleNames.Cashier, Password);
+        var secondName = await CreateUserAsync(ShopRoleNames.Manager, Password);
+        using var client = _database.CreateClient();
+        var firstToken = await LoginAsync(client, firstName);
+        var secondToken = await LoginAsync(client, secondName);
+        var wrong = await SendAsync(client, "/api/auth/password", firstToken, HttpMethod.Post, new
+        {
+            currentPassword = "wrong-password",
+            newPassword = "another-horse"
+        });
+        var changed = await SendAsync(client, "/api/auth/password", firstToken, HttpMethod.Post, new
+        {
+            currentPassword = Password,
+            newPassword = "another-horse"
+        });
+        var oldToken = await SendAsync(client, "/api/products", firstToken);
+        var otherToken = await SendAsync(client, "/api/products", secondToken);
+        var oldPassword = await client.PostAsJsonAsync("/api/auth/login", new { userName = firstName, password = Password });
+        var newLogin = await client.PostAsJsonAsync("/api/auth/login", new { userName = firstName, password = "another-horse" });
+        var anonymous = await client.PostAsJsonAsync("/api/auth/password", new { currentPassword = Password, newPassword = "another-horse" });
+        await using var connection = await _database.OpenAsync();
+        var userId = await connection.ExecuteScalarAsync<string>(
+            "select id from asp_net_users where normalized_user_name = @Name;",
+            new { Name = firstName.ToUpperInvariant() });
+        var hash = await connection.ExecuteScalarAsync<string>(
+            "select password_hash from asp_net_users where id = @Id;",
+            new { Id = userId });
+        var details = await connection.ExecuteScalarAsync<string>(
+            """
+            select details::text
+            from audit_entries
+            where action = 'user.password_changed' and entity_id = @Id;
+            """,
+            new { Id = userId });
+        var failedCount = await connection.ExecuteScalarAsync<int>(
+            """
+            select count(*)
+            from audit_entries
+            where entity_id = @Id and action = 'user.password_changed' and occurred_at < (
+                select max(occurred_at) from audit_entries where entity_id = @Id and action = 'user.password_changed');
+            """,
+            new { Id = userId });
+
+        Assert.Equal(HttpStatusCode.BadRequest, wrong.StatusCode);
+        Assert.Equal("The current password is incorrect.", await ErrorAsync(wrong));
+        Assert.Equal(HttpStatusCode.NoContent, changed.StatusCode);
+        Assert.Equal(HttpStatusCode.Unauthorized, oldToken.StatusCode);
+        Assert.Equal(HttpStatusCode.OK, otherToken.StatusCode);
+        Assert.Equal(HttpStatusCode.Unauthorized, oldPassword.StatusCode);
+        Assert.Equal(HttpStatusCode.OK, newLogin.StatusCode);
+        Assert.Equal(HttpStatusCode.Unauthorized, anonymous.StatusCode);
+        Assert.False(string.IsNullOrWhiteSpace(hash));
+        Assert.DoesNotContain(Password, hash, StringComparison.Ordinal);
+        Assert.DoesNotContain("another-horse", hash, StringComparison.Ordinal);
+        Assert.Contains(firstName, details, StringComparison.Ordinal);
+        Assert.DoesNotContain("another-horse", details, StringComparison.Ordinal);
+        Assert.DoesNotContain("password", details, StringComparison.OrdinalIgnoreCase);
+        Assert.Equal(0, failedCount);
+    }
+
+    [Fact]
+    public async Task A_role_change_keeps_the_token_and_uses_the_new_role()
+    {
+        var adminName = await CreateUserAsync(ShopRoleNames.Admin, Password);
+        var cashierName = await CreateUserAsync(ShopRoleNames.Cashier, Password);
+        using var client = _database.CreateClient();
+        var adminToken = await LoginAsync(client, adminName);
+        var cashierToken = await LoginAsync(client, cashierName);
+        var before = await SendAsync(client, "/api/sales", cashierToken, HttpMethod.Post, new { });
+        var userId = await UserIdAsync(cashierName);
+        var changed = await SendAsync(client, $"/api/users/{userId}", adminToken, HttpMethod.Put, new
+        {
+            userName = cashierName,
+            role = ShopRoleNames.InventoryStaff,
+            password = ""
+        });
+        var after = await SendAsync(client, "/api/sales", cashierToken, HttpMethod.Post, new { });
+        var stillSignedIn = await SendAsync(client, "/api/products", cashierToken);
+
+        Assert.Equal(HttpStatusCode.BadRequest, before.StatusCode);
+        Assert.Equal(HttpStatusCode.OK, changed.StatusCode);
+        Assert.Equal(HttpStatusCode.Forbidden, after.StatusCode);
+        Assert.Equal(HttpStatusCode.OK, stillSignedIn.StatusCode);
+    }
+
+    [Fact]
+    public async Task Repeated_sign_in_attempts_are_rate_limited()
+    {
+        var userName = await CreateUserAsync(ShopRoleNames.Cashier, Password);
+        await using var probe = await _database.OpenAsync();
+        await using var factory = new WebApplicationFactory<Program>().WithWebHostBuilder(builder =>
+        {
+            builder.UseEnvironment("Testing");
+            builder.ConfigureAppConfiguration((_, config) =>
+            {
+                config.AddInMemoryCollection(new Dictionary<string, string?>
+                {
+                    ["ConnectionStrings:DefaultConnection"] = probe.ConnectionString,
+                    ["Authentication:Issuer"] = IdentityDatabaseFixture.Issuer,
+                    ["Authentication:Audience"] = IdentityDatabaseFixture.Audience,
+                    ["Authentication:SigningKey"] = IdentityDatabaseFixture.SigningKey,
+                    ["Authentication:AccessTokenMinutes"] = "15",
+                    ["Authentication:LoginPermitLimit"] = "2"
+                });
+            });
+        });
+        using var client = factory.CreateClient();
+        var first = await client.PostAsJsonAsync("/api/auth/login", new { userName, password = Password });
+        var second = await client.PostAsJsonAsync("/api/auth/login", new { userName, password = Password });
+        var third = await client.PostAsJsonAsync("/api/auth/login", new { userName, password = "wrong-password" });
+        var body = await third.Content.ReadAsStringAsync();
+
+        Assert.Equal(HttpStatusCode.OK, first.StatusCode);
+        Assert.Equal(HttpStatusCode.OK, second.StatusCode);
+        Assert.Equal(HttpStatusCode.TooManyRequests, third.StatusCode);
+        Assert.Contains("Too many sign-in attempts.", body, StringComparison.Ordinal);
+        Assert.DoesNotContain(Password, body, StringComparison.Ordinal);
+        Assert.DoesNotContain("wrong-password", body, StringComparison.Ordinal);
+    }
+
+    private static async Task<string> ErrorAsync(HttpResponseMessage response)
+    {
+        using var document = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+        return document.RootElement.GetProperty("error").GetString() ?? string.Empty;
+    }
+
     private static string Token(
         string userId,
         string userName,
@@ -647,16 +808,29 @@ public sealed class AuthenticationTests
         string signingKey,
         string issuer,
         string audience,
-        DateTime expires)
+        DateTime expires,
+        string? securityStamp = null,
+        bool includeSubject = true)
     {
+        var claims = new List<Claim>
+        {
+            new("unique_name", userName),
+            new("role", role)
+        };
+        if (includeSubject)
+        {
+            claims.Add(new Claim("sub", userId));
+        }
+
+        if (!string.IsNullOrEmpty(securityStamp))
+        {
+            claims.Add(new Claim(AccessTokenClaims.SecurityStamp, securityStamp));
+        }
+
         var token = new JwtSecurityToken(
             issuer,
             audience,
-            [
-                new Claim("sub", userId),
-                new Claim("unique_name", userName),
-                new Claim("role", role)
-            ],
+            claims,
             expires.AddMinutes(-10),
             expires,
             new SigningCredentials(new SymmetricSecurityKey(Encoding.UTF8.GetBytes(signingKey)), SecurityAlgorithms.HmacSha256));

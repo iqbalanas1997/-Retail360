@@ -12,6 +12,8 @@ public static class AuditActions
 
     public const string UserDeleted = "user.deleted";
 
+    public const string UserPasswordChanged = "user.password_changed";
+
     public const string ProductCreated = "product.created";
 
     public const string ProductUpdated = "product.updated";
@@ -63,6 +65,7 @@ public static class AuditActions
         UserActivated,
         UserDeactivated,
         UserDeleted,
+        UserPasswordChanged,
         ProductCreated,
         ProductUpdated,
         ProductDeleted,

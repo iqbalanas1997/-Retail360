@@ -19,6 +19,7 @@ export class LoginPage {
   private readonly router = inject(Router);
 
   protected readonly error = signal('');
+  protected readonly notice = signal(readNotice());
   protected readonly submitting = signal(false);
   protected readonly form = this.formBuilder.nonNullable.group({
     userName: ['', Validators.required],
@@ -49,4 +50,9 @@ export class LoginPage {
       this.submitting.set(false);
     }
   }
+}
+
+function readNotice(): string {
+  const notice = history.state?.notice;
+  return typeof notice === 'string' ? notice : '';
 }

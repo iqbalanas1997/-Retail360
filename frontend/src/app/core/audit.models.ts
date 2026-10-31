@@ -25,6 +25,7 @@ export const AUDIT_ACTIONS: ReadonlyArray<{ value: string; label: string }> = [
   { value: 'user.activated', label: 'User activated' },
   { value: 'user.deactivated', label: 'User deactivated' },
   { value: 'user.deleted', label: 'User removed' },
+  { value: 'user.password_changed', label: 'Password changed' },
   { value: 'product.created', label: 'Product created' },
   { value: 'product.updated', label: 'Product edited' },
   { value: 'product.deleted', label: 'Product removed' },

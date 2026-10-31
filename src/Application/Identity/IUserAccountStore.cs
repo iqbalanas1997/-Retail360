@@ -36,4 +36,10 @@ public interface IUserAccountStore
         CancellationToken cancellationToken);
 
     Task RemoveAsync(string actorId, string id, DateTimeOffset utcNow, CancellationToken cancellationToken);
+
+    Task ReplacePasswordAsync(
+        string userId,
+        string passwordHash,
+        DateTimeOffset utcNow,
+        CancellationToken cancellationToken);
 }

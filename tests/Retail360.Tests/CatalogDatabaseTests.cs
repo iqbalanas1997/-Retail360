@@ -43,7 +43,7 @@ public sealed class CatalogDatabaseTests
         var versions = (await connection.QueryAsync<string>(
             "select version from schema_migrations order by version;")).ToArray();
         Assert.Equal(
-            ["001_initial_identity", "002_catalog", "003_inventory", "004_stock_operations", "005_numeric_scale", "006_suppliers", "007_purchases", "008_sales", "009_expenses", "010_expense_amount_scale", "011_user_active", "012_audit_log", "013_customers"],
+            ["001_initial_identity", "002_catalog", "003_inventory", "004_stock_operations", "005_numeric_scale", "006_suppliers", "007_purchases", "008_sales", "009_expenses", "010_expense_amount_scale", "011_user_active", "012_audit_log", "013_customers", "014_security_stamp"],
             versions);
 
         var roles = new ShopRoleQuery(_database.Connections);

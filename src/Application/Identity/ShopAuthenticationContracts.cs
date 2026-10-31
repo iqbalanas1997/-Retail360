@@ -1,6 +1,13 @@
 namespace Retail360.Application.Identity;
 
+public static class AccessTokenClaims
+{
+    public const string SecurityStamp = "sec";
+}
+
 public sealed record LoginCommand(string? UserName, string? Password);
+
+public sealed record ChangePasswordCommand(string? CurrentPassword, string? NewPassword);
 
 public sealed record LoginResponse(
     string AccessToken,
@@ -18,7 +25,8 @@ public sealed record ShopUserAccount(
     bool IsDeleted,
     bool IsActive,
     bool LockoutEnabled,
-    DateTimeOffset? LockoutEnd);
+    DateTimeOffset? LockoutEnd,
+    string SecurityStamp);
 
 public sealed record NewShopUser(string Id, string UserName, string PasswordHash, string RoleName);
 
@@ -69,5 +77,6 @@ public interface IAccessTokenIssuer
         string userId,
         string userName,
         IReadOnlyList<string> roles,
+        string securityStamp,
         DateTimeOffset issuedAt);
 }

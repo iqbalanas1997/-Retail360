@@ -335,6 +335,9 @@ public sealed class AuditDatabaseTests
         Assert.Equal(1, await CountAsync(AuditActions.UserActivated));
         Assert.Equal(1, await CountAsync(AuditActions.UserDeactivated));
         Assert.Equal(2, await CountAsync(AuditActions.UserDeleted));
+        Assert.Equal(1, await CountAsync(AuditActions.UserPasswordChanged));
+        Assert.DoesNotContain("another-horse", await DetailsAsync(AuditActions.UserPasswordChanged, counterId), StringComparison.Ordinal);
+        Assert.DoesNotContain("password", await DetailsAsync(AuditActions.UserPasswordChanged, counterId), StringComparison.OrdinalIgnoreCase);
         Assert.Equal(2, await CountAsync(AuditActions.ProductCreated));
         Assert.Equal(1, await CountAsync(AuditActions.ProductUpdated));
         Assert.Equal(1, await CountAsync(AuditActions.ProductDeleted));
@@ -352,7 +355,7 @@ public sealed class AuditDatabaseTests
         Assert.Equal(1, await CountAsync(AuditActions.SupplierActivated));
         Assert.Equal(1, await CountAsync(AuditActions.SupplierDeactivated));
         Assert.Equal(1, await CountAsync(AuditActions.SupplierDeleted));
-        Assert.Equal(28, await CountAsync());
+        Assert.Equal(29, await CountAsync());
         Assert.Equal(0, await CountAsync(actorMissing: true));
 
         Assert.Equal(adminId, await ActorAsync(AuditActions.ProductCreated, riceId.ToString("D")));
@@ -372,7 +375,7 @@ public sealed class AuditDatabaseTests
         Assert.Contains(counterId, historyText, StringComparison.Ordinal);
         Assert.Contains(farmId.ToString("D"), historyText, StringComparison.Ordinal);
         Assert.Contains("stocker", historyText, StringComparison.Ordinal);
-        Assert.Equal(28, history.GetArrayLength());
+        Assert.Equal(29, history.GetArrayLength());
         foreach (var item in history.EnumerateArray())
         {
             foreach (var property in item.GetProperty("details").EnumerateObject())

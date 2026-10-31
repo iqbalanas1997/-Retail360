@@ -1,6 +1,8 @@
 using System.Text;
+using System.Threading.RateLimiting;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
 using Retail360.Api.Audit;
@@ -44,6 +46,33 @@ builder.Services.AddScoped<ShopSignInService>();
 builder.Services.AddSingleton<IAuthorizationMiddlewareResultHandler, ShopAuthorizationResultHandler>();
 
 var authentication = ShopAuthenticationSettings.Read(builder.Configuration);
+builder.Services.AddRateLimiter(options =>
+{
+    options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+    options.OnRejected = async (context, cancellationToken) =>
+    {
+        var http = context.HttpContext;
+        http.Response.StatusCode = StatusCodes.Status429TooManyRequests;
+        http.Response.ContentType = "application/json";
+        await http.Response.WriteAsJsonAsync(
+            new { error = "Too many sign-in attempts. Wait a minute and try again." },
+            cancellationToken);
+    };
+    options.AddPolicy("sign-in", httpContext =>
+    {
+        var permitLimit = ShopAuthenticationSettings.ReadLoginPermitLimit(
+            httpContext.RequestServices.GetRequiredService<IConfiguration>(),
+            httpContext.RequestServices.GetRequiredService<IHostEnvironment>().IsEnvironment("Testing"));
+        return RateLimitPartition.GetFixedWindowLimiter(
+            httpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+            _ => new FixedWindowRateLimiterOptions
+            {
+                PermitLimit = permitLimit,
+                Window = TimeSpan.FromMinutes(1),
+                QueueLimit = 0
+            });
+    });
+});
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     .AddJwtBearer(options =>
     {
@@ -168,6 +197,7 @@ if (!app.Environment.IsEnvironment("Testing"))
     app.UseHttpsRedirection();
 }
 
+app.UseRateLimiter();
 app.UseAuthentication();
 app.UseAuthorization();
 app.UseMiddleware<AuditActorMiddleware>();

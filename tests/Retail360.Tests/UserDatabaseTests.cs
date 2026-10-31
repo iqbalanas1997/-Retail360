@@ -322,6 +322,7 @@ public sealed class UserDatabaseTests
             role = ShopRoleNames.Manager,
             password = ""
         });
+        var roleApplied = await SendAsync(client, HttpMethod.Get, "/api/users", cashierToken);
         var oldStillWorks = await client.PostAsJsonAsync("/api/auth/login", new { userName = "counter", password = Password });
         var changed = await SendAsync(client, HttpMethod.Put, $"/api/users/{userId}", token, new
         {
@@ -332,13 +333,14 @@ public sealed class UserDatabaseTests
         var changedBody = await changed.Content.ReadAsStringAsync();
         var oldPassword = await client.PostAsJsonAsync("/api/auth/login", new { userName = "counter", password = Password });
         var newPassword = await client.PostAsJsonAsync("/api/auth/login", new { userName = "counter", password = "another-horse" });
-        var managerDenied = await SendAsync(client, HttpMethod.Get, "/api/users", cashierToken);
+        var signedOut = await SendAsync(client, HttpMethod.Get, "/api/products", cashierToken);
         await using var connection = await _database.OpenAsync();
         var hash = await connection.ExecuteScalarAsync<string>(
             "select password_hash from asp_net_users where id = @Id;",
             new { Id = userId });
 
         Assert.Equal(HttpStatusCode.OK, kept.StatusCode);
+        Assert.Equal(HttpStatusCode.Forbidden, roleApplied.StatusCode);
         Assert.Equal(HttpStatusCode.OK, oldStillWorks.StatusCode);
         Assert.Equal(HttpStatusCode.OK, changed.StatusCode);
         Assert.False(string.IsNullOrEmpty(hash));
@@ -347,7 +349,7 @@ public sealed class UserDatabaseTests
         Assert.False(JsonDocument.Parse(changedBody).RootElement.TryGetProperty("passwordHash", out _));
         Assert.Equal(HttpStatusCode.Unauthorized, oldPassword.StatusCode);
         Assert.Equal(HttpStatusCode.OK, newPassword.StatusCode);
-        Assert.Equal(HttpStatusCode.Forbidden, managerDenied.StatusCode);
+        Assert.Equal(HttpStatusCode.Unauthorized, signedOut.StatusCode);
     }
 
     private static async Task<string> LoginAsync(HttpClient client, string userName, string password)

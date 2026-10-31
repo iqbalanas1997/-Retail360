@@ -67,6 +67,7 @@ describe('shell session expiry', () => {
     expect(fixture.nativeElement.textContent).toContain('Audit');
     expect(fixture.nativeElement.textContent).toContain('Users');
     expect(fixture.nativeElement.textContent).toContain('Customers');
+    expect(fixture.nativeElement.textContent).toContain('Password');
   });
 
   it('hides Audit from a Cashier', () => {
@@ -81,6 +82,7 @@ describe('shell session expiry', () => {
     expect(fixture.nativeElement.textContent).not.toContain('Audit');
     expect(fixture.nativeElement.textContent).not.toContain('Users');
     expect(fixture.nativeElement.textContent).not.toContain('Customers');
+    expect(fixture.nativeElement.textContent).toContain('Password');
   });
 });
 

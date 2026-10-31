@@ -13,6 +13,10 @@ export class ShopApi {
     return this.http.post<LoginResponse>('/api/auth/login', { userName, password });
   }
 
+  changePassword(currentPassword: string, newPassword: string): Observable<void> {
+    return this.http.post<void>('/api/auth/password', { currentPassword, newPassword });
+  }
+
   listProducts(query: ProductQuery): Observable<Product[]> {
     let params = new HttpParams()
       .set('activeOnly', String(query.activeOnly))

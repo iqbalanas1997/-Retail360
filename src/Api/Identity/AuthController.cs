@@ -1,5 +1,7 @@
+using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 using Retail360.Application.Identity;
 
 namespace Retail360.Api.Identity;
@@ -16,6 +18,7 @@ public sealed class AuthController : ControllerBase
     }
 
     [AllowAnonymous]
+    [EnableRateLimiting("sign-in")]
     [HttpPost("login")]
     public async Task<ActionResult<LoginResponse>> Login(LoginCommand? command, CancellationToken cancellationToken)
     {
@@ -31,5 +34,26 @@ public sealed class AuthController : ControllerBase
         }
 
         return Ok(response);
+    }
+
+    [Authorize]
+    [HttpPost("password")]
+    public async Task<IActionResult> ChangePassword(
+        ChangePasswordCommand? command,
+        CancellationToken cancellationToken)
+    {
+        if (command is null)
+        {
+            return BadRequest(new { error = "Request body is required." });
+        }
+
+        var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+        if (string.IsNullOrEmpty(userId))
+        {
+            return Unauthorized(new { error = "Authentication is required." });
+        }
+
+        await _signIn.ChangePasswordAsync(userId, command, cancellationToken);
+        return NoContent();
     }
 }

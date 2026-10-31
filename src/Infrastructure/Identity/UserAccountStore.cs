@@ -238,6 +238,11 @@ public sealed class UserAccountStore : IUserAccountStore
                     token);
             }
 
+            if (passwordHash is not null)
+            {
+                await AppendPasswordChangedAsync(connection, transaction, id, userName, utcNow, actorId, token);
+            }
+
             return new UserResponse(id, userName, role, current.IsActive, current.CreatedAt, utcNow);
         }, cancellationToken);
     }
@@ -285,6 +290,49 @@ public sealed class UserAccountStore : IUserAccountStore
                 actorId,
                 token);
             return new UserResponse(id, current.UserName, role, active, current.CreatedAt, utcNow);
+        }, cancellationToken);
+    }
+
+    public Task ReplacePasswordAsync(
+        string userId,
+        string passwordHash,
+        DateTimeOffset utcNow,
+        CancellationToken cancellationToken)
+    {
+        return _transactions.ExecuteAsync(async (connection, transaction, token) =>
+        {
+            var current = await LockUserAsync(connection, transaction, userId, token);
+            var updated = await connection.ExecuteAsync(new CommandDefinition(
+                """
+                update asp_net_users
+                set password_hash = @PasswordHash,
+                    security_stamp = @Stamp,
+                    concurrency_stamp = @Stamp,
+                    updated_at = @UtcNow
+                where id = @Id and is_deleted = false;
+                """,
+                new
+                {
+                    Id = userId,
+                    PasswordHash = passwordHash,
+                    Stamp = Guid.NewGuid().ToString("D"),
+                    UtcNow = utcNow
+                },
+                transaction,
+                cancellationToken: token));
+            if (updated != 1)
+            {
+                throw new UserRuleException(UserRuleFailure.NotFound, "User was not found.");
+            }
+
+            await AppendPasswordChangedAsync(
+                connection,
+                transaction,
+                userId,
+                current.UserName,
+                utcNow,
+                userId,
+                token);
         }, cancellationToken);
     }
 
@@ -397,6 +445,27 @@ public sealed class UserAccountStore : IUserAccountStore
             new { NormalizedUserName = normalizedUserName, ExceptId = exceptId },
             transaction,
             cancellationToken: cancellationToken));
+    }
+
+    private static Task AppendPasswordChangedAsync(
+        NpgsqlConnection connection,
+        NpgsqlTransaction transaction,
+        string userId,
+        string userName,
+        DateTimeOffset utcNow,
+        string actorId,
+        CancellationToken cancellationToken)
+    {
+        return AuditEntryWriter.AppendAsync(
+            connection,
+            transaction,
+            AuditActions.UserPasswordChanged,
+            AuditEntityTypes.User,
+            userId,
+            utcNow,
+            new Dictionary<string, string?> { ["userName"] = userName },
+            actorId,
+            cancellationToken);
     }
 
     private static async Task<string> RequireRoleIdAsync(

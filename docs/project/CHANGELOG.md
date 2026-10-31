@@ -10,6 +10,12 @@ Use this file for meaningful project-level changes that affect future AI context
 - Documentation updated
 
 ## Entries
+### 2026-10-31 — Access token stamp
+- A password change replaces `asp_net_users.security_stamp`. The access token carries that value, and the next protected request rejects a token whose stamp no longer matches. Deactivation and soft deletion still reject the account. A role change keeps the token and loads the new role from the database. The signed-in user changes their own password at `POST /api/auth/password`. Admin can still set another user's password. Both write `user.password_changed` with the user name only. Sign-in stays unaudited. `POST /api/auth/login` allows 20 attempts per minute per address in one process.
+- `014_security_stamp.sql` fills a missing stamp. It does not add a table. The Angular token stays in `sessionStorage`. A 401 returns to sign-in. A 403 does not.
+- Impacted modules: Identity, Audit.
+- Documentation updated: `API_CONTRACTS.md`, `DECISIONS.md`, `DATABASE.md`, `DOMAIN_MODEL.md`, `ARCHITECTURE.md`, `MODULE_CATALOG.md`, `TASKS.md`, `AGENTS.md`, `CHANGELOG.md`, `README.md`.
+
 ### 2026-10-31 — Customer records
 - Customer records can be created, edited, activated, deactivated, and soft-deleted. A cash sale may name one active customer and still completes with none. The association does not change the cash total or the payment method. Customer-wise history lists those cash sales and does not calculate an amount owed. `013_customers.sql` adds `customers` and a nullable `sales.customer_id`.
 - Credit sales, Udhaar, outstanding balances, and customer payments stay unimplemented. The high-level requirements still name those items. ADR-015 and ADR-020 keep them out of this module.

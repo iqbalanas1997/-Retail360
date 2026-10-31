@@ -19,13 +19,15 @@ public sealed class JwtAccessTokenIssuer : IAccessTokenIssuer
         string userId,
         string userName,
         IReadOnlyList<string> roles,
+        string securityStamp,
         DateTimeOffset issuedAt)
     {
         var expires = issuedAt.AddMinutes(_settings.AccessTokenMinutes);
         var claims = new List<Claim>
         {
             new("sub", userId),
-            new("unique_name", userName)
+            new("unique_name", userName),
+            new(AccessTokenClaims.SecurityStamp, securityStamp)
         };
         claims.AddRange(roles.Select(role => new Claim("role", role)));
         var credentials = new SigningCredentials(

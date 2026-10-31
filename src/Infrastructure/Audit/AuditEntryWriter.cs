@@ -16,7 +16,9 @@ internal static class AuditEntryWriter
         "access_token",
         "signingkey",
         "signing_key",
-        "secret"
+        "secret",
+        "securitystamp",
+        "security_stamp"
     };
 
     public static async Task AppendAsync(

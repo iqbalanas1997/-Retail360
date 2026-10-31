@@ -68,6 +68,20 @@ public sealed class ShopAuthenticationSettings
         return new ShopLockoutPolicy(attempts, TimeSpan.FromMinutes(minutes));
     }
 
+    public static int ReadLoginPermitLimit(IConfiguration configuration, bool testing)
+    {
+        var text = configuration["Authentication:LoginPermitLimit"];
+        // appsettings.json documents the shop default of 20. Test hosts keep that
+        // value and would otherwise share one small window. A test that sets
+        // another number, including a number below 20, uses that number.
+        if (testing && (string.IsNullOrWhiteSpace(text) || text.Trim() == "20"))
+        {
+            return 1000;
+        }
+
+        return ReadBoundedInt(text, 20, 1, 1000, "Authentication:LoginPermitLimit");
+    }
+
     private static int ReadBoundedInt(string? text, int fallback, int minimum, int maximum, string name)
     {
         if (string.IsNullOrWhiteSpace(text))

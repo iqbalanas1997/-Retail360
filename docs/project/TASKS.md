@@ -17,7 +17,7 @@ Phase 0 — Foundation and architecture. The Catalog, Inventory, Suppliers, Purc
 - [x] Configure PostgreSQL with Dapper and Npgsql. EF Core was removed; it is not the persistence stack.
 - [x] Keep Domain free of framework packages. Shop role names stay in Domain.
 - [x] Replace EF Core with Dapper and Npgsql. Keep the existing Identity tables.
-- [x] Establish authentication/authorization baseline. JWT sign-in, database role checks, and protected Catalog and Inventory routes are in place. Permission tables, external identity, and multi-factor authentication are not.
+- [x] Establish authentication/authorization baseline. JWT sign-in, database role checks, and protected Catalog and Inventory routes are in place. A password change replaces `security_stamp` and rejects older tokens for that account. Login attempts are limited in memory for one process. Permission tables, external identity, and multi-factor authentication are not.
 - [x] Establish shared error/validation/logging conventions. Shop failures, malformed input, and unexpected exceptions use `{ "error": "message" }`. Unexpected exceptions are logged with the trace id and are not returned to the client.
 - [x] Add initial CI/build/test commands. GitHub Actions builds the solution, runs the .NET and Angular tests, and builds the Angular app. The workflow has not been executed on GitHub yet.
 

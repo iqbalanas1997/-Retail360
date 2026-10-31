@@ -52,6 +52,7 @@
         @if (session.roles().length > 0) {
           <span class="roles">{{ session.roles().join(', ') }}</span>
         }
+        <a routerLink="/account">Password</a>
         <button type="button" class="secondary" (click)="signOut()">Sign out</button>
       </div>
     </header>
