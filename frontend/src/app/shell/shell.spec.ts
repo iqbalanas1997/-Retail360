@@ -54,15 +54,41 @@ describe('shell session expiry', () => {
     expect(TestBed.inject(Router).url).toBe('/login');
     expect(sessionStorage.getItem('retail360.session')).toBeNull();
   });
+
+  it('shows Audit to an Admin', () => {
+    remember(new Date(Date.now() + 60_000).toISOString(), 'Admin');
+    TestBed.configureTestingModule({
+      imports: [Shell],
+      providers: [provideRouter([{ path: 'login', component: LoginStub }])],
+    });
+    const fixture = TestBed.createComponent(Shell);
+    fixture.detectChanges();
+
+    expect(fixture.nativeElement.textContent).toContain('Audit');
+    expect(fixture.nativeElement.textContent).toContain('Users');
+  });
+
+  it('hides Audit from a Cashier', () => {
+    remember(new Date(Date.now() + 60_000).toISOString(), 'Cashier');
+    TestBed.configureTestingModule({
+      imports: [Shell],
+      providers: [provideRouter([{ path: 'login', component: LoginStub }])],
+    });
+    const fixture = TestBed.createComponent(Shell);
+    fixture.detectChanges();
+
+    expect(fixture.nativeElement.textContent).not.toContain('Audit');
+    expect(fixture.nativeElement.textContent).not.toContain('Users');
+  });
 });
 
-function remember(expiresAt: string): void {
+function remember(expiresAt: string, role = 'Admin'): void {
   writeStoredSession({
     accessToken: token(),
     expiresAt,
     userId: 'user-1',
-    userName: 'admin',
-    roles: ['Admin'],
+    userName: role,
+    roles: [role],
   });
 }
 

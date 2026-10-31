@@ -1,3 +1,4 @@
+using Retail360.Domain.Audit;
 using Retail360.Domain.Catalog;
 using Retail360.Domain.Identity;
 using Retail360.Domain.Expenses;
@@ -59,6 +60,10 @@ public sealed class CatalogExceptionMiddleware
         catch (UserRuleException exception)
         {
             await WriteRuleAsync(context, exception, StatusFor(exception.Failure));
+        }
+        catch (AuditRuleException exception)
+        {
+            await WriteRuleAsync(context, exception, StatusCodes.Status400BadRequest);
         }
         catch (Exception exception) when (!IsRequestAborted(context, exception))
         {

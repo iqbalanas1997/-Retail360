@@ -3,8 +3,10 @@ using Dapper;
 using Npgsql;
 using Retail360.Application.Inventory;
 using Retail360.Application.Sales;
+using Retail360.Domain.Audit;
 using Retail360.Domain.Inventory;
 using Retail360.Domain.Sales;
+using Retail360.Infrastructure.Audit;
 using Retail360.Infrastructure.Database;
 using Retail360.Infrastructure.Inventory;
 
@@ -236,6 +238,20 @@ public sealed class SaleStore : ISaleStore
                 token);
         }
 
+        await AuditEntryWriter.AppendAsync(
+            connection,
+            transaction,
+            AuditActions.SaleCompleted,
+            AuditEntityTypes.Sale,
+            sale.Id.ToString("D"),
+            utcNow,
+            new Dictionary<string, string?>
+            {
+                ["receiptNumber"] = sale.ReceiptNumber.ToString(CultureInfo.InvariantCulture),
+                ["total"] = sale.Total.ToString("0.00", CultureInfo.InvariantCulture)
+            },
+            null,
+            token);
         return (await ReadAsync(connection, transaction, sale.Id, token))!;
     }
 

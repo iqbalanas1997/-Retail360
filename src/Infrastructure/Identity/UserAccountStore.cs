@@ -1,7 +1,9 @@
 using Dapper;
 using Npgsql;
 using Retail360.Application.Identity;
+using Retail360.Domain.Audit;
 using Retail360.Domain.Identity;
+using Retail360.Infrastructure.Audit;
 using Retail360.Infrastructure.Database;
 
 namespace Retail360.Infrastructure.Identity;
@@ -129,6 +131,20 @@ public sealed class UserAccountStore : IUserAccountStore
                 new { UserId = id, RoleId = roleId },
                 transaction,
                 cancellationToken: token));
+            await AuditEntryWriter.AppendAsync(
+                connection,
+                transaction,
+                AuditActions.UserCreated,
+                AuditEntityTypes.User,
+                id,
+                utcNow,
+                new Dictionary<string, string?>
+                {
+                    ["userName"] = userName,
+                    ["role"] = role
+                },
+                null,
+                token);
             return new UserResponse(id, userName, role, true, utcNow, utcNow);
         }, cancellationToken);
     }
@@ -189,6 +205,7 @@ public sealed class UserAccountStore : IUserAccountStore
                 throw new UserRuleException(UserRuleFailure.NotFound, "User was not found.");
             }
 
+            var previousRole = await RoleNameAsync(connection, transaction, id, token);
             await connection.ExecuteAsync(new CommandDefinition(
                 "delete from asp_net_user_roles where user_id = @Id;",
                 new { Id = id },
@@ -202,6 +219,25 @@ public sealed class UserAccountStore : IUserAccountStore
                 new { UserId = id, RoleId = roleId },
                 transaction,
                 cancellationToken: token));
+            if (!string.Equals(previousRole, role, StringComparison.Ordinal))
+            {
+                await AuditEntryWriter.AppendAsync(
+                    connection,
+                    transaction,
+                    AuditActions.UserRoleChanged,
+                    AuditEntityTypes.User,
+                    id,
+                    utcNow,
+                    new Dictionary<string, string?>
+                    {
+                        ["userName"] = userName,
+                        ["previousRole"] = previousRole,
+                        ["role"] = role
+                    },
+                    actorId,
+                    token);
+            }
+
             return new UserResponse(id, userName, role, current.IsActive, current.CreatedAt, utcNow);
         }, cancellationToken);
     }
@@ -238,6 +274,16 @@ public sealed class UserAccountStore : IUserAccountStore
                 transaction,
                 cancellationToken: token));
             var role = await RoleNameAsync(connection, transaction, id, token);
+            await AuditEntryWriter.AppendAsync(
+                connection,
+                transaction,
+                active ? AuditActions.UserActivated : AuditActions.UserDeactivated,
+                AuditEntityTypes.User,
+                id,
+                utcNow,
+                new Dictionary<string, string?> { ["userName"] = current.UserName },
+                actorId,
+                token);
             return new UserResponse(id, current.UserName, role, active, current.CreatedAt, utcNow);
         }, cancellationToken);
     }
@@ -272,6 +318,17 @@ public sealed class UserAccountStore : IUserAccountStore
             {
                 throw new UserRuleException(UserRuleFailure.NotFound, "User was not found.");
             }
+
+            await AuditEntryWriter.AppendAsync(
+                connection,
+                transaction,
+                AuditActions.UserDeleted,
+                AuditEntityTypes.User,
+                id,
+                utcNow,
+                new Dictionary<string, string?> { ["userName"] = current.UserName },
+                actorId,
+                token);
         }, cancellationToken);
     }
 

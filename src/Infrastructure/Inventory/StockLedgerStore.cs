@@ -1,7 +1,10 @@
+using System.Globalization;
 using Dapper;
 using Npgsql;
 using Retail360.Application.Inventory;
+using Retail360.Domain.Audit;
 using Retail360.Domain.Inventory;
+using Retail360.Infrastructure.Audit;
 using Retail360.Infrastructure.Database;
 
 namespace Retail360.Infrastructure.Inventory;
@@ -250,6 +253,7 @@ public sealed class StockLedgerStore : IStockLedger, IInventoryProductLookup
                     rows,
                     transaction,
                     cancellationToken: token));
+        await AppendStockAuditAsync(connection, transaction, posting, token);
         return await ReadOperationAsync(connection, transaction, posting.OperationId, token);
     }
 
@@ -530,5 +534,65 @@ public sealed class StockLedgerStore : IStockLedger, IInventoryProductLookup
         public decimal OnHand { get; init; }
 
         public decimal MinimumStock { get; init; }
+    }
+
+    private static async Task AppendStockAuditAsync(
+        NpgsqlConnection connection,
+        NpgsqlTransaction transaction,
+        StockPosting posting,
+        CancellationToken cancellationToken)
+    {
+        if (posting.Lines.Count == 0)
+        {
+            return;
+        }
+
+        var movementType = posting.Lines[0].MovementType;
+        var action = movementType switch
+        {
+            StockMovementType.Opening => AuditActions.StockOpening,
+            StockMovementType.Adjustment => AuditActions.StockAdjustment,
+            StockMovementType.Transfer => AuditActions.StockTransfer,
+            _ => null
+        };
+        if (action is null)
+        {
+            return;
+        }
+
+        var details = new Dictionary<string, string?>
+        {
+            ["productId"] = posting.ProductId.ToString("D"),
+            ["operationId"] = posting.OperationId.ToString("D")
+        };
+        if (movementType == StockMovementType.Transfer)
+        {
+            var outbound = posting.Lines.First(line => line.Direction == StockDirection.Out);
+            var inbound = posting.Lines.First(line => line.Direction == StockDirection.In);
+            details["sourceShelfId"] = outbound.ShelfId.ToString("D");
+            details["destinationShelfId"] = inbound.ShelfId.ToString("D");
+            details["quantity"] = outbound.Quantity.ToString("0.000", CultureInfo.InvariantCulture);
+        }
+        else
+        {
+            var line = posting.Lines[0];
+            details["shelfId"] = line.ShelfId.ToString("D");
+            details["quantity"] = line.Quantity.ToString("0.000", CultureInfo.InvariantCulture);
+            if (movementType == StockMovementType.Adjustment)
+            {
+                details["direction"] = line.Direction == StockDirection.In ? "in" : "out";
+            }
+        }
+
+        await AuditEntryWriter.AppendAsync(
+            connection,
+            transaction,
+            action,
+            AuditEntityTypes.Stock,
+            posting.OperationId.ToString("D"),
+            posting.OccurredAt,
+            details,
+            null,
+            cancellationToken);
     }
 }

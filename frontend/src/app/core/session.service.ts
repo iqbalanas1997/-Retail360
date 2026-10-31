@@ -42,6 +42,7 @@ export class SessionService {
     this.roles().some((role) => role === 'Admin' || role === 'Manager'),
   );
   readonly canManageUsers = computed(() => this.roles().some((role) => role === 'Admin'));
+  readonly canViewAudit = computed(() => this.roles().some((role) => role === 'Admin'));
   readonly hasSession = computed(() => this.session() !== null);
 
   private readonly zone = inject(NgZone);

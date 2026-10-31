@@ -11,7 +11,7 @@
 | Expenses | Shop expenses | Expense, fixed category | Backend implemented in `009_expenses.sql` and `010_expense_amount_scale.sql`. Categories are a fixed list, not a managed catalog. Angular list, record, and edit screens. Cash only. An expense does not change stock, purchases, suppliers, or sales. |
 | Reporting | Dashboard/reports | Read-only sales, expense, purchase, and low-stock summaries | Backend and Angular dashboard. No stored report rows. No profit, inventory value, payable, or receivable figure. |
 | Identity | Users/roles | User, Role | Backend sign-in is in place on the existing Identity tables. JWT access tokens and role checks are implemented. Permission is not a table. Angular sign-in calls `POST /api/auth/login` and keeps the access token in `sessionStorage` until expiry. Admin manages staff at `/users`: list, create, one existing role, edit, activate, deactivate, and soft delete. |
-| Audit | Important activity log | AuditEntry | Planned |
+| Audit | Important activity log | AuditEntry | Backend implemented in `012_audit_log.sql`. Angular history is `/audit` for Admin. Append-only. No edit or delete route. |
 
 ## Inventory scope
 Inventory depends on Catalog for product identity, the product's unit, and `minimum_stock`. It does not own prices, barcodes, categories, or brands. Barcode stays a Catalog capability. There is no separate Barcode module.
@@ -34,6 +34,9 @@ Expenses owns a shop expense record. It does not own inventory, purchases, suppl
 
 ## Identity scope
 Identity owns sign-in and staff accounts. The roles stay Admin, Manager, Cashier, and Inventory Staff. There is no permission table and no second user table. Admin is the only role that can manage users. `is_active` stops sign-in without deleting the row. `lockout_end` remains the five-minute password lock. A removed user name stays reserved because the unique user-name index includes soft-deleted rows.
+
+## Audit scope
+Audit records a successful business change. It does not own the user, product, stock, purchase, sale, expense, or supplier record. The entry is written in the same database transaction as that change. A failed change rolls the entry back. Repeating the same operation id and payload does not write a second entry. Sign-in, bootstrap Admin creation, a user-name edit, and a password change are not entries. A password, password hash, access token, and signing key are never stored. Supplier phone, email, address, and notes are not stored. Expense notes are not stored. Purchase and sale stock posts are not a second stock entry; the purchase or sale entry is the record. Product activation is a product edit. Admin is the only role that can read the log. Entries stay after the business row is soft-deleted.
 
 ## Duplication prevention
 Before adding a new module or concept:

@@ -1,6 +1,7 @@
 using Dapper;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Retail360.Application.Audit;
 using Retail360.Application.Catalog;
 using Retail360.Application.Identity;
 using Retail360.Application.Inventory;
@@ -9,6 +10,7 @@ using Retail360.Application.Expenses;
 using Retail360.Application.Reporting;
 using Retail360.Application.Sales;
 using Retail360.Application.Suppliers;
+using Retail360.Infrastructure.Audit;
 using Retail360.Infrastructure.Catalog;
 using Retail360.Infrastructure.Inventory;
 using Retail360.Infrastructure.Purchasing;
@@ -64,6 +66,7 @@ public static class DependencyInjection
         services.AddSingleton<ISaleStore, SaleStore>();
         services.AddSingleton<IExpenseStore, ExpenseStore>();
         services.AddSingleton<IReportStore, ReportStore>();
+        services.AddSingleton<IAuditLogStore, AuditLogStore>();
 
         return services;
     }

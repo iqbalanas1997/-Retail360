@@ -100,7 +100,22 @@ Dapper does not track changes or apply a global filter.
 - A query that must hide deleted rows includes `is_deleted = false`.
 
 ## Transactions
-One business operation that changes several rows uses `PostgresTransaction.ExecuteAsync`. That opens one connection and one PostgreSQL transaction, then commits or rolls back. Do not add a generic unit-of-work type for this.
+One business operation that changes several rows uses `PostgresTransaction.ExecuteAsync`. That opens one connection and one PostgreSQL transaction, then commits or rolls back. Do not add a generic unit-of-work type for this. An audit entry for that operation is inserted in the same transaction, after the business write succeeds. Do not write it after commit.
+
+## Activity audit log
+`012_audit_log.sql` adds `audit_entries`. This is not the `created_at` / `updated_at` / `is_deleted` columns on business tables.
+
+| Column | Use |
+|---|---|
+| `id` | UUID primary key |
+| `occurred_at` | `timestamptz`, the business operation's UTC time |
+| `actor_user_id` | Text, nullable. No foreign key, so the entry survives user removal |
+| `action` | Text action code |
+| `entity_type` | Text |
+| `entity_id` | Text, so a user id and a UUID id use one column |
+| `details` | `jsonb`. No password, password hash, access token, signing key, supplier contact fields, or expense notes |
+
+There is no `is_deleted` column and no update or delete API. Indexes cover `occurred_at` and id, `actor_user_id`, `action`, and `entity_type` with `entity_id`. A list joins `asp_net_users` for the actor name and does not hide a soft-deleted actor. Audit tests run against `retail360_audit_test`.
 
 ## Migrations
 Scripts live in `src/Infrastructure/Persistence/Sql/Migrations` and are embedded in the Infrastructure assembly. `SqlMigrationRunner` applies them in file-name order and records each version in `schema_migrations`.

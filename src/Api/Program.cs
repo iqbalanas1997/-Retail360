@@ -3,8 +3,10 @@ using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
+using Retail360.Api.Audit;
 using Retail360.Api.Catalog;
 using Retail360.Api.Identity;
+using Retail360.Application.Audit;
 using Retail360.Application.Catalog;
 using Retail360.Application.Expenses;
 using Retail360.Application.Identity;
@@ -35,6 +37,7 @@ builder.Services.AddScoped<SaleService>();
 builder.Services.AddScoped<ExpenseService>();
 builder.Services.AddScoped<ReportService>();
 builder.Services.AddScoped<UserService>();
+builder.Services.AddScoped<AuditService>();
 builder.Services.AddScoped<ShopSignInService>();
 builder.Services.AddSingleton<IAuthorizationMiddlewareResultHandler, ShopAuthorizationResultHandler>();
 
@@ -97,6 +100,7 @@ builder.Services.AddAuthorization(options =>
     options.AddPolicy(ShopPolicies.ReportRead, policy => policy.RequireRole(
         ShopRoleNames.Admin, ShopRoleNames.Manager));
     options.AddPolicy(ShopPolicies.UserManage, policy => policy.RequireRole(ShopRoleNames.Admin));
+    options.AddPolicy(ShopPolicies.AuditRead, policy => policy.RequireRole(ShopRoleNames.Admin));
 });
 builder.Services.AddControllers()
     .ConfigureApiBehaviorOptions(options =>
@@ -160,6 +164,7 @@ if (!app.Environment.IsEnvironment("Testing"))
 
 app.UseAuthentication();
 app.UseAuthorization();
+app.UseMiddleware<AuditActorMiddleware>();
 
 app.MapControllers();
 

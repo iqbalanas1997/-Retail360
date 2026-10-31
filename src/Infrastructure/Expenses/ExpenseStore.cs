@@ -1,7 +1,10 @@
+using System.Globalization;
 using Dapper;
 using Npgsql;
 using Retail360.Application.Expenses;
+using Retail360.Domain.Audit;
 using Retail360.Domain.Expenses;
+using Retail360.Infrastructure.Audit;
 using Retail360.Infrastructure.Database;
 
 namespace Retail360.Infrastructure.Expenses;
@@ -99,6 +102,16 @@ public sealed class ExpenseStore : IExpenseStore
                     Parameters(expense),
                     transaction,
                     cancellationToken: token));
+                await AuditEntryWriter.AppendAsync(
+                    connection,
+                    transaction,
+                    AuditActions.ExpenseCreated,
+                    AuditEntityTypes.Expense,
+                    expense.Id.ToString("D"),
+                    expense.CreatedAt,
+                    ExpenseDetails(expense),
+                    null,
+                    token);
                 return 0;
             }, cancellationToken);
         }
@@ -136,8 +149,28 @@ public sealed class ExpenseStore : IExpenseStore
                 throw new ExpenseRuleException(ExpenseRuleFailure.NotFound, "Expense was not found.");
             }
 
+            await AuditEntryWriter.AppendAsync(
+                connection,
+                transaction,
+                expense.IsDeleted ? AuditActions.ExpenseDeleted : AuditActions.ExpenseUpdated,
+                AuditEntityTypes.Expense,
+                expense.Id.ToString("D"),
+                expense.UpdatedAt,
+                ExpenseDetails(expense),
+                null,
+                token);
             return 0;
         }, cancellationToken);
+    }
+
+    private static Dictionary<string, string?> ExpenseDetails(Expense expense)
+    {
+        return new Dictionary<string, string?>
+        {
+            ["category"] = expense.Category,
+            ["amount"] = expense.Amount.ToString("0.00", CultureInfo.InvariantCulture),
+            ["expenseDate"] = expense.ExpenseDate.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture)
+        };
     }
 
     private static ExpenseRuleException? UniqueConflict(Exception exception)

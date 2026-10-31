@@ -33,6 +33,7 @@ Assumption: every shop role may look up products and stock. Only Admin and Manag
 | Expense create, update, delete | yes | yes | no | no |
 | Dashboard read | yes | yes | no | no |
 | User list, create, update, activate, deactivate, delete | yes | no | no | no |
+| Audit read | yes | no | no | no |
 
 ## Errors
 Every module returns JSON `{ "error": "message" }`. The body has that one property. A signed-in caller still receives these bodies after authorization succeeds. Malformed JSON, a missing body, and a query value that cannot be read use the same body with HTTP 400. The messages are "The request body is invalid.", "Request body is required.", or the binder's short value message when that message does not include a type name or parser detail. An unexpected exception is HTTP 500 `{ "error": "The request could not be completed." }`. The response does not include the exception, SQL, a stack trace, or a connection string. The API logs that exception with the request method, path, and trace id. A shop rule rejection is logged as a warning with the same trace id and the client message. Authentication failure is an information log. Authorization failure is a warning. Those logs do not include passwords, tokens, signing keys, or authorization headers.
@@ -187,3 +188,16 @@ User failures use the same `{ "error": "message" }` body. Invalid input is 400. 
 | DELETE | `/api/users/{id}` | Logical delete. Returns 204. |
 
 User name is required, trimmed, and at most 256 characters. Role is `Admin`, `Manager`, `Cashier`, or `Inventory Staff`. Password is 8 to 128 characters and is not trimmed. The response is `{ "id", "userName", "role", "isActive", "createdAt", "updatedAt" }`. Names are unique, including a soft-deleted name. The signed-in user cannot deactivate or remove their own account. The last Admin who is active and not deleted cannot be deactivated, removed, or given another role. An inactive or soft-deleted user cannot sign in. A token issued before that change fails on the next protected request. Changing a password does not revoke a token that was already issued. There is no public registration.
+
+## Audit
+Audit failures use the same `{ "error": "message" }` body. A reversed date range, an unknown action, an unknown entity type, a limit outside 1 to 200, and a negative offset are 400. `AuditRead` allows Admin only. Manager, Cashier, and Inventory Staff receive 403. A missing token is 401.
+
+The log is append-only. There is no create, update, or delete route. A successful business change writes one entry in that change's database transaction. A failed change does not leave an entry. The same operation id and payload does not write a second entry. The list stays available after the business row is soft-deleted.
+
+`from` and `to` are optional inclusive UTC calendar dates. An entry at `2026-10-22T00:30:00Z` is inside `from=2026-10-22&to=2026-10-22` and outside `from=2026-10-21&to=2026-10-21`. `occurredAt` is UTC. `limit` defaults to 50 and cannot exceed 200. `offset` defaults to 0. Results are ordered by `occurredAt` descending, then id descending.
+
+| Method | Route | Behavior |
+|---|---|---|
+| GET | `/api/audit?from=&to=&actorUserId=&action=&entityType=&limit=&offset=` | List audit entries. `actorUserId`, `action`, and `entityType` are exact. An empty filter is ignored. The acting user's name is included when that user row still exists, including a soft-deleted user. |
+
+The response item is `{ "id", "actorUserId", "actorUserName", "action", "entityType", "entityId", "occurredAt", "details" }`. `details` is a JSON object. It does not contain a password, password hash, access token, or signing key. Supplier contact fields and expense notes are not included. `actorUserId` is null only when the change had no signed-in user. The recorded actions are `user.created`, `user.role_changed`, `user.activated`, `user.deactivated`, `user.deleted`, `product.created`, `product.updated`, `product.deleted`, `stock.opening`, `stock.adjustment`, `stock.transfer`, `purchase.created`, `purchase.received`, `sale.completed`, `expense.created`, `expense.updated`, `expense.deleted`, `supplier.created`, `supplier.updated`, `supplier.activated`, `supplier.deactivated`, and `supplier.deleted`. Entity types are `user`, `product`, `stock`, `purchase`, `sale`, `expense`, and `supplier`. A user-name edit and a password change are not entries. Product activation is `product.updated`. A purchase or sale stock post is not a stock entry.

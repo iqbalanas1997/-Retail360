@@ -3,8 +3,10 @@ using Dapper;
 using Npgsql;
 using Retail360.Application.Inventory;
 using Retail360.Application.Purchasing;
+using Retail360.Domain.Audit;
 using Retail360.Domain.Inventory;
 using Retail360.Domain.Purchasing;
+using Retail360.Infrastructure.Audit;
 using Retail360.Infrastructure.Database;
 using Retail360.Infrastructure.Inventory;
 
@@ -72,6 +74,20 @@ public sealed class PurchaseStore : IPurchaseStore
             await RequireProductsAsync(connection, transaction, purchase.Lines.Where(line => !line.IsDeleted).Select(line => line.ProductId), token);
             await InsertPurchaseAsync(connection, transaction, purchase, token);
             await InsertLinesAsync(connection, transaction, purchase, token);
+            await AuditEntryWriter.AppendAsync(
+                connection,
+                transaction,
+                AuditActions.PurchaseCreated,
+                AuditEntityTypes.Purchase,
+                purchase.Id.ToString("D"),
+                purchase.CreatedAt,
+                new Dictionary<string, string?>
+                {
+                    ["supplierId"] = purchase.SupplierId.ToString("D"),
+                    ["total"] = purchase.Total.ToString("0.00", CultureInfo.InvariantCulture)
+                },
+                null,
+                token);
             return (await ReadAsync(connection, transaction, purchase.Id, token))!;
         }, cancellationToken);
     }
@@ -283,6 +299,16 @@ public sealed class PurchaseStore : IPurchaseStore
                 new { Id = purchaseId, OperationId = operationId, Fingerprint = fingerprint, ReceivedAt = utcNow },
                 transaction,
                 cancellationToken: token));
+            await AuditEntryWriter.AppendAsync(
+                connection,
+                transaction,
+                AuditActions.PurchaseReceived,
+                AuditEntityTypes.Purchase,
+                purchaseId.ToString("D"),
+                utcNow,
+                new Dictionary<string, string?> { ["operationId"] = operationId.ToString("D") },
+                null,
+                token);
             return (await ReadAsync(connection, transaction, purchaseId, token))!;
         }, cancellationToken);
     }

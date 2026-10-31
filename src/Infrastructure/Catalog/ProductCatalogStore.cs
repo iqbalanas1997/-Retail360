@@ -1,6 +1,8 @@
 using Dapper;
 using Retail360.Application.Catalog;
+using Retail360.Domain.Audit;
 using Retail360.Domain.Catalog;
+using Retail360.Infrastructure.Audit;
 using Retail360.Infrastructure.Database;
 
 namespace Retail360.Infrastructure.Catalog;
@@ -201,6 +203,16 @@ public sealed class ProductCatalogStore : IProductStore
                     transaction,
                     cancellationToken: token));
                 await InsertBarcodesAsync(connection, transaction, product, token);
+                await AuditEntryWriter.AppendAsync(
+                    connection,
+                    transaction,
+                    AuditActions.ProductCreated,
+                    AuditEntityTypes.Product,
+                    product.Id.ToString("D"),
+                    product.CreatedAt,
+                    new Dictionary<string, string?> { ["name"] = product.Name },
+                    null,
+                    token);
             }, cancellationToken);
         }
         catch (CatalogRuleException)
@@ -294,6 +306,16 @@ public sealed class ProductCatalogStore : IProductStore
                 }
 
                 await InsertBarcodesAsync(connection, transaction, product, token);
+                await AuditEntryWriter.AppendAsync(
+                    connection,
+                    transaction,
+                    product.IsDeleted ? AuditActions.ProductDeleted : AuditActions.ProductUpdated,
+                    AuditEntityTypes.Product,
+                    product.Id.ToString("D"),
+                    product.UpdatedAt,
+                    new Dictionary<string, string?> { ["name"] = product.Name },
+                    null,
+                    token);
             }, cancellationToken);
         }
         catch (CatalogRuleException)

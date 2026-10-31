@@ -10,6 +10,12 @@ Use this file for meaningful project-level changes that affect future AI context
 - Documentation updated
 
 ## Entries
+### 2026-10-31 — Audit log
+- Successful user, product, stock, purchase, sale, expense, and supplier changes write one `audit_entries` row in the same database transaction. `012_audit_log.sql` adds that table. Admin reads it at `GET /api/audit` and `/audit`. There is no edit or delete route. A failed change and an idempotent replay do not leave a success entry. Passwords, hashes, tokens, supplier contact details, and expense notes are not stored. Entries remain after a soft delete.
+- Customer receivables and supplier payments stay unimplemented.
+- Impacted modules: Audit, Identity, Catalog, Inventory, Purchasing, Sales, Expenses, Suppliers.
+- Documentation updated: `DOMAIN_MODEL.md`, `API_CONTRACTS.md`, `MODULE_CATALOG.md`, `TASKS.md`, `DECISIONS.md`, `DATABASE.md`, `ARCHITECTURE.md`, `AGENTS.md`, `CHANGELOG.md`, `README.md`.
+
 ### 2026-10-23 — Staff accounts
 - Admin can list, create, edit, and assign one existing role to a staff account, and can activate or deactivate it without hard-deleting it. `011_user_active.sql` adds `is_active`. The signed-in user cannot deactivate or remove their own account. The last usable Admin cannot be deactivated, removed, or given another role. An inactive user cannot sign in, and an existing token fails on the next request. Password hashes are not returned.
 - Audit log, customer receivables, and supplier payments stay unimplemented.

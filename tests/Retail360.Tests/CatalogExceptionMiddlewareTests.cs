@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Retail360.Api.Catalog;
+using Retail360.Domain.Audit;
 using Retail360.Domain.Catalog;
 using Retail360.Domain.Expenses;
 using Retail360.Domain.Identity;
@@ -67,6 +68,7 @@ public class CatalogExceptionMiddlewareTests
     [InlineData(typeof(ExpenseRuleException), nameof(ExpenseRuleFailure.Invalid), StatusCodes.Status400BadRequest, "Amount must be greater than zero with at most 2 decimal places.")]
     [InlineData(typeof(ReportRuleException), nameof(ReportRuleFailure.Invalid), StatusCodes.Status400BadRequest, "The start date must be on or before the end date.")]
     [InlineData(typeof(UserRuleException), nameof(UserRuleFailure.Conflict), StatusCodes.Status409Conflict, "The last Admin cannot be deactivated.")]
+    [InlineData(typeof(AuditRuleException), nameof(AuditRuleFailure.Invalid), StatusCodes.Status400BadRequest, "Action is not recognized.")]
     public async Task Sale_and_purchase_rules_use_the_same_error_body(
         Type exceptionType,
         string failureName,
@@ -147,6 +149,12 @@ public class CatalogExceptionMiddlewareTests
         {
             var failure = Enum.Parse<UserRuleFailure>(failureName);
             return new UserRuleException(failure, message);
+        }
+
+        if (exceptionType == typeof(AuditRuleException))
+        {
+            var failure = Enum.Parse<AuditRuleFailure>(failureName);
+            return new AuditRuleException(failure, message);
         }
 
         var inventoryFailure = Enum.Parse<InventoryRuleFailure>(failureName);

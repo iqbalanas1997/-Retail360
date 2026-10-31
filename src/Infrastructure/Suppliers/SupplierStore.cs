@@ -1,7 +1,9 @@
 using Dapper;
 using Npgsql;
 using Retail360.Application.Suppliers;
+using Retail360.Domain.Audit;
 using Retail360.Domain.Suppliers;
+using Retail360.Infrastructure.Audit;
 using Retail360.Infrastructure.Database;
 
 namespace Retail360.Infrastructure.Suppliers;
@@ -153,6 +155,21 @@ public sealed class SupplierStore : ISupplierStore
                     }
                 }
 
+                bool? previousActive = null;
+                if (requireRow && !supplier.IsDeleted)
+                {
+                    previousActive = await connection.QuerySingleOrDefaultAsync<bool?>(new CommandDefinition(
+                        """
+                        select is_active
+                        from suppliers
+                        where id = @Id and is_deleted = false
+                        for update;
+                        """,
+                        new { supplier.Id },
+                        transaction,
+                        cancellationToken: token));
+                }
+
                 var rows = await connection.ExecuteAsync(new CommandDefinition(
                     sql,
                     supplier,
@@ -163,6 +180,23 @@ public sealed class SupplierStore : ISupplierStore
                     throw new SupplierRuleException(SupplierRuleFailure.NotFound, "Supplier was not found.");
                 }
 
+                var action = !requireRow
+                    ? AuditActions.SupplierCreated
+                    : supplier.IsDeleted
+                        ? AuditActions.SupplierDeleted
+                        : previousActive is bool wasActive && wasActive != supplier.IsActive
+                            ? supplier.IsActive ? AuditActions.SupplierActivated : AuditActions.SupplierDeactivated
+                            : AuditActions.SupplierUpdated;
+                await AuditEntryWriter.AppendAsync(
+                    connection,
+                    transaction,
+                    action,
+                    AuditEntityTypes.Supplier,
+                    supplier.Id.ToString("D"),
+                    supplier.UpdatedAt,
+                    new Dictionary<string, string?> { ["name"] = supplier.Name },
+                    null,
+                    token);
                 return 0;
             }, cancellationToken);
         }

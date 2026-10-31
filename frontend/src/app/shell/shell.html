@@ -1,9 +1,14 @@
 <div class="shell">
   <aside class="sidebar">
     <p class="brand">Retail360</p>
-    @if (session.canManageUsers()) {
+    @if (session.canManageUsers() || session.canViewAudit()) {
       <p class="nav-label">Access</p>
-      <a routerLink="/users" routerLinkActive="active">Users</a>
+      @if (session.canManageUsers()) {
+        <a routerLink="/users" routerLinkActive="active">Users</a>
+      }
+      @if (session.canViewAudit()) {
+        <a routerLink="/audit" routerLinkActive="active">Audit</a>
+      }
     }
     @if (session.canViewReports()) {
       <p class="nav-label">Shop</p>

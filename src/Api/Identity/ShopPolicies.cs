@@ -31,4 +31,6 @@ public static class ShopPolicies
     public const string ReportRead = "ReportRead";
 
     public const string UserManage = "UserManage";
+
+    public const string AuditRead = "AuditRead";
 }

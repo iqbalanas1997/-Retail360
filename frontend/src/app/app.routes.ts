@@ -1,5 +1,6 @@
 import { Routes } from '@angular/router';
 
+import { AuditPage } from './audit/audit-page';
 import { NamedCatalogPage } from './catalog/named-catalog-page';
 import { ProductFormPage } from './catalog/product-form-page';
 import { ProductListPage } from './catalog/product-list-page';
@@ -63,6 +64,7 @@ export const routes: Routes = [
       { path: 'pos', component: PosPage, data: { title: 'POS' } },
       { path: 'sales', component: SaleListPage, data: { title: 'Sales' } },
       { path: 'users', component: UserListPage, data: { title: 'Users' } },
+      { path: 'audit', component: AuditPage, data: { title: 'Audit' } },
       { path: 'users/new', component: UserFormPage, data: { title: 'New user' } },
       { path: 'users/:id', component: UserFormPage, data: { title: 'User' } },
       { path: 'sales/:id', component: SaleDetailPage, data: { title: 'Receipt' } },
