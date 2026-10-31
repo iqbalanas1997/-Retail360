@@ -18,10 +18,20 @@ public sealed record SaleResponse(
     decimal Total,
     IReadOnlyList<SaleLineResponse> Lines,
     DateTimeOffset CreatedAt,
-    DateTimeOffset UpdatedAt);
+    DateTimeOffset UpdatedAt,
+    Guid? CustomerId,
+    string? CustomerName);
+
+public sealed record CustomerSaleSummary(
+    Guid Id,
+    int ReceiptNumber,
+    DateTimeOffset SoldAt,
+    string PaymentMethod,
+    decimal Total);
 
 public sealed record CompleteSaleLineCommand(Guid ProductId, Guid ShelfId, decimal Quantity);
 
 public sealed record CompleteSaleCommand(
     Guid OperationId,
-    IReadOnlyList<CompleteSaleLineCommand>? Lines);
+    IReadOnlyList<CompleteSaleLineCommand>? Lines,
+    Guid? CustomerId = null);

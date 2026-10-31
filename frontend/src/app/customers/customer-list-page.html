@@ -1,0 +1,60 @@
+<form class="toolbar" [formGroup]="form" (ngSubmit)="search()">
+  <label>
+    Search
+    <input formControlName="search" />
+  </label>
+  <label class="check">
+    <input type="checkbox" formControlName="activeOnly" />
+    Active customers only
+  </label>
+  <button type="submit">Search</button>
+  @if (canWrite()) {
+    <a class="button" routerLink="/customers/new">Add customer</a>
+  }
+</form>
+<p class="hint">Search matches the name, phone, or email. Two customers can share a name.</p>
+
+@if (error()) {
+  <p class="notice error" role="alert">{{ error() }}</p>
+  <button type="button" class="secondary" (click)="reload()">Try again</button>
+}
+
+@if (success()) {
+  <p class="notice ok" role="status">{{ success() }}</p>
+}
+
+@if (loading()) {
+  <p class="status">Loading customers…</p>
+} @else if (customers().length === 0 && !error()) {
+  <p class="status">No customers match this search.</p>
+} @else if (customers().length > 0) {
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Phone</th>
+          <th>Email</th>
+          <th>Status</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        @for (customer of customers(); track customer.id) {
+          <tr>
+            <td>{{ customer.name }}</td>
+            <td>{{ customer.phone }}</td>
+            <td>{{ customer.email }}</td>
+            <td>{{ status(customer) }}</td>
+            <td><a [routerLink]="['/customers', customer.id]">Open</a></td>
+          </tr>
+        }
+      </tbody>
+    </table>
+  </div>
+  @if (hasMore()) {
+    <button type="button" class="secondary" [disabled]="loadingMore()" (click)="showMore()">
+      {{ loadingMore() ? 'Loading…' : 'Show more' }}
+    </button>
+  }
+}

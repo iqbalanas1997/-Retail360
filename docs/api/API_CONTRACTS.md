@@ -29,6 +29,8 @@ Assumption: every shop role may look up products and stock. Only Admin and Manag
 | Areas, shelves, opening stock, adjustments, transfers | yes | yes | no | yes |
 | Supplier read | yes | yes | yes | yes |
 | Supplier create, update, activate, deactivate, delete | yes | yes | no | no |
+| Customer read, including search and that customer's cash sales | yes | yes | yes | no |
+| Customer create, update, activate, deactivate, delete | yes | yes | no | no |
 | Expense read, including the filtered total | yes | yes | yes | yes |
 | Expense create, update, delete | yes | yes | no | no |
 | Dashboard read | yes | yes | no | no |
@@ -116,6 +118,24 @@ Supplier failures use the same `{ "error": "message" }` body. Invalid input is 4
 
 Name is required and at most 200 characters. Contact person is at most 200. Phone is at most 40. Email, when present, is one address of at most 200 characters. Address is at most 400. Notes are at most 1000. There is no supplier payment endpoint. A supplier referenced by a purchase cannot be soft-deleted.
 
+## Customers
+Customer failures use the same `{ "error": "message" }` body. Invalid input is 400. A missing or soft-deleted customer is 404. `DELETE` sets `is_deleted` and does not run a SQL `DELETE`.
+
+`CustomerRead` allows Admin, Manager, and Cashier. `CustomerWrite` allows Admin and Manager. Inventory Staff receives 403.
+
+| Method | Route | Behavior |
+|---|---|---|
+| GET | `/api/customers?search=&activeOnly=&limit=&offset=` | List customers that are not soft-deleted. `search` matches part of the name, phone, or email. `activeOnly` defaults to false. `limit` defaults to 50 and cannot exceed 200. |
+| GET | `/api/customers/{id}` | Read one customer, including an inactive customer. |
+| GET | `/api/customers/{id}/sales?limit=&offset=` | List that customer's cash sales, newest first. Each row is the receipt number, sold time, `cash` payment, and sale total. There is no amount owed. |
+| POST | `/api/customers` | Create from `{ "name", "phone", "email", "address", "notes" }`. Phone and email may be null or blank. Returns 201. The customer starts active. |
+| PUT | `/api/customers/{id}` | Replace those same fields. An inactive customer can be updated. This does not change `isActive`. |
+| POST | `/api/customers/{id}/activate` | Set `isActive` to true. |
+| POST | `/api/customers/{id}/deactivate` | Set `isActive` to false. This does not delete the customer and does not remove the customer from an existing sale. |
+| DELETE | `/api/customers/{id}` | Logical delete. Returns 204. Existing sales keep the customer id. |
+
+Name is required and at most 200 characters. The same name may be used by more than one customer. Phone is at most 40. Email, when present, is one address of at most 200 characters. Address is at most 400. Notes are at most 1000. A cashier read omits address and notes. There is no credit, receivable, or customer-payment endpoint.
+
 ## Purchasing
 Purchase failures use the same `{ "error": "message" }` body. Invalid input is 400. A missing supplier, product, shelf, or purchase is 404. A conflict is 409. `DELETE` sets `is_deleted` and does not run a SQL `DELETE`.
 
@@ -141,9 +161,9 @@ Sale failures use the same `{ "error": "message" }` body. Invalid input is 400. 
 |---|---|---|
 | GET | `/api/sales?receiptNumber=&limit=&offset=` | List completed sales, newest first. `receiptNumber` is an exact match. `limit` defaults to 50 and cannot exceed 200. |
 | GET | `/api/sales/{id}` | Read one sale and its lines, including the snapshotted product name and unit price and the current shelf name. |
-| POST | `/api/sales` | Complete a cash sale from `{ "operationId", "lines": [{ "productId", "shelfId", "quantity" }] }`. The server copies the catalog selling price and calculates totals. Returns 201. |
+| POST | `/api/sales` | Complete a cash sale from `{ "operationId", "customerId", "lines": [{ "productId", "shelfId", "quantity" }] }`. `customerId` may be omitted. The server copies the catalog selling price and calculates totals. Returns 201. |
 
-The product must be active and not soft-deleted. Quantity is greater than zero with at most 3 decimal places. The client does not send a price or a total. Line total is `round(quantity * sellingPrice, 2)`, half away from zero. The caller names the shelf. An inactive shelf can be sold from. A shelf that does not have enough stock is 409, and the sale is not stored. The same `operationId` and the same lines return the original sale. A different payload is 409. There is no credit, discount, return, refund, or cancellation route. A cash sale does not require a customer.
+The product must be active and not soft-deleted. Quantity is greater than zero with at most 3 decimal places. The client does not send a price or a total. Line total is `round(quantity * sellingPrice, 2)`, half away from zero. The caller names the shelf. An inactive shelf can be sold from. A shelf that does not have enough stock is 409, and the sale is not stored. The same `operationId` and the same lines and customer return the original sale. A different payload is 409. There is no credit, discount, return, refund, or cancellation route. A cash sale does not require a customer. `customerId` is optional. When it is sent, the customer must be active and not soft-deleted. The response includes `customerId` and `customerName`. A later deactivation or soft delete does not remove that name from the sale. The sale total and `cash` payment do not change because a customer was selected.
 
 ## Expenses
 Expense failures use the same `{ "error": "message" }` body. Invalid input is 400. A missing or soft-deleted expense is 404. A repeated operation id with a different payload is 409. `DELETE` sets `is_deleted` and does not run a SQL `DELETE`.

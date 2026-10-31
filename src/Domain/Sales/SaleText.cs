@@ -70,9 +70,11 @@ public static class SaleText
         return id;
     }
 
-    public static string Fingerprint(IReadOnlyList<(Guid ProductId, Guid ShelfId, decimal Quantity)> lines)
+    public static string Fingerprint(
+        IReadOnlyList<(Guid ProductId, Guid ShelfId, decimal Quantity)> lines,
+        Guid? customerId = null)
     {
-        return string.Join(
+        var text = string.Join(
             '|',
             lines.Select(line =>
                 line.ProductId.ToString("N")
@@ -80,6 +82,12 @@ public static class SaleText
                 + line.ShelfId.ToString("N")
                 + "|"
                 + line.Quantity.ToString("0.000", CultureInfo.InvariantCulture)));
+        if (customerId is null)
+        {
+            return text;
+        }
+
+        return text + "|customer|" + customerId.Value.ToString("N");
     }
 
     public static Guid StockOperationId(Guid saleOperationId, Guid productId)

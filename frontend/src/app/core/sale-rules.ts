@@ -41,10 +41,12 @@ export function saleTotal(lineTotals: readonly number[]): number {
 
 export function saleAttemptKey(
   lines: readonly { productId: string; shelfId: string; quantity: number }[],
+  customerId = '',
 ): string {
-  return lines
+  const lineKey = lines
     .map((line) => `${line.productId}|${line.shelfId}|${formatScaled(line.quantity, 3)}`)
     .join('||');
+  return customerId ? `${lineKey}||customer:${customerId}` : lineKey;
 }
 
 export function formatSoldAt(value: string): string {

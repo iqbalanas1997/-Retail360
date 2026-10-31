@@ -64,10 +64,36 @@ public sealed class SaleStore : ISaleStore
         return sales;
     }
 
+    public async Task<IReadOnlyList<CustomerSaleSummary>> ListForCustomerAsync(
+        Guid customerId,
+        int limit,
+        int offset,
+        CancellationToken cancellationToken)
+    {
+        await using var connection = await _connections.OpenConnectionAsync(cancellationToken);
+        var rows = await connection.QueryAsync<CustomerSaleRow>(new CommandDefinition(
+            """
+            select id, receipt_number, sold_at, payment_method, total
+            from sales
+            where customer_id = @CustomerId and is_deleted = false
+            order by sold_at desc, id desc
+            limit @Limit offset @Offset;
+            """,
+            new { CustomerId = customerId, Limit = limit, Offset = offset },
+            cancellationToken: cancellationToken));
+        return rows.Select(row => new CustomerSaleSummary(
+            row.Id,
+            row.ReceiptNumber,
+            row.SoldAt,
+            row.PaymentMethod,
+            row.Total)).ToArray();
+    }
+
     public async Task<SaleResponse> CompleteAsync(
         Guid operationId,
         string fingerprint,
         IReadOnlyList<CompleteSaleLineCommand> lines,
+        Guid? customerId,
         DateTimeOffset utcNow,
         CancellationToken cancellationToken)
     {
@@ -80,6 +106,7 @@ public sealed class SaleStore : ISaleStore
                     operationId,
                     fingerprint,
                     lines,
+                    customerId,
                     utcNow,
                     token),
                 cancellationToken);
@@ -98,6 +125,7 @@ public sealed class SaleStore : ISaleStore
         Guid operationId,
         string fingerprint,
         IReadOnlyList<CompleteSaleLineCommand> lines,
+        Guid? customerId,
         DateTimeOffset utcNow,
         CancellationToken token)
     {
@@ -116,6 +144,7 @@ public sealed class SaleStore : ISaleStore
             return await SameSaleOrRejectAsync(connection, transaction, existingId.Value, fingerprint, token);
         }
 
+        await RequireSellableCustomerAsync(connection, transaction, customerId, token);
         var receiptNumber = await connection.QuerySingleAsync<int>(new CommandDefinition(
             """
             update sale_receipt_counter
@@ -165,10 +194,10 @@ public sealed class SaleStore : ISaleStore
             """
             insert into sales (
                 id, receipt_number, operation_id, operation_fingerprint, sold_at, payment_method,
-                total, created_at, updated_at, is_deleted)
+                total, customer_id, created_at, updated_at, is_deleted)
             values (
                 @Id, @ReceiptNumber, @OperationId, @Fingerprint, @SoldAt, @PaymentMethod,
-                @Total, @SoldAt, @SoldAt, false);
+                @Total, @CustomerId, @SoldAt, @SoldAt, false);
             """,
             new
             {
@@ -178,7 +207,8 @@ public sealed class SaleStore : ISaleStore
                 Fingerprint = sale.Fingerprint,
                 SoldAt = sale.SoldAt,
                 PaymentMethod = SaleText.Cash,
-                sale.Total
+                sale.Total,
+                CustomerId = customerId
             },
             transaction,
             cancellationToken: token));
@@ -245,11 +275,7 @@ public sealed class SaleStore : ISaleStore
             AuditEntityTypes.Sale,
             sale.Id.ToString("D"),
             utcNow,
-            new Dictionary<string, string?>
-            {
-                ["receiptNumber"] = sale.ReceiptNumber.ToString(CultureInfo.InvariantCulture),
-                ["total"] = sale.Total.ToString("0.00", CultureInfo.InvariantCulture)
-            },
+            SaleDetails(sale, customerId),
             null,
             token);
         return (await ReadAsync(connection, transaction, sale.Id, token))!;
@@ -306,9 +332,11 @@ public sealed class SaleStore : ISaleStore
         var header = await connection.QuerySingleOrDefaultAsync<SaleRow>(new CommandDefinition(
             """
             select
-                id, receipt_number, sold_at, payment_method, total, created_at, updated_at
-            from sales
-            where id = @Id and is_deleted = false;
+                s.id, s.receipt_number, s.sold_at, s.payment_method, s.total, s.created_at, s.updated_at,
+                s.customer_id, c.name as customer_name
+            from sales s
+            left join customers c on c.id = s.customer_id
+            where s.id = @Id and s.is_deleted = false;
             """,
             new { Id = id },
             transaction,
@@ -347,7 +375,56 @@ public sealed class SaleStore : ISaleStore
                 line.UnitPrice,
                 line.LineTotal)).ToArray(),
             header.CreatedAt,
-            header.UpdatedAt);
+            header.UpdatedAt,
+            header.CustomerId,
+            header.CustomerName);
+    }
+
+    private static async Task RequireSellableCustomerAsync(
+        NpgsqlConnection connection,
+        NpgsqlTransaction transaction,
+        Guid? customerId,
+        CancellationToken token)
+    {
+        if (customerId is null)
+        {
+            return;
+        }
+
+        var customer = await connection.QuerySingleOrDefaultAsync<CustomerGate>(new CommandDefinition(
+            """
+            select is_active, is_deleted
+            from customers
+            where id = @Id
+            for update;
+            """,
+            new { Id = customerId },
+            transaction,
+            cancellationToken: token));
+        if (customer is null || customer.IsDeleted)
+        {
+            throw new SaleRuleException(SaleRuleFailure.NotFound, "Customer was not found.");
+        }
+
+        if (!customer.IsActive)
+        {
+            throw new SaleRuleException(SaleRuleFailure.Conflict, "Customer is inactive.");
+        }
+    }
+
+    private static Dictionary<string, string?> SaleDetails(Sale sale, Guid? customerId)
+    {
+        var details = new Dictionary<string, string?>
+        {
+            ["receiptNumber"] = sale.ReceiptNumber.ToString(CultureInfo.InvariantCulture),
+            ["total"] = sale.Total.ToString("0.00", CultureInfo.InvariantCulture)
+        };
+        if (customerId is Guid id)
+        {
+            details["customerId"] = id.ToString("D");
+        }
+
+        return details;
     }
 
     private sealed class ProductRow
@@ -378,6 +455,30 @@ public sealed class SaleStore : ISaleStore
         public DateTimeOffset CreatedAt { get; init; }
 
         public DateTimeOffset UpdatedAt { get; init; }
+
+        public Guid? CustomerId { get; init; }
+
+        public string? CustomerName { get; init; }
+    }
+
+    private sealed class CustomerSaleRow
+    {
+        public Guid Id { get; init; }
+
+        public int ReceiptNumber { get; init; }
+
+        public DateTimeOffset SoldAt { get; init; }
+
+        public string PaymentMethod { get; init; } = string.Empty;
+
+        public decimal Total { get; init; }
+    }
+
+    private sealed class CustomerGate
+    {
+        public bool IsActive { get; init; }
+
+        public bool IsDeleted { get; init; }
     }
 
     private sealed class SaleLineRow

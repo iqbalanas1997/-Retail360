@@ -14,6 +14,10 @@ public static class ShopPolicies
 
     public const string SupplierWrite = "SupplierWrite";
 
+    public const string CustomerRead = "CustomerRead";
+
+    public const string CustomerWrite = "CustomerWrite";
+
     public const string PurchaseRead = "PurchaseRead";
 
     public const string PurchaseRecord = "PurchaseRecord";

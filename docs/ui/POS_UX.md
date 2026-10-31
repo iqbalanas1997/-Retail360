@@ -26,7 +26,7 @@ Scan/search -> quantity -> cart -> payment -> receipt.
 7. A product with no barcode can still be found by name.
 
 ## Implemented counter
-`/pos` scans or searches a product, takes a quantity and a shelf, and completes a cash sale. Enter in the barcode field looks the code up. A finished scan clears that field and returns focus to it, so the next keyboard-wedge scan starts empty. An unknown code, an inactive product, and an API failure stay on screen, and the cashier can scan again. `/sales` lists receipts and opens the API receipt, which the browser can print. Inventory Staff can open the sales list and cannot complete a sale. A package barcode is attached on the product form. A shop barcode starts with `R360-` and its label is printed from that saved product as Code 128.
+`/pos` scans or searches a product, takes a quantity and a shelf, and completes a cash sale. An optional customer field can search an active customer by name or phone. The barcode field stays first, and the sale can be completed with no customer selected. Enter in the barcode field looks the code up. A finished scan clears that field and returns focus to it, so the next keyboard-wedge scan starts empty. An unknown code, an inactive product, and an API failure stay on screen, and the cashier can scan again. `/sales` lists receipts and opens the API receipt, which the browser can print. Inventory Staff can open the sales list and cannot complete a sale. A package barcode is attached on the product form. A shop barcode starts with `R360-` and its label is printed from that saved product as Code 128.
 
 ## Important
 Do not implement UI details only from imagination. When a screen is requested, first inspect existing components and the latest approved requirements/design.

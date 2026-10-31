@@ -38,6 +38,11 @@ export class SaleDetailPage {
     return formatMoney(value);
   }
 
+  protected customerLabel(sale: Sale): string {
+    const name = sale.customerName?.trim();
+    return name ? `Customer ${name}` : 'No customer';
+  }
+
   protected soldAt(sale: Sale): string {
     return formatSoldAt(sale.soldAt);
   }

@@ -8,6 +8,8 @@ import { type Product } from '../core/catalog.models';
 import { OperationAttempt } from '../core/inventory-rules';
 import { InventoryApi } from '../core/inventory-api.service';
 import { type Shelf } from '../core/inventory.models';
+import { CustomerApi } from '../core/customer-api.service';
+import { type Customer } from '../core/customer.models';
 import { formatMoney } from '../core/purchase-rules';
 import { SaleApi } from '../core/sale-api.service';
 import {
@@ -39,6 +41,7 @@ export class PosPage {
   private readonly shopApi = inject(ShopApi);
   private readonly inventoryApi = inject(InventoryApi);
   private readonly salesApi = inject(SaleApi);
+  private readonly customersApi = inject(CustomerApi);
   private readonly session = inject(SessionService);
   private readonly router = inject(Router);
   private readonly attempt = new OperationAttempt();
@@ -46,6 +49,7 @@ export class PosPage {
   private lineKey = 0;
   private lookupGeneration = 0;
   private shelfGeneration = 0;
+  private customerGeneration = 0;
   private barcodeInFlight = '';
   private completedSale: { id: string; key: string } | null = null;
 
@@ -63,6 +67,11 @@ export class PosPage {
   protected readonly productQuery = signal('');
   protected readonly quantity = signal('1');
   protected readonly shelfId = signal('');
+  protected readonly customerQuery = signal('');
+  protected readonly findingCustomer = signal(false);
+  protected readonly customerError = signal('');
+  protected readonly customerMatches = signal<Customer[]>([]);
+  protected readonly customer = signal<Customer | null>(null);
 
   constructor() {
     void this.loadShelves();
@@ -258,6 +267,76 @@ export class PosPage {
     void this.loadShelves();
   }
 
+  protected async findCustomer(): Promise<void> {
+    if (this.selling()) {
+      return;
+    }
+
+    const search = this.customerQuery().trim();
+    this.customerError.set('');
+    this.customerMatches.set([]);
+    if (!search) {
+      this.customerError.set('Type a name or phone.');
+      return;
+    }
+
+    const generation = ++this.customerGeneration;
+    this.findingCustomer.set(true);
+    try {
+      const customers = await firstValueFrom(
+        this.customersApi.list({
+          search,
+          activeOnly: true,
+          limit: 8,
+          offset: 0,
+        }),
+      );
+      if (generation !== this.customerGeneration) {
+        return;
+      }
+
+      this.customerMatches.set(customers);
+      if (customers.length === 0) {
+        this.customerError.set('No active customer matches that search.');
+      }
+    } catch (error) {
+      if (generation !== this.customerGeneration) {
+        return;
+      }
+
+      this.customerError.set(messageFrom(error));
+    } finally {
+      if (generation === this.customerGeneration) {
+        this.findingCustomer.set(false);
+      }
+    }
+  }
+
+  protected chooseCustomer(customer: Customer): void {
+    if (this.selling() || !customer.isActive) {
+      return;
+    }
+
+    this.customer.set(customer);
+    this.customerMatches.set([]);
+    this.customerError.set('');
+    this.customerQuery.set('');
+  }
+
+  protected clearCustomer(): void {
+    if (this.selling()) {
+      return;
+    }
+
+    this.customer.set(null);
+    this.customerMatches.set([]);
+    this.customerError.set('');
+  }
+
+  protected customerLabel(customer: Customer): string {
+    return customer.phone ? `${customer.name} · ${customer.phone}` : customer.name;
+  }
+
   protected async complete(): Promise<void> {
     if (!this.canSell() || this.selling() || !this.session.isSignedIn()) {
       return;
@@ -272,7 +351,7 @@ export class PosPage {
       return;
     }
 
-    const key = saleAttemptKey(body.lines);
+    const key = saleAttemptKey(body.lines, body.customerId ?? '');
     if (this.completedSale?.key === key) {
       await this.openReceipt(this.completedSale.id);
       return;
@@ -336,14 +415,20 @@ export class PosPage {
     }
 
     saleTotal(lines.map((line, index) => saleLineTotal(line.quantity, this.lines()[index].unitPrice)));
-    return {
-      operationId: this.attempt.idFor(saleAttemptKey(lines)),
+    const customer = this.customer();
+    const body: CompleteSaleBody = {
+      operationId: this.attempt.idFor(saleAttemptKey(lines, customer?.id ?? '')),
       lines: lines.map((line) => ({
         productId: line.productId,
         shelfId: line.shelfId,
         quantity: line.quantity,
       })),
     };
+    if (customer) {
+      body.customerId = customer.id;
+    }
+
+    return body;
   }
 
   private parsedLineTotal(line: CartLine): number {

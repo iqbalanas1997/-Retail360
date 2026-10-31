@@ -49,6 +49,7 @@ public sealed class UserDatabaseTests
         Assert.Throws<InvalidOperationException>(() => UserDatabaseGuard.Require("retail360_expenses_test"));
         Assert.Throws<InvalidOperationException>(() => UserDatabaseGuard.Require("retail360_reports_test"));
         Assert.Throws<InvalidOperationException>(() => UserDatabaseGuard.Require("retail360_audit_test"));
+        Assert.Throws<InvalidOperationException>(() => UserDatabaseGuard.Require("retail360_customers_test"));
     }
 
     [Fact]

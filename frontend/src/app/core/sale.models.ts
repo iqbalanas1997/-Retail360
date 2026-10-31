@@ -18,6 +18,8 @@ export interface Sale {
   lines: SaleLine[];
   createdAt: string;
   updatedAt: string;
+  customerId: string | null;
+  customerName: string | null;
 }
 
 export interface CompleteSaleLineBody {
@@ -29,6 +31,7 @@ export interface CompleteSaleLineBody {
 export interface CompleteSaleBody {
   operationId: string;
   lines: CompleteSaleLineBody[];
+  customerId?: string;
 }
 
 export interface SaleQuery {

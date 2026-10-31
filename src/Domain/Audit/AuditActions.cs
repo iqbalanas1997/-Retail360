@@ -46,6 +46,16 @@ public static class AuditActions
 
     public const string SupplierDeleted = "supplier.deleted";
 
+    public const string CustomerCreated = "customer.created";
+
+    public const string CustomerUpdated = "customer.updated";
+
+    public const string CustomerActivated = "customer.activated";
+
+    public const string CustomerDeactivated = "customer.deactivated";
+
+    public const string CustomerDeleted = "customer.deleted";
+
     public static readonly IReadOnlySet<string> All = new HashSet<string>(StringComparer.Ordinal)
     {
         UserCreated,
@@ -69,7 +79,12 @@ public static class AuditActions
         SupplierUpdated,
         SupplierActivated,
         SupplierDeactivated,
-        SupplierDeleted
+        SupplierDeleted,
+        CustomerCreated,
+        CustomerUpdated,
+        CustomerActivated,
+        CustomerDeactivated,
+        CustomerDeleted
     };
 }
 
@@ -89,6 +104,8 @@ public static class AuditEntityTypes
 
     public const string Supplier = "supplier";
 
+    public const string Customer = "customer";
+
     public static readonly IReadOnlySet<string> All = new HashSet<string>(StringComparer.Ordinal)
     {
         User,
@@ -97,6 +114,7 @@ public static class AuditEntityTypes
         Purchase,
         Sale,
         Expense,
-        Supplier
+        Supplier,
+        Customer
     };
 }

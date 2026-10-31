@@ -39,6 +39,8 @@ Digitize daily grocery shop operations and provide real-time visibility into sto
 - Customer-wise sales history.
 - Credit sales and outstanding balances.
 
+The current customer record implements customer information and customer-wise cash-sale history. Credit sales and outstanding balances remain future work and are not stored on the customer.
+
 ### 6. Expenses
 - Daily shop expenses.
 - Expense categories.

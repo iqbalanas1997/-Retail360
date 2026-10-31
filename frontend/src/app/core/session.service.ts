@@ -23,6 +23,9 @@ export class SessionService {
   readonly canWriteSuppliers = computed(() =>
     this.roles().some((role) => role === 'Admin' || role === 'Manager'),
   );
+  readonly canWriteCustomers = computed(() =>
+    this.roles().some((role) => role === 'Admin' || role === 'Manager'),
+  );
   readonly canManageInventory = computed(() =>
     this.roles().some((role) => role === 'Admin' || role === 'Manager' || role === 'Inventory Staff'),
   );

@@ -66,6 +66,101 @@ describe('POS and sales screens', () => {
     expect(text(harness)).toContain('Sale completed.');
     expect(text(harness)).toContain('Front B');
     expect(text(harness)).toContain('2026-10-19 21:05:46 UTC');
+    expect(text(harness)).toContain('No customer');
+  });
+
+  it('selects a customer for one sale and can clear that customer', async () => {
+    remember('Cashier');
+    const harness = await open('/pos');
+    flushShelves();
+    await turn();
+    harness.detectChanges();
+    const root = harness.fixture.nativeElement as HTMLElement;
+    setNamed(root, 'customer', 'Amina');
+    submitForm(root, 'Find customer');
+    TestBed.inject(HttpTestingController)
+      .expectOne(
+        (request) =>
+          request.method === 'GET' &&
+          request.url === '/api/customers' &&
+          request.params.get('search') === 'Amina' &&
+          request.params.get('activeOnly') === 'true',
+      )
+      .flush([
+        {
+          id: 'customer-1',
+          name: 'Amina',
+          phone: '0300',
+          email: 'amina@example.com',
+          address: 'Lane 1',
+          notes: 'private note',
+          isActive: true,
+          createdAt: '',
+          updatedAt: '',
+        },
+      ]);
+    await turn();
+    harness.detectChanges();
+    clickButton(root, 'Select');
+    harness.detectChanges();
+
+    expect(text(harness)).toContain('Amina · 0300');
+    expect(text(harness)).not.toContain('private note');
+    expect(text(harness)).not.toContain('Lane 1');
+
+    clickButton(root, 'Clear customer');
+    harness.detectChanges();
+    expect(text(harness)).not.toContain('Amina · 0300');
+
+    setNamed(root, 'customer', 'Amina');
+    submitForm(root, 'Find customer');
+    TestBed.inject(HttpTestingController)
+      .expectOne((request) => request.url === '/api/customers')
+      .flush([
+        {
+          id: 'customer-1',
+          name: 'Amina',
+          phone: '0300',
+          email: null,
+          address: null,
+          notes: null,
+          isActive: true,
+          createdAt: '',
+          updatedAt: '',
+        },
+      ]);
+    await turn();
+    harness.detectChanges();
+    clickButton(root, 'Select');
+    setNamed(root, 'shelf', 'shelf-1');
+    setNamed(root, 'quantity', '1');
+    setNamed(root, 'barcode', 'TEA');
+    submitForm(root, 'Barcode');
+    TestBed.inject(HttpTestingController)
+      .expectOne((request) => request.url === '/api/products/by-barcode/TEA')
+      .flush(product());
+    await turn();
+    harness.detectChanges();
+    clickButton(root, 'Complete sale');
+    const created = TestBed.inject(HttpTestingController).expectOne(
+      (request) => request.method === 'POST' && request.url === '/api/sales',
+    );
+    expect(created.request.body.customerId).toBe('customer-1');
+    expect(created.request.body.lines).toEqual([
+      { productId: 'product-1', shelfId: 'shelf-1', quantity: 1 },
+    ]);
+    expect(JSON.stringify(created.request.body)).not.toContain('unitPrice');
+    const receipt = { ...sale(), customerId: 'customer-1', customerName: 'Amina' };
+    created.flush(receipt);
+    await turn();
+    harness.detectChanges();
+    TestBed.inject(HttpTestingController).expectOne('/api/sales/sale-1').flush(receipt);
+    await turn();
+    harness.detectChanges();
+
+    expect(text(harness)).toContain('Customer Amina');
+    expect(text(harness)).toContain('cash');
+    expect(text(harness)).not.toContain('private note');
   });
 
   it('reuses the operation id after an error and shows insufficient stock', async () => {
@@ -152,6 +247,7 @@ describe('POS and sales screens', () => {
 
     expect(text(harness)).toContain('1');
     expect(text(harness)).toContain('35.00');
+    expect(text(harness)).toContain('No customer');
     expect(text(harness)).toContain('2026-10-19 21:05:46 UTC');
     expect(text(harness)).not.toContain('New sale');
     const root = harness.fixture.nativeElement as HTMLElement;

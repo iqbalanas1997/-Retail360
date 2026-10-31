@@ -42,6 +42,11 @@ export const AUDIT_ACTIONS: ReadonlyArray<{ value: string; label: string }> = [
   { value: 'supplier.activated', label: 'Supplier activated' },
   { value: 'supplier.deactivated', label: 'Supplier deactivated' },
   { value: 'supplier.deleted', label: 'Supplier removed' },
+  { value: 'customer.created', label: 'Customer created' },
+  { value: 'customer.updated', label: 'Customer edited' },
+  { value: 'customer.activated', label: 'Customer activated' },
+  { value: 'customer.deactivated', label: 'Customer deactivated' },
+  { value: 'customer.deleted', label: 'Customer removed' },
 ];
 
 export const AUDIT_ENTITY_TYPES: ReadonlyArray<{ value: string; label: string }> = [
@@ -52,6 +57,7 @@ export const AUDIT_ENTITY_TYPES: ReadonlyArray<{ value: string; label: string }>
   { value: 'sale', label: 'Sale' },
   { value: 'expense', label: 'Expense' },
   { value: 'supplier', label: 'Supplier' },
+  { value: 'customer', label: 'Customer' },
 ];
 
 const ACTION_LABELS = new Map(AUDIT_ACTIONS.map((action) => [action.value, action.label]));

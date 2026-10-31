@@ -144,6 +144,7 @@ const DETAIL_LABELS: ReadonlyArray<readonly [string, string]> = [
   ['total', 'Total'],
   ['quantity', 'Quantity'],
   ['direction', 'Direction'],
+  ['customerId', 'Customer id'],
 ];
 
 function toMessage(error: unknown): string {

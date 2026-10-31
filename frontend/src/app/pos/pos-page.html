@@ -14,6 +14,52 @@
   <button type="submit" [disabled]="finding() || selling()">Find barcode</button>
 </form>
 
+<form class="toolbar" (ngSubmit)="findCustomer()">
+  <label>
+    Customer
+    <input
+      name="customer"
+      [value]="customerQuery()"
+      (input)="customerQuery.set($any($event.target).value)"
+      autocomplete="off"
+      [disabled]="selling()"
+    />
+  </label>
+  <button type="submit" [disabled]="findingCustomer() || selling()">Find customer</button>
+  @if (customer(); as selected) {
+    <span>{{ customerLabel(selected) }}</span>
+    <button type="button" class="secondary" (click)="clearCustomer()" [disabled]="selling()">Clear customer</button>
+  }
+</form>
+<p class="hint">Optional. A sale can be completed without a customer. Search by name or phone. This does not change the cash total.</p>
+@if (customerError()) {
+  <p class="notice error" role="alert">{{ customerError() }}</p>
+}
+@if (customerMatches().length > 0) {
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Phone</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        @for (match of customerMatches(); track match.id) {
+          <tr>
+            <td>{{ match.name }}</td>
+            <td>{{ match.phone }}</td>
+            <td>
+              <button type="button" (click)="chooseCustomer(match)" [disabled]="selling()">Select</button>
+            </td>
+          </tr>
+        }
+      </tbody>
+    </table>
+  </div>
+}
+
 <form class="toolbar" (ngSubmit)="searchProducts()">
   <label>
     Product

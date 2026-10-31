@@ -37,18 +37,20 @@ Identifiers are `uuid`. Each table has `created_at`, `updated_at`, and `is_delet
 `007_purchases.sql` adds `purchases` and `purchase_lines`, and extends the stock movement type check to include `purchase`. Do not edit `001` through `006`.
 
 ## Sales schema
-`008_sales.sql` adds `sales`, `sale_lines`, and `sale_receipt_counter`, and extends the stock movement type check to include outbound `sale`. Do not edit `001` through `007`.
+`008_sales.sql` adds `sales`, `sale_lines`, and `sale_receipt_counter`, and extends the stock movement type check to include outbound `sale`. `013_customers.sql` adds a nullable `sales.customer_id`. Do not edit `001` through `012`.
 
 ## Expenses schema
 `009_expenses.sql` adds `expenses`. `010_expense_amount_scale.sql` changes `amount` from `numeric(12,2)` to unconstrained `numeric`, so an extra fractional digit is rejected by `ck_expenses_amount` instead of being rounded. Do not edit `001` through `009`.
 
 `expenses` columns are `id`, `operation_id`, `operation_fingerprint`, `category`, `amount`, `expense_date`, `notes`, `payment_method`, `created_at`, `updated_at`, and `is_deleted`. `operation_id` is unique. Category is one of `rent`, `utilities`, `wages`, `transport`, `supplies`, `repairs`, or `other`. Amount is greater than zero, at most `9999999999.99`, and equal to `round(amount, 2)`. Expense date is required. Notes are optional and at most 1000 characters. Payment method is `cash`. `ix_expenses_date` covers non-deleted rows by date and id. An expense has no stock, purchase, supplier, or sale foreign key.
 
-A sale stores the receipt number, client operation id, operation fingerprint, sold time, `cash` payment method, server total, and the audit columns. `is_deleted` stays false. There is no cancellation. A line stores the product, the shelf, the line number, the product name copied at sale time, quantity, unit price, and line total. Quantity follows the `numeric(14,3)` checks. Money follows the `numeric(12,2)` checks. The line total must equal `round(quantity * unit_price, 2)`. Receipt numbers come from `sale_receipt_counter`, which is a single row updated inside the sale transaction.
+A sale stores the receipt number, client operation id, operation fingerprint, sold time, `cash` payment method, server total, optional `customer_id`, and the audit columns. `customer_id` references `customers` and stays null when the sale has no customer. The foreign key does not delete the sale when the customer row remains. Soft delete does not remove the customer row, so the sale keeps its customer id. `is_deleted` on a sale stays false. There is no cancellation. A line stores the product, the shelf, the line number, the product name copied at sale time, quantity, unit price, and line total. Quantity follows the `numeric(14,3)` checks. Money follows the `numeric(12,2)` checks. The line total must equal `round(quantity * unit_price, 2)`. Receipt numbers come from `sale_receipt_counter`, which is a single row updated inside the sale transaction.
 
 A purchase stores the supplier, purchase date, optional reference, optional notes, `recorded` or `received` status, server total, receive operation id, receive fingerprint, and the audit columns. A received purchase cannot be soft-deleted. A line stores the product, line number, quantity, unit cost, line total, and the shelf assigned when the goods are received. Quantity follows the `numeric(14,3)` checks. Money follows the `numeric(12,2)` checks. The line total must equal `round(quantity * unit_cost, 2)`.
 
 `suppliers` columns are `id`, `name`, `contact_person`, `phone`, `email`, `address`, `notes`, `is_active`, `created_at`, `updated_at`, and `is_deleted`. The name is required and at most 200 characters. Contact person is optional and at most 200. Phone is optional and at most 40. Email is optional and at most 200, and when present it is one address. Address is optional and at most 400. Notes are optional and at most 1000. `uq_suppliers_name` is unique on `lower(name)` where `is_deleted = false`. There is no `shop_id`, payment balance, or purchase foreign key.
+
+`013_customers.sql` adds `customers`. Columns are `id`, `name`, `phone`, `email`, `address`, `notes`, `is_active`, `created_at`, `updated_at`, and `is_deleted`. The name is required and at most 200 characters and is not unique. Phone is optional and at most 40 and is not unique. Email is optional and at most 200, and when present it is one address. Address is optional and at most 400. Notes are optional and at most 1000. Indexes support name order and phone and email lookup for rows that are not soft-deleted. There is no balance, payment, or credit column. Customer tests run against `retail360_customers_test`.
 
 ## Reporting
 The dashboard does not add a table or migration. It reads `sales`, `expenses`, `purchases`, `products`, and `stock_balances`. Sale and receive timestamps stay `timestamptz`. Expense dates and purchase dates stay `date`.
@@ -113,7 +115,7 @@ One business operation that changes several rows uses `PostgresTransaction.Execu
 | `action` | Text action code |
 | `entity_type` | Text |
 | `entity_id` | Text, so a user id and a UUID id use one column |
-| `details` | `jsonb`. No password, password hash, access token, signing key, supplier contact fields, or expense notes |
+| `details` | `jsonb`. No password, password hash, access token, signing key, supplier contact fields, customer phone, email, address, notes, or expense notes |
 
 There is no `is_deleted` column and no update or delete API. Indexes cover `occurred_at` and id, `actor_user_id`, `action`, and `entity_type` with `entity_id`. A list joins `asp_net_users` for the actor name and does not hide a soft-deleted actor. Audit tests run against `retail360_audit_test`.
 

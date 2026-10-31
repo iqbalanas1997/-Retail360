@@ -11,6 +11,7 @@ using Retail360.Domain.Reporting;
 using Retail360.Domain.Inventory;
 using Retail360.Domain.Purchasing;
 using Retail360.Domain.Sales;
+using Retail360.Domain.Customers;
 using Retail360.Domain.Suppliers;
 using Xunit;
 
@@ -69,6 +70,7 @@ public class CatalogExceptionMiddlewareTests
     [InlineData(typeof(ReportRuleException), nameof(ReportRuleFailure.Invalid), StatusCodes.Status400BadRequest, "The start date must be on or before the end date.")]
     [InlineData(typeof(UserRuleException), nameof(UserRuleFailure.Conflict), StatusCodes.Status409Conflict, "The last Admin cannot be deactivated.")]
     [InlineData(typeof(AuditRuleException), nameof(AuditRuleFailure.Invalid), StatusCodes.Status400BadRequest, "Action is not recognized.")]
+    [InlineData(typeof(CustomerRuleException), nameof(CustomerRuleFailure.NotFound), StatusCodes.Status404NotFound, "Customer was not found.")]
     public async Task Sale_and_purchase_rules_use_the_same_error_body(
         Type exceptionType,
         string failureName,
@@ -155,6 +157,12 @@ public class CatalogExceptionMiddlewareTests
         {
             var failure = Enum.Parse<AuditRuleFailure>(failureName);
             return new AuditRuleException(failure, message);
+        }
+
+        if (exceptionType == typeof(CustomerRuleException))
+        {
+            var failure = Enum.Parse<CustomerRuleFailure>(failureName);
+            return new CustomerRuleException(failure, message);
         }
 
         var inventoryFailure = Enum.Parse<InventoryRuleFailure>(failureName);

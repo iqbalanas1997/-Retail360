@@ -28,7 +28,7 @@ Keep module boundaries clear:
 - Identity/Users
 - Audit
 
-Barcode values belong to Catalog. There is no separate Barcode module. Modules may share stable domain concepts, but do not duplicate them.
+Barcode values belong to Catalog. There is no separate Barcode module. Customer records and an optional customer on a cash sale are ADR-020. Credit balances are not part of that record. Modules may share stable domain concepts, but do not duplicate them.
 
 ## Inventory
 Inventory owns areas, shelves, on-hand balances, and stock movements. See ADR-011. The backend is implemented.

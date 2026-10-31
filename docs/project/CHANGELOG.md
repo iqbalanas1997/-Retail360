@@ -10,6 +10,12 @@ Use this file for meaningful project-level changes that affect future AI context
 - Documentation updated
 
 ## Entries
+### 2026-10-31 — Customer records
+- Customer records can be created, edited, activated, deactivated, and soft-deleted. A cash sale may name one active customer and still completes with none. The association does not change the cash total or the payment method. Customer-wise history lists those cash sales and does not calculate an amount owed. `013_customers.sql` adds `customers` and a nullable `sales.customer_id`.
+- Credit sales, Udhaar, outstanding balances, and customer payments stay unimplemented. The high-level requirements still name those items. ADR-015 and ADR-020 keep them out of this module.
+- Impacted modules: Customers, Sales, Audit.
+- Documentation updated: `REQUIREMENTS.md`, `DOMAIN_MODEL.md`, `API_CONTRACTS.md`, `MODULE_CATALOG.md`, `TASKS.md`, `DECISIONS.md`, `DATABASE.md`, `ARCHITECTURE.md`, `AGENTS.md`, `CHANGELOG.md`, `README.md`, `POS_UX.md`.
+
 ### 2026-10-31 — Audit log
 - Successful user, product, stock, purchase, sale, expense, and supplier changes write one `audit_entries` row in the same database transaction. `012_audit_log.sql` adds that table. Admin reads it at `GET /api/audit` and `/audit`. There is no edit or delete route. A failed change and an idempotent replay do not leave a success entry. Passwords, hashes, tokens, supplier contact details, and expense notes are not stored. Entries remain after a soft delete.
 - Customer receivables and supplier payments stay unimplemented.

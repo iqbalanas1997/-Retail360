@@ -5,6 +5,8 @@ import { NamedCatalogPage } from './catalog/named-catalog-page';
 import { ProductFormPage } from './catalog/product-form-page';
 import { ProductListPage } from './catalog/product-list-page';
 import { authGuard, guestGuard } from './core/auth.guard';
+import { CustomerFormPage } from './customers/customer-form-page';
+import { CustomerListPage } from './customers/customer-list-page';
 import { DashboardPage } from './dashboard/dashboard-page';
 import { ExpenseFormPage } from './expenses/expense-form-page';
 import { ExpenseListPage } from './expenses/expense-list-page';
@@ -55,6 +57,9 @@ export const routes: Routes = [
       { path: 'suppliers', component: SupplierListPage, data: { title: 'Suppliers' } },
       { path: 'suppliers/new', component: SupplierFormPage, data: { title: 'New supplier' } },
       { path: 'suppliers/:id', component: SupplierFormPage, data: { title: 'Supplier' } },
+      { path: 'customers', component: CustomerListPage, data: { title: 'Customers' } },
+      { path: 'customers/new', component: CustomerFormPage, data: { title: 'New customer' } },
+      { path: 'customers/:id', component: CustomerFormPage, data: { title: 'Customer' } },
       { path: 'purchases', component: PurchaseListPage, data: { title: 'Purchases' } },
       { path: 'purchases/new', component: PurchaseFormPage, data: { title: 'New purchase' } },
       { path: 'purchases/:id', component: PurchaseFormPage, data: { title: 'Purchase' } },

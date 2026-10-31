@@ -193,6 +193,105 @@ public sealed class SaleDatabaseTests
     }
 
     [Fact]
+    public async Task A_customer_is_optional_and_does_not_change_the_cash_sale()
+    {
+        var sales = _database.CreateSales();
+        var product = await SeedProductAsync("Customer Tea", 4.00m, true);
+        var shelf = await SeedShelfAsync(true);
+        await OpenAsync(product, shelf, 5.000m);
+        var buyer = await SeedCustomerAsync("Amina", true, false, "03001234567");
+        var inactive = await SeedCustomerAsync("Inactive buyer", false, false, "03007654321");
+        var removed = await SeedCustomerAsync("Removed buyer", true, true, "03000000000");
+        var other = await SeedCustomerAsync("Other buyer", true, false, "03001110000");
+
+        var walkIn = await sales.CompleteAsync(Command(Guid.NewGuid(), product, shelf, 1m), CancellationToken.None);
+        var operationId = Guid.NewGuid();
+        var named = await sales.CompleteAsync(
+            Command(operationId, product, shelf, 1m, buyer),
+            CancellationToken.None);
+        var replay = await sales.CompleteAsync(
+            Command(operationId, product, shelf, 1m, buyer),
+            CancellationToken.None);
+        var inactiveSale = await Assert.ThrowsAsync<SaleRuleException>(() => sales.CompleteAsync(
+            Command(Guid.NewGuid(), product, shelf, 1m, inactive),
+            CancellationToken.None));
+        var removedSale = await Assert.ThrowsAsync<SaleRuleException>(() => sales.CompleteAsync(
+            Command(Guid.NewGuid(), product, shelf, 1m, removed),
+            CancellationToken.None));
+        var changedCustomer = await Assert.ThrowsAsync<SaleRuleException>(() => sales.CompleteAsync(
+            Command(operationId, product, shelf, 1m, other),
+            CancellationToken.None));
+
+        await using (var connection = await _database.OpenAsync())
+        {
+            await connection.ExecuteAsync(
+                "update customers set is_active = false, updated_at = now() where id = @Id;",
+                new { Id = buyer });
+        }
+
+        var afterDeactivate = await sales.GetAsync(named.Id, CancellationToken.None);
+        await using (var connection = await _database.OpenAsync())
+        {
+            await connection.ExecuteAsync(
+                "update customers set is_deleted = true, updated_at = now() where id = @Id;",
+                new { Id = buyer });
+        }
+
+        var afterDelete = await sales.GetAsync(named.Id, CancellationToken.None);
+        var transactions = new PostgresTransaction(_database.Connections);
+        var history = await new SaleStore(
+            _database.Connections,
+            transactions,
+            new StockLedgerStore(_database.Connections, transactions)).ListForCustomerAsync(
+            buyer,
+            50,
+            0,
+            CancellationToken.None);
+        await using var connectionAfter = await _database.OpenAsync();
+        var quantity = await connectionAfter.ExecuteScalarAsync<decimal>(
+            "select quantity from stock_balances where product_id = @ProductId;",
+            new { ProductId = product });
+        var audits = await connectionAfter.ExecuteScalarAsync<long>(
+            """
+            select count(*)
+            from audit_entries
+            where entity_id = @Id and action = 'sale.completed';
+            """,
+            new { Id = named.Id.ToString("D") });
+        var details = await connectionAfter.ExecuteScalarAsync<string>(
+            "select details::text from audit_entries where entity_id = @Id and action = 'sale.completed';",
+            new { Id = named.Id.ToString("D") });
+        var inactiveSales = await connectionAfter.ExecuteScalarAsync<long>(
+            "select count(*) from sales where customer_id = @Id;",
+            new { Id = inactive });
+
+        Assert.Null(walkIn.CustomerId);
+        Assert.Null(walkIn.CustomerName);
+        Assert.Equal("cash", walkIn.PaymentMethod);
+        Assert.Equal(4.00m, walkIn.Total);
+        Assert.Equal(buyer, named.CustomerId);
+        Assert.Equal("Amina", named.CustomerName);
+        Assert.Equal(walkIn.Total, named.Total);
+        Assert.Equal("cash", named.PaymentMethod);
+        Assert.Equal(named.Id, replay.Id);
+        Assert.Equal(SaleRuleFailure.Conflict, inactiveSale.Failure);
+        Assert.Equal("Customer is inactive.", inactiveSale.Message);
+        Assert.Equal(SaleRuleFailure.NotFound, removedSale.Failure);
+        Assert.Equal(SaleRuleFailure.Conflict, changedCustomer.Failure);
+        Assert.Equal(buyer, afterDeactivate.CustomerId);
+        Assert.Equal("Amina", afterDeactivate.CustomerName);
+        Assert.Equal("Amina", afterDelete.CustomerName);
+        Assert.Equal(4.00m, Assert.Single(history).Total);
+        Assert.Equal("cash", history[0].PaymentMethod);
+        Assert.Equal(3.000m, quantity);
+        Assert.Equal(1, audits);
+        Assert.Contains(buyer.ToString("D"), details, StringComparison.Ordinal);
+        Assert.DoesNotContain("private note", details, StringComparison.Ordinal);
+        Assert.DoesNotContain("03001234567", details, StringComparison.Ordinal);
+        Assert.Equal(0, inactiveSales);
+    }
+
+    [Fact]
     public async Task Concurrent_sales_of_the_last_unit_post_stock_once()
     {
         var sales = _database.CreateSales();
@@ -320,9 +419,34 @@ public sealed class SaleDatabaseTests
             CancellationToken.None);
     }
 
-    private static CompleteSaleCommand Command(Guid operationId, Guid productId, Guid shelfId, decimal quantity)
+    private static CompleteSaleCommand Command(
+        Guid operationId,
+        Guid productId,
+        Guid shelfId,
+        decimal quantity,
+        Guid? customerId = null)
     {
-        return new CompleteSaleCommand(operationId, [new CompleteSaleLineCommand(productId, shelfId, quantity)]);
+        return new CompleteSaleCommand(
+            operationId,
+            [new CompleteSaleLineCommand(productId, shelfId, quantity)],
+            customerId);
+    }
+
+    private async Task<Guid> SeedCustomerAsync(string name, bool active, bool deleted, string phone)
+    {
+        var id = Guid.NewGuid();
+        await using var connection = await _database.OpenAsync();
+        await connection.ExecuteAsync(
+            """
+            insert into customers (
+                id, name, phone, email, address, notes, is_active,
+                created_at, updated_at, is_deleted)
+            values (
+                @Id, @Name, @Phone, null, null, 'private note', @Active,
+                now(), now(), @Deleted);
+            """,
+            new { Id = id, Name = name, Phone = phone, Active = active, Deleted = deleted });
+        return id;
     }
 
     private async Task<string> CreateUserAsync(string role)

@@ -78,7 +78,23 @@ public sealed class SaleService
             SaleText.RequireQuantity(line.Quantity);
             return line;
         }).ToArray();
-        var fingerprint = SaleText.Fingerprint(prepared.Select(line => (line.ProductId, line.ShelfId, line.Quantity)).ToArray());
-        return _sales.CompleteAsync(operationId, fingerprint, prepared, _clock.UtcNow, cancellationToken);
+        Guid? customerId = null;
+        if (command.CustomerId is Guid requested)
+        {
+            customerId = requested == Guid.Empty
+                ? throw new SaleRuleException(SaleRuleFailure.NotFound, "Customer was not found.")
+                : requested;
+        }
+
+        var fingerprint = SaleText.Fingerprint(
+            prepared.Select(line => (line.ProductId, line.ShelfId, line.Quantity)).ToArray(),
+            customerId);
+        return _sales.CompleteAsync(
+            operationId,
+            fingerprint,
+            prepared,
+            customerId,
+            _clock.UtcNow,
+            cancellationToken);
     }
 }

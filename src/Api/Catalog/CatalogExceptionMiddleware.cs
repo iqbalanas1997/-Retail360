@@ -6,6 +6,7 @@ using Retail360.Domain.Inventory;
 using Retail360.Domain.Purchasing;
 using Retail360.Domain.Reporting;
 using Retail360.Domain.Sales;
+using Retail360.Domain.Customers;
 using Retail360.Domain.Suppliers;
 
 namespace Retail360.Api.Catalog;
@@ -38,6 +39,10 @@ public sealed class CatalogExceptionMiddleware
             await WriteRuleAsync(context, exception, StatusFor(exception.Failure));
         }
         catch (SupplierRuleException exception)
+        {
+            await WriteRuleAsync(context, exception, StatusFor(exception.Failure));
+        }
+        catch (CustomerRuleException exception)
         {
             await WriteRuleAsync(context, exception, StatusFor(exception.Failure));
         }
@@ -133,6 +138,16 @@ public sealed class CatalogExceptionMiddleware
         {
             SupplierRuleFailure.NotFound => StatusCodes.Status404NotFound,
             SupplierRuleFailure.Conflict => StatusCodes.Status409Conflict,
+            _ => StatusCodes.Status400BadRequest
+        };
+    }
+
+    private static int StatusFor(CustomerRuleFailure failure)
+    {
+        return failure switch
+        {
+            CustomerRuleFailure.NotFound => StatusCodes.Status404NotFound,
+            CustomerRuleFailure.Conflict => StatusCodes.Status409Conflict,
             _ => StatusCodes.Status400BadRequest
         };
     }

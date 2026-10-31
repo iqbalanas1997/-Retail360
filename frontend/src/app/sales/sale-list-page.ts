@@ -40,6 +40,10 @@ export class SaleListPage {
     return formatMoney(value);
   }
 
+  protected customerLabel(sale: Sale): string {
+    return sale.customerName?.trim() || 'No customer';
+  }
+
   protected soldAt(sale: Sale): string {
     return formatSoldAt(sale.soldAt);
   }
