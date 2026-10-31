@@ -1,0 +1,57 @@
+<form class="toolbar" [formGroup]="form" (ngSubmit)="search()">
+  <label>
+    Name
+    <input formControlName="name" />
+  </label>
+  <label>
+    <input type="checkbox" formControlName="activeOnly" />
+    Active only
+  </label>
+  <button type="submit">Search</button>
+  @if (canManage()) {
+    <a class="button" routerLink="/users/new">New user</a>
+  }
+</form>
+
+@if (error()) {
+  <p class="notice error" role="alert">{{ error() }}</p>
+  <button type="button" class="secondary" (click)="reload()">Try again</button>
+}
+
+@if (success()) {
+  <p class="notice ok" role="status">{{ success() }}</p>
+}
+
+@if (loading()) {
+  <p class="status">Loading users…</p>
+} @else if (users().length === 0 && !error()) {
+  <p class="status">No users match this search.</p>
+} @else if (users().length > 0) {
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>User name</th>
+          <th>Role</th>
+          <th>Status</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        @for (user of users(); track user.id) {
+          <tr>
+            <td>{{ user.userName }}</td>
+            <td>{{ user.role }}</td>
+            <td>{{ status(user) }}</td>
+            <td><a [routerLink]="['/users', user.id]">Open</a></td>
+          </tr>
+        }
+      </tbody>
+    </table>
+  </div>
+  @if (hasMore()) {
+    <button type="button" class="secondary" [disabled]="loadingMore()" (click)="showMore()">
+      {{ loadingMore() ? 'Loading…' : 'Show more' }}
+    </button>
+  }
+}

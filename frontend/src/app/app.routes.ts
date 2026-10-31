@@ -19,6 +19,8 @@ import { SaleDetailPage } from './sales/sale-detail-page';
 import { SaleListPage } from './sales/sale-list-page';
 import { SupplierFormPage } from './suppliers/supplier-form-page';
 import { SupplierListPage } from './suppliers/supplier-list-page';
+import { UserFormPage } from './users/user-form-page';
+import { UserListPage } from './users/user-list-page';
 
 export const routes: Routes = [
   { path: 'login', component: LoginPage, canActivate: [guestGuard] },
@@ -60,6 +62,9 @@ export const routes: Routes = [
       { path: 'expenses/:id', component: ExpenseFormPage, data: { title: 'Expense' } },
       { path: 'pos', component: PosPage, data: { title: 'POS' } },
       { path: 'sales', component: SaleListPage, data: { title: 'Sales' } },
+      { path: 'users', component: UserListPage, data: { title: 'Users' } },
+      { path: 'users/new', component: UserFormPage, data: { title: 'New user' } },
+      { path: 'users/:id', component: UserFormPage, data: { title: 'User' } },
       { path: 'sales/:id', component: SaleDetailPage, data: { title: 'Receipt' } },
       { path: '**', redirectTo: 'catalog/products' },
     ],

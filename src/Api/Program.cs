@@ -34,6 +34,7 @@ builder.Services.AddScoped<PurchaseService>();
 builder.Services.AddScoped<SaleService>();
 builder.Services.AddScoped<ExpenseService>();
 builder.Services.AddScoped<ReportService>();
+builder.Services.AddScoped<UserService>();
 builder.Services.AddScoped<ShopSignInService>();
 builder.Services.AddSingleton<IAuthorizationMiddlewareResultHandler, ShopAuthorizationResultHandler>();
 
@@ -95,6 +96,7 @@ builder.Services.AddAuthorization(options =>
         ShopRoleNames.Admin, ShopRoleNames.Manager));
     options.AddPolicy(ShopPolicies.ReportRead, policy => policy.RequireRole(
         ShopRoleNames.Admin, ShopRoleNames.Manager));
+    options.AddPolicy(ShopPolicies.UserManage, policy => policy.RequireRole(ShopRoleNames.Admin));
 });
 builder.Services.AddControllers()
     .ConfigureApiBehaviorOptions(options =>

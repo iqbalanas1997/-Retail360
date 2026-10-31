@@ -29,4 +29,6 @@ public static class ShopPolicies
     public const string ExpenseWrite = "ExpenseWrite";
 
     public const string ReportRead = "ReportRead";
+
+    public const string UserManage = "UserManage";
 }

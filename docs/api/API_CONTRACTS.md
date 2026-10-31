@@ -14,7 +14,7 @@ This document starts as a contract policy and becomes a concrete endpoint catalo
 ## Authentication
 `POST /api/auth/login` is anonymous. Body: `{ "userName", "password" }`. A success returns `{ "accessToken", "tokenType", "expiresAt", "userId", "userName" }` and does not include a password hash. `tokenType` is `Bearer`. Send the token as `Authorization: Bearer <accessToken>`.
 
-Unknown user names, wrong passwords, soft-deleted users, and users whose `lockout_end` is still in the future all return 401 `{ "error": "The user name or password is incorrect." }`. Five wrong passwords for an existing unlocked user set that lockout for five minutes. A successful login clears the failed count only while the account is still unlocked. A missing body is 400. A missing or invalid token on any other route is 401 `{ "error": "Authentication is required." }`. A signed-in role that is not allowed is 403 `{ "error": "You do not have access to this action." }`. `POST /api/auth/login` is the only anonymous business route.
+Unknown user names, wrong passwords, soft-deleted users, inactive users, and users whose `lockout_end` is still in the future all return 401 `{ "error": "The user name or password is incorrect." }`. Five wrong passwords for an existing unlocked user set that lockout for five minutes. A successful login clears the failed count only while the account is still unlocked. A missing body is 400. A missing or invalid token on any other route is 401 `{ "error": "Authentication is required." }`. A signed-in role that is not allowed is 403 `{ "error": "You do not have access to this action." }`. `POST /api/auth/login` is the only anonymous business route.
 
 The token is checked for signature, issuer, audience, and expiry. Roles are read from `asp_net_user_roles` for the user id in the token. A role claim that is not assigned in the database does not grant access. There is no public registration endpoint.
 
@@ -32,6 +32,7 @@ Assumption: every shop role may look up products and stock. Only Admin and Manag
 | Expense read, including the filtered total | yes | yes | yes | yes |
 | Expense create, update, delete | yes | yes | no | no |
 | Dashboard read | yes | yes | no | no |
+| User list, create, update, activate, deactivate, delete | yes | no | no | no |
 
 ## Errors
 Every module returns JSON `{ "error": "message" }`. The body has that one property. A signed-in caller still receives these bodies after authorization succeeds. Malformed JSON, a missing body, and a query value that cannot be read use the same body with HTTP 400. The messages are "The request body is invalid.", "Request body is required.", or the binder's short value message when that message does not include a type name or parser detail. An unexpected exception is HTTP 500 `{ "error": "The request could not be completed." }`. The response does not include the exception, SQL, a stack trace, or a connection string. The API logs that exception with the request method, path, and trace id. A shop rule rejection is logged as a warning with the same trace id and the client message. Authentication failure is an information log. Authorization failure is a warning. Those logs do not include passwords, tokens, signing keys, or authorization headers.
@@ -169,3 +170,20 @@ There is no shop timezone. `from` and `to` are inclusive calendar dates. A sale 
 | GET | `/api/reports/low-stock?limit=` | Current low-stock count for active products and a short list. `limit` defaults to 10 and cannot exceed 50. On-hand quantity is the sum of every shelf balance. Low stock means that sum is greater than zero and less than or equal to `minimum_stock`. Inactive and soft-deleted products are omitted. |
 
 A purchase whose document date and receive date both fall in the range is present in both purchase figures. Those figures are not added together. Low stock does not use `from` or `to`. Customers and receivables remain future work, and a cash sale does not require a customer. A future gross-profit figure would need a cost snapshot on each sale line. The current catalog purchase price is not that cost.
+
+## Users
+User failures use the same `{ "error": "message" }` body. Invalid input is 400. A missing or soft-deleted user is 404. A duplicate user name, self-deactivation, self-removal, and a change that would leave no usable Admin are 409. `DELETE` sets `is_deleted` and does not run a SQL `DELETE`.
+
+`UserManage` allows Admin only. Manager, Cashier, and Inventory Staff receive 403.
+
+| Method | Route | Behavior |
+|---|---|---|
+| GET | `/api/users?name=&activeOnly=&limit=&offset=` | List users that are not soft-deleted. `name` matches part of the user name. `activeOnly` defaults to false. `limit` defaults to 50 and cannot exceed 200. |
+| GET | `/api/users/{id}` | Read one user. The response has no password and no password hash. |
+| POST | `/api/users` | Create from `{ "userName", "role", "password" }`. Returns 201. The account starts active. |
+| PUT | `/api/users/{id}` | Replace the user name and role. `password` may be null or blank, and then the stored hash stays. This does not change `isActive`. |
+| POST | `/api/users/{id}/activate` | Set `isActive` to true. |
+| POST | `/api/users/{id}/deactivate` | Set `isActive` to false. This does not delete the user. |
+| DELETE | `/api/users/{id}` | Logical delete. Returns 204. |
+
+User name is required, trimmed, and at most 256 characters. Role is `Admin`, `Manager`, `Cashier`, or `Inventory Staff`. Password is 8 to 128 characters and is not trimmed. The response is `{ "id", "userName", "role", "isActive", "createdAt", "updatedAt" }`. Names are unique, including a soft-deleted name. The signed-in user cannot deactivate or remove their own account. The last Admin who is active and not deleted cannot be deactivated, removed, or given another role. An inactive or soft-deleted user cannot sign in. A token issued before that change fails on the next protected request. Changing a password does not revoke a token that was already issued. There is no public registration.

@@ -14,6 +14,7 @@ import {
 export class SessionService {
   private readonly session = signal<ShopSession | null>(this.currentSession());
 
+  readonly userId = computed(() => this.session()?.userId ?? '');
   readonly userName = computed(() => this.session()?.userName ?? '');
   readonly roles = computed(() => this.session()?.roles ?? []);
   readonly canWriteCatalog = computed(() =>
@@ -40,6 +41,7 @@ export class SessionService {
   readonly canViewReports = computed(() =>
     this.roles().some((role) => role === 'Admin' || role === 'Manager'),
   );
+  readonly canManageUsers = computed(() => this.roles().some((role) => role === 'Admin'));
   readonly hasSession = computed(() => this.session() !== null);
 
   private readonly zone = inject(NgZone);

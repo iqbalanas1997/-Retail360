@@ -47,6 +47,7 @@ public static class DependencyInjection
         services.AddSingleton(ShopAuthenticationSettings.ReadLockout(configuration));
         services.AddSingleton<IShopPasswordHasher, ShopPasswordHasher>();
         services.AddSingleton<IShopUserDirectory, ShopUserDirectory>();
+        services.AddSingleton<IUserAccountStore, UserAccountStore>();
         services.AddSingleton<IAccessTokenIssuer, JwtAccessTokenIssuer>();
         services.AddSingleton<ShopAdminBootstrap>();
         services.AddSingleton<ICategoryStore, CategoryCatalogStore>();

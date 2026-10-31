@@ -10,7 +10,7 @@
 | Customers | Customer records/receivables | Customer, CustomerPayment | Planned. Cash sales do not require a customer. Receivables and Udhaar are not implemented. |
 | Expenses | Shop expenses | Expense, fixed category | Backend implemented in `009_expenses.sql` and `010_expense_amount_scale.sql`. Categories are a fixed list, not a managed catalog. Angular list, record, and edit screens. Cash only. An expense does not change stock, purchases, suppliers, or sales. |
 | Reporting | Dashboard/reports | Read-only sales, expense, purchase, and low-stock summaries | Backend and Angular dashboard. No stored report rows. No profit, inventory value, payable, or receivable figure. |
-| Identity | Users/roles | User, Role | Backend sign-in is in place on the existing Identity tables. JWT access tokens and role checks are implemented. Permission is not a table. Angular sign-in calls `POST /api/auth/login` and keeps the access token in `sessionStorage` until expiry. |
+| Identity | Users/roles | User, Role | Backend sign-in is in place on the existing Identity tables. JWT access tokens and role checks are implemented. Permission is not a table. Angular sign-in calls `POST /api/auth/login` and keeps the access token in `sessionStorage` until expiry. Admin manages staff at `/users`: list, create, one existing role, edit, activate, deactivate, and soft delete. |
 | Audit | Important activity log | AuditEntry | Planned |
 
 ## Inventory scope
@@ -31,6 +31,9 @@ Reporting reads completed sales, expenses, purchases, and current stock. It does
 
 ## Expenses scope
 Expenses owns a shop expense record. It does not own inventory, purchases, supplier balances, sales, or customer receivables. The category is one of `rent`, `utilities`, `wages`, `transport`, `supplies`, `repairs`, or `other`. There is no category-management screen. The payment method is `cash`. Amount uses `numeric(12,2)` and must be greater than zero. The expense date is required. Notes are optional. Admin and Manager can record, change, and soft-delete an expense. Every shop role can read the list. The list total is the sum of the expenses that match the current date and category filter, including rows beyond the current page.
+
+## Identity scope
+Identity owns sign-in and staff accounts. The roles stay Admin, Manager, Cashier, and Inventory Staff. There is no permission table and no second user table. Admin is the only role that can manage users. `is_active` stops sign-in without deleting the row. `lockout_end` remains the five-minute password lock. A removed user name stays reserved because the unique user-name index includes soft-deleted rows.
 
 ## Duplication prevention
 Before adding a new module or concept:

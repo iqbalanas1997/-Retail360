@@ -20,7 +20,7 @@ public sealed class ShopUserDirectory : IShopUserDirectory
         CancellationToken cancellationToken)
     {
         const string sql = """
-            select id, user_name, password_hash, is_deleted, lockout_enabled, lockout_end
+            select id, user_name, password_hash, is_deleted, is_active, lockout_enabled, lockout_end
             from asp_net_users
             where normalized_user_name = @NormalizedUserName;
             """;
@@ -38,7 +38,7 @@ public sealed class ShopUserDirectory : IShopUserDirectory
         CancellationToken cancellationToken)
     {
         const string sql = """
-            select id, user_name, password_hash, is_deleted, lockout_enabled, lockout_end
+            select id, user_name, password_hash, is_deleted, is_active, lockout_enabled, lockout_end
             from asp_net_users
             where id = @Id;
             """;
@@ -47,7 +47,7 @@ public sealed class ShopUserDirectory : IShopUserDirectory
             sql,
             new { Id = userId },
             cancellationToken: cancellationToken));
-        if (row is null || row.IsDeleted || string.IsNullOrWhiteSpace(row.UserName))
+        if (row is null || row.IsDeleted || !row.IsActive || string.IsNullOrWhiteSpace(row.UserName))
         {
             return null;
         }
@@ -88,6 +88,7 @@ public sealed class ShopUserDirectory : IShopUserDirectory
                 join asp_net_users u on u.id = ur.user_id
                 join asp_net_roles r on r.id = ur.role_id
                 where u.is_deleted = false
+                  and u.is_active = true
                   and r.is_deleted = false
                   and r.name = 'Admin');
             """;
@@ -133,12 +134,12 @@ public sealed class ShopUserDirectory : IShopUserDirectory
             await connection.ExecuteAsync(new CommandDefinition(
                 """
                 insert into asp_net_users (
-                    id, created_at, updated_at, is_deleted, user_name, normalized_user_name,
+                    id, created_at, updated_at, is_deleted, is_active, user_name, normalized_user_name,
                     email, normalized_email, email_confirmed, password_hash, security_stamp,
                     concurrency_stamp, phone_number, phone_number_confirmed, two_factor_enabled,
                     lockout_end, lockout_enabled, access_failed_count)
                 values (
-                    @Id, @UtcNow, @UtcNow, false, @UserName, @NormalizedUserName,
+                    @Id, @UtcNow, @UtcNow, false, true, @UserName, @NormalizedUserName,
                     null, null, false, @PasswordHash, @Stamp,
                     @Stamp, null, false, false,
                     null, true, 0);
@@ -243,7 +244,8 @@ public sealed class ShopUserDirectory : IShopUserDirectory
                     from asp_net_user_roles ur
                     join asp_net_users u on u.id = ur.user_id
                     where ur.role_id = @RoleId
-                      and u.is_deleted = false);
+                      and u.is_deleted = false
+                      and u.is_active = true);
                 """,
                 new { RoleId = roleId },
                 transaction,
@@ -272,12 +274,12 @@ public sealed class ShopUserDirectory : IShopUserDirectory
             await connection.ExecuteAsync(new CommandDefinition(
                 """
                 insert into asp_net_users (
-                    id, created_at, updated_at, is_deleted, user_name, normalized_user_name,
+                    id, created_at, updated_at, is_deleted, is_active, user_name, normalized_user_name,
                     email, normalized_email, email_confirmed, password_hash, security_stamp,
                     concurrency_stamp, phone_number, phone_number_confirmed, two_factor_enabled,
                     lockout_end, lockout_enabled, access_failed_count)
                 values (
-                    @Id, @UtcNow, @UtcNow, false, @UserName, @NormalizedUserName,
+                    @Id, @UtcNow, @UtcNow, false, true, @UserName, @NormalizedUserName,
                     null, null, false, @PasswordHash, @Stamp,
                     @Stamp, null, false, false,
                     null, true, 0);
@@ -312,6 +314,7 @@ public sealed class ShopUserDirectory : IShopUserDirectory
             row.UserName ?? string.Empty,
             row.PasswordHash,
             row.IsDeleted,
+            row.IsActive,
             row.LockoutEnabled,
             row.LockoutEnd);
     }
@@ -325,6 +328,8 @@ public sealed class ShopUserDirectory : IShopUserDirectory
         public string? PasswordHash { get; init; }
 
         public bool IsDeleted { get; init; }
+
+        public bool IsActive { get; init; }
 
         public bool LockoutEnabled { get; init; }
 

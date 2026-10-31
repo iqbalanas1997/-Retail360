@@ -56,7 +56,7 @@ A read-only view of completed sales, recorded expenses, purchase documents, and 
 ### User / Role / Permission
 Controls system access.
 
-Domain keeps the role names in `ShopRoleNames`: Admin, Manager, Cashier, and Inventory Staff. The user and role rows live in the existing PostgreSQL Identity tables and are read with Dapper from Infrastructure. Users and roles carry `created_at`, `updated_at`, and `is_deleted`. There is no separate inactive flag. `lockout_end` blocks sign-in while it is in the future. Permission is not a table. Sign-in is the JWT baseline in ADR-012. Passwords are stored only as hashes.
+Domain keeps the role names in `ShopRoleNames`: Admin, Manager, Cashier, and Inventory Staff. The user and role rows live in the existing PostgreSQL Identity tables and are read with Dapper from Infrastructure. Users and roles carry `created_at`, `updated_at`, and `is_deleted`. `is_active` means the account can sign in. Deactivation is not deletion. `lockout_end` is only the five-minute sign-in lock. Permission is not a table. A staff account has one of those four roles. The signed-in user cannot deactivate or remove their own account. The last usable Admin, an Admin who is not deleted and is active, cannot be deactivated, removed, or given another role. Sign-in is the JWT baseline in ADR-012. Passwords are stored only as hashes.
 
 ### Audit Entry
 Records important actions where accountability is required.

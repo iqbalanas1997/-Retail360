@@ -10,6 +10,12 @@ Use this file for meaningful project-level changes that affect future AI context
 - Documentation updated
 
 ## Entries
+### 2026-10-23 — Staff accounts
+- Admin can list, create, edit, and assign one existing role to a staff account, and can activate or deactivate it without hard-deleting it. `011_user_active.sql` adds `is_active`. The signed-in user cannot deactivate or remove their own account. The last usable Admin cannot be deactivated, removed, or given another role. An inactive user cannot sign in, and an existing token fails on the next request. Password hashes are not returned.
+- Audit log, customer receivables, and supplier payments stay unimplemented.
+- Impacted modules: Identity.
+- Documentation updated: `DOMAIN_MODEL.md`, `API_CONTRACTS.md`, `MODULE_CATALOG.md`, `TASKS.md`, `DECISIONS.md`, `DATABASE.md`, `ARCHITECTURE.md`, `AGENTS.md`, `CHANGELOG.md`, `README.md`.
+
 ### 2026-10-22 — Shop dashboard
 - Added a read-only dashboard for completed sales, recorded expenses, purchase documents, and current low stock. Dates are inclusive. Sale and receive times use the UTC calendar date. The screen does not show profit.
 - Admin and Manager can open it. Cashier and Inventory Staff cannot. No new table was added.

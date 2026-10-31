@@ -37,7 +37,7 @@ public sealed class ShopSignInService
         }
 
         var account = await _users.FindByUserNameAsync(userName.ToUpperInvariant(), cancellationToken);
-        if (account is null || account.IsDeleted || string.IsNullOrEmpty(account.PasswordHash))
+        if (account is null || account.IsDeleted || !account.IsActive || string.IsNullOrEmpty(account.PasswordHash))
         {
             _passwords.Verify(_unknownUserHash, command.Password);
             return null;

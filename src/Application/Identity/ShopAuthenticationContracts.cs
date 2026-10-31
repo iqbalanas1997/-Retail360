@@ -16,6 +16,7 @@ public sealed record ShopUserAccount(
     string UserName,
     string? PasswordHash,
     bool IsDeleted,
+    bool IsActive,
     bool LockoutEnabled,
     DateTimeOffset? LockoutEnd);
 
