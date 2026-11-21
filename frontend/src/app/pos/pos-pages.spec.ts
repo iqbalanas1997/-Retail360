@@ -58,12 +58,13 @@ describe('POS and sales screens', () => {
     created.flush(sale());
     await turn();
     harness.detectChanges();
-    TestBed.inject(HttpTestingController).expectOne('/api/sales/sale-1').flush(sale());
-    await turn();
-    harness.detectChanges();
 
+    expect(TestBed.inject(Router).url).toBe('/pos');
     expect(harness.routeNativeElement?.textContent).toContain('Receipt 1');
     expect(text(harness)).toContain('Sale completed.');
+    expect((root.querySelector('[name="shelf"]') as HTMLSelectElement).value).toBe('shelf-1');
+    expect((root.querySelector('[name="quantity"]') as HTMLInputElement).value).toBe('1');
+    expect(document.activeElement).toBe(root.querySelector('[name="barcode"]'));
     expect(text(harness)).toContain('Front B');
     expect(text(harness)).toContain('2026-10-19 21:05:46 UTC');
     expect(text(harness)).toContain('No customer');
@@ -76,6 +77,8 @@ describe('POS and sales screens', () => {
     await turn();
     harness.detectChanges();
     const root = harness.fixture.nativeElement as HTMLElement;
+    clickButton(root, 'Add customer');
+    harness.detectChanges();
     setNamed(root, 'customer', 'Amina');
     submitForm(root, 'Find customer');
     TestBed.inject(HttpTestingController)
@@ -111,7 +114,10 @@ describe('POS and sales screens', () => {
     clickButton(root, 'Clear customer');
     harness.detectChanges();
     expect(text(harness)).not.toContain('Amina · 0300');
+    expect(text(harness)).toContain('Walk-in sale');
 
+    clickButton(root, 'Add customer');
+    harness.detectChanges();
     setNamed(root, 'customer', 'Amina');
     submitForm(root, 'Find customer');
     TestBed.inject(HttpTestingController)
@@ -154,9 +160,6 @@ describe('POS and sales screens', () => {
     created.flush(receipt);
     await turn();
     harness.detectChanges();
-    TestBed.inject(HttpTestingController).expectOne('/api/sales/sale-1').flush(receipt);
-    await turn();
-    harness.detectChanges();
 
     expect(text(harness)).toContain('Customer Amina');
     expect(text(harness)).toContain('cash');
@@ -172,15 +175,9 @@ describe('POS and sales screens', () => {
     const root = harness.fixture.nativeElement as HTMLElement;
     setNamed(root, 'shelf', 'shelf-1');
     setNamed(root, 'productName', 'Tea');
-    submitForm(root, 'Product');
-    TestBed.inject(HttpTestingController)
-      .expectOne(
-        (request) =>
-          request.url === '/api/products' &&
-          request.params.get('name') === 'Tea' &&
-          request.params.get('activeOnly') === 'true',
-      )
-      .flush([product()]);
+    submitForm(root, 'Search products');
+    flushSearch('Tea', [product()]);
+    flushShelfStock();
     await turn();
     harness.detectChanges();
     clickButton(root, 'Add');
@@ -214,7 +211,7 @@ describe('POS and sales screens', () => {
     changed.flush(sale());
     await turn();
     harness.detectChanges();
-    http.expectOne('/api/sales/sale-1').flush(sale());
+    expect(TestBed.inject(Router).url).toBe('/pos');
   });
 
   it('does not let inventory staff complete a sale', async () => {
@@ -287,9 +284,9 @@ describe('POS and sales screens', () => {
     harness.detectChanges();
     const root = harness.fixture.nativeElement as HTMLElement;
     setNamed(root, 'productName', 'Tea');
-    submitForm(root, 'Product');
+    submitForm(root, 'Search products');
     setNamed(root, 'productName', 'Rice');
-    submitForm(root, 'Product');
+    submitForm(root, 'Search products');
     const http = TestBed.inject(HttpTestingController);
     const tea = http.expectOne(
       (request) => request.url === '/api/products' && request.params.get('name') === 'Tea',
@@ -299,6 +296,8 @@ describe('POS and sales screens', () => {
     );
     tea.flush([product()]);
     rice.flush([{ ...product(), id: 'product-2', name: 'Rice', sellingPrice: 2 }]);
+    flushBarcodeMiss(http, 'Tea');
+    flushBarcodeMiss(http, 'Rice');
     await turn();
     harness.detectChanges();
 
@@ -318,13 +317,15 @@ describe('POS and sales screens', () => {
     setNamed(root, 'barcode', 'TEA');
     submitForm(root, 'Barcode');
     setNamed(root, 'productName', 'Rice');
-    submitForm(root, 'Product');
+    submitForm(root, 'Search products');
     const http = TestBed.inject(HttpTestingController);
     const barcode = http.expectOne((request) => request.url === '/api/products/by-barcode/TEA');
     const rice = http.expectOne(
       (request) => request.url === '/api/products' && request.params.get('name') === 'Rice',
     );
     rice.flush([{ ...product(), id: 'product-2', name: 'Rice', sellingPrice: 2 }]);
+    flushBarcodeMiss(http, 'Rice');
+    flushShelfStock();
     barcode.flush(product());
     await turn();
     harness.detectChanges();
@@ -333,6 +334,102 @@ describe('POS and sales screens', () => {
     expect(text(harness)).toContain('2.00');
     expect(text(harness)).toContain('Tea');
     expect(root.querySelectorAll('[name="lineQuantity"]').length).toBe(1);
+  });
+
+  it('adds a product from a barcode typed into search', async () => {
+    remember('Cashier');
+    const harness = await open('/pos');
+    flushShelves();
+    await turn();
+    harness.detectChanges();
+    const root = harness.fixture.nativeElement as HTMLElement;
+    setNamed(root, 'shelf', 'shelf-1');
+    setNamed(root, 'quantity', '2');
+    setNamed(root, 'productName', 'TEA');
+    submitForm(root, 'Search products');
+    const http = TestBed.inject(HttpTestingController);
+    http.expectOne((request) => request.url === '/api/products' && request.params.get('name') === 'TEA').flush([]);
+    http.expectOne((request) => request.url === '/api/products/by-barcode/TEA').flush(product());
+    flushShelfStock();
+    await turn();
+    harness.detectChanges();
+
+    expect(text(harness)).toContain('Pack');
+    clickButton(root, 'Add');
+    harness.detectChanges();
+
+    expect((root.querySelector('[name="lineQuantity"]') as HTMLInputElement).value).toBe('2.000');
+    expect((root.querySelector('[name="quantity"]') as HTMLInputElement).value).toBe('1');
+    expect((root.querySelector('[name="productName"]') as HTMLInputElement).value).toBe('');
+  });
+
+  it('adds the same product twice from browse and keeps the list open', async () => {
+    remember('Cashier');
+    const harness = await open('/pos');
+    flushShelves();
+    await turn();
+    harness.detectChanges();
+    const root = harness.fixture.nativeElement as HTMLElement;
+    setNamed(root, 'shelf', 'shelf-1');
+    clickButton(root, 'Browse products');
+    const http = TestBed.inject(HttpTestingController);
+    http
+      .expectOne(
+        (request) =>
+          request.url === '/api/products' &&
+          request.params.get('name') === null &&
+          request.params.get('limit') === '20' &&
+          request.params.get('offset') === '0',
+      )
+      .flush([product(), { ...product(), id: 'product-2', name: 'Rice', sellingPrice: 2 }]);
+    flushShelfStock('shelf-1', [{ productId: 'product-1', quantity: 4 }]);
+    await turn();
+    harness.detectChanges();
+
+    expect(text(harness)).toContain('4.000');
+    expect(text(harness)).toContain('Rice');
+    clickButton(root, 'Add');
+    http
+      .expectOne((request) => request.url === '/api/products' && request.params.get('offset') === '0')
+      .flush([product(), { ...product(), id: 'product-2', name: 'Rice', sellingPrice: 2 }]);
+    await turn();
+    harness.detectChanges();
+    clickButton(root, 'Add');
+    http
+      .expectOne((request) => request.url === '/api/products' && request.params.get('offset') === '0')
+      .flush([product(), { ...product(), id: 'product-2', name: 'Rice', sellingPrice: 2 }]);
+    await turn();
+    harness.detectChanges();
+
+    expect(root.querySelectorAll('[name="lineQuantity"]').length).toBe(1);
+    expect((root.querySelector('[name="lineQuantity"]') as HTMLInputElement).value).toBe('2.000');
+    expect(text(harness)).toContain('Close browse');
+  });
+
+  it('searches while typing and adds the highlighted product with Enter', async () => {
+    remember('Cashier');
+    const harness = await open('/pos');
+    flushShelves();
+    await turn();
+    harness.detectChanges();
+    const root = harness.fixture.nativeElement as HTMLElement;
+    setNamed(root, 'shelf', 'shelf-1');
+    setNamed(root, 'productName', 'Tea');
+    await new Promise((resolve) => setTimeout(resolve, 300));
+    flushSearch('Tea', [product(), { ...product(), id: 'product-2', name: 'Rice', sellingPrice: 2 }]);
+    flushShelfStock();
+    await turn();
+    harness.detectChanges();
+
+    const input = root.querySelector('[name="productName"]') as HTMLInputElement;
+    input.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true }));
+    harness.detectChanges();
+    expect(root.querySelector('tr.pos-match')?.textContent).toContain('Tea');
+    input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true }));
+    harness.detectChanges();
+
+    expect(root.querySelectorAll('[name="lineQuantity"]').length).toBe(1);
+    expect((root.querySelector('[name="productName"]') as HTMLInputElement).value).toBe('');
   });
 
   it('ignores a repeated barcode scan while the first lookup is running', async () => {
@@ -452,7 +549,7 @@ describe('POS and sales screens', () => {
     http.expectNone((request) => request.method === 'POST' && request.url === '/api/sales');
   });
 
-  it('adds a second line after the first scan finishes and refuses an inactive product', async () => {
+  it('adds the next scan of the same shelf onto the existing line and refuses an inactive product', async () => {
     remember('Cashier');
     const harness = await open('/pos');
     flushShelves();
@@ -472,7 +569,11 @@ describe('POS and sales screens', () => {
     await turn();
     harness.detectChanges();
 
-    expect(root.querySelectorAll('[name="lineQuantity"]').length).toBe(2);
+    expect(root.querySelectorAll('[name="lineQuantity"]').length).toBe(1);
+    expect((root.querySelector('[name="lineQuantity"]') as HTMLInputElement).value).toBe('2.000');
+    clickButton(root, '+');
+    harness.detectChanges();
+    expect((root.querySelector('[name="lineQuantity"]') as HTMLInputElement).value).toBe('3.000');
     setNamed(root, 'barcode', 'OLD');
     submitForm(root, 'Barcode');
     http
@@ -482,7 +583,7 @@ describe('POS and sales screens', () => {
     harness.detectChanges();
 
     expect(text(harness)).toContain('Product is inactive.');
-    expect(root.querySelectorAll('[name="lineQuantity"]').length).toBe(2);
+    expect(root.querySelectorAll('[name="lineQuantity"]').length).toBe(1);
     http.expectNone((request) => request.method === 'POST' && request.url === '/api/sales');
   });
 
@@ -496,10 +597,9 @@ describe('POS and sales screens', () => {
     setNamed(root, 'quantity', '1.2501');
     setNamed(root, 'shelf', 'shelf-1');
     setNamed(root, 'productName', 'Tea');
-    submitForm(root, 'Product');
-    TestBed.inject(HttpTestingController)
-      .expectOne((request) => request.url === '/api/products')
-      .flush([product()]);
+    submitForm(root, 'Search products');
+    flushSearch('Tea', [product()]);
+    flushShelfStock();
     await turn();
     harness.detectChanges();
     clickButton(root, 'Add');
@@ -528,7 +628,8 @@ describe('POS and sales screens', () => {
     retry.flush(sale());
     await turn();
     harness.detectChanges();
-    http.expectOne('/api/sales/sale-1').flush(sale());
+    expect(TestBed.inject(Router).url).toBe('/pos');
+    expect(text(harness)).toContain('Receipt 1');
   });
 
   it('retries a failed shelf load and shows an authorization error instead of an empty sale list', async () => {
@@ -567,29 +668,26 @@ describe('POS and sales screens', () => {
     const root = harness.fixture.nativeElement as HTMLElement;
     setNamed(root, 'shelf', 'shelf-1');
     setNamed(root, 'productName', 'Tea');
-    submitForm(root, 'Product');
-    TestBed.inject(HttpTestingController)
-      .expectOne((request) => request.url === '/api/products')
-      .flush([product()]);
+    submitForm(root, 'Search products');
+    flushSearch('Tea', [product()]);
+    flushShelfStock();
     await turn();
     harness.detectChanges();
     clickButton(root, 'Add');
     harness.detectChanges();
-    const navigate = vi.spyOn(TestBed.inject(Router), 'navigate').mockResolvedValue(false);
     clickButton(root, 'Complete sale');
     const http = TestBed.inject(HttpTestingController);
     http.expectOne((request) => request.method === 'POST' && request.url === '/api/sales').flush(sale());
     await turn();
     harness.detectChanges();
 
-    expect(text(harness)).toContain('Tea');
-    expect(root.querySelector('[name="lineQuantity"]')).not.toBeNull();
-    clickButton(root, 'Complete sale');
-    await turn();
-    harness.detectChanges();
+    expect(TestBed.inject(Router).url).toBe('/pos');
+    expect(text(harness)).toContain('Receipt 1');
+    expect(root.querySelector('[name="lineQuantity"]')).toBeNull();
+    expect([...root.querySelectorAll('button')].some((button) => button.textContent?.trim() === 'Complete sale')).toBe(
+      false,
+    );
     http.expectNone((request) => request.method === 'POST' && request.url === '/api/sales');
-    expect(navigate).toHaveBeenCalledTimes(2);
-    navigate.mockRestore();
   });
 
   it('returns to sign-in when the session expires on the counter', async () => {
@@ -622,7 +720,11 @@ describe('POS and sales screens', () => {
     const root = harness.fixture.nativeElement as HTMLElement;
 
     expect(root.querySelector('[name="salePayment"]')).toBeNull();
+    expect(text(harness)).toContain('Walk-in sale');
+    expect(document.activeElement).toBe(root.querySelector('[name="shelf"]'));
 
+    clickButton(root, 'Add customer');
+    harness.detectChanges();
     setNamed(root, 'customer', 'Amina');
     submitForm(root, 'Find customer');
     TestBed.inject(HttpTestingController)
@@ -658,7 +760,7 @@ describe('POS and sales screens', () => {
     await turn();
     harness.detectChanges();
     setNamed(root, 'paymentAmount', '2.50');
-    submitForm(root, 'Payment amount');
+    submitForm(root, 'Collect outstanding');
     const payment = TestBed.inject(HttpTestingController).expectOne(
       (request) => request.method === 'POST' && request.url === '/api/customers/customer-1/payments',
     );
@@ -676,6 +778,23 @@ describe('POS and sales screens', () => {
     harness.detectChanges();
     expect(text(harness)).toContain('Payment recorded.');
     expect(text(harness)).toContain('Outstanding 10.00');
+    setNamed(root, 'paymentAmount', '10');
+    submitForm(root, 'Collect outstanding');
+    const exact = TestBed.inject(HttpTestingController).expectOne(
+      (request) => request.method === 'POST' && request.url === '/api/customers/customer-1/payments',
+    );
+    expect(exact.request.body.amount).toBe(10);
+    exact.flush({
+      id: 'payment-2',
+      customerId: 'customer-1',
+      amount: 10,
+      occurredAt: '2026-11-09T00:00:00Z',
+      outstanding: 0,
+      allocations: [{ saleId: 'sale-9', receiptNumber: 9, amount: 10 }],
+    });
+    await turn();
+    harness.detectChanges();
+    expect(text(harness)).toContain('Outstanding 0.0');
 
     clickButton(root, 'Complete sale');
     const created = TestBed.inject(HttpTestingController).expectOne(
@@ -686,16 +805,140 @@ describe('POS and sales screens', () => {
     created.flush({ ...sale(), paymentMethod: 'credit', customerId: 'customer-1', customerName: 'Amina' });
     await turn();
     harness.detectChanges();
-    TestBed.inject(HttpTestingController).expectOne('/api/sales/sale-1').flush({
-      ...sale(),
-      paymentMethod: 'credit',
-      customerId: 'customer-1',
-      customerName: 'Amina',
-    });
+
+    expect(TestBed.inject(Router).url).toBe('/pos');
+    expect(text(harness)).toContain('credit');
+    expect(text(harness)).toContain('Total 35.00');
+    expect(text(harness)).not.toContain('Total 37.50');
+  });
+
+  it('resets the next quantity, keeps the shelf, and starts a new sale on the counter', async () => {
+    remember('Cashier');
+    const harness = await open('/pos');
+    flushShelves();
+    await turn();
+    harness.detectChanges();
+    const root = harness.fixture.nativeElement as HTMLElement;
+    setNamed(root, 'shelf', 'shelf-1');
+    setNamed(root, 'quantity', '2');
+    setNamed(root, 'barcode', 'TEA');
+    submitForm(root, 'Barcode');
+    TestBed.inject(HttpTestingController)
+      .expectOne((request) => request.url === '/api/products/by-barcode/TEA')
+      .flush(product());
     await turn();
     harness.detectChanges();
 
-    expect(text(harness)).toContain('credit');
+    expect((root.querySelector('[name="lineQuantity"]') as HTMLInputElement).value).toBe('2.000');
+    expect((root.querySelector('[name="quantity"]') as HTMLInputElement).value).toBe('1');
+    clickButton(root, 'Complete sale');
+    TestBed.inject(HttpTestingController)
+      .expectOne((request) => request.method === 'POST' && request.url === '/api/sales')
+      .flush(sale());
+    await turn();
+    harness.detectChanges();
+
+    expect(TestBed.inject(Router).url).toBe('/pos');
+    expect((root.querySelector('[name="shelf"]') as HTMLSelectElement).value).toBe('shelf-1');
+    const openReceipt = [...root.querySelectorAll('a')].find((item) => item.textContent?.trim() === 'Open receipt');
+    expect(openReceipt?.getAttribute('href')).toBe('/sales/sale-1');
+    clickButton(root, 'New sale');
+    harness.detectChanges();
+
+    expect(text(harness)).not.toContain('Receipt 1');
+    expect(text(harness)).toContain('Walk-in sale');
+    expect(root.querySelector('[name="lineQuantity"]')).toBeNull();
+    expect((root.querySelector('[name="shelf"]') as HTMLSelectElement).value).toBe('shelf-1');
+    expect((root.querySelector('[name="quantity"]') as HTMLInputElement).value).toBe('1');
+    expect(document.activeElement).toBe(root.querySelector('[name="barcode"]'));
+  });
+
+  it('starts the next sale from a scan and keeps another shelf on its own line', async () => {
+    remember('Cashier');
+    const harness = await open('/pos');
+    TestBed.inject(HttpTestingController)
+      .expectOne((request) => request.url === '/api/shelves')
+      .flush([
+        {
+          id: 'shelf-1',
+          areaId: 'area-1',
+          areaName: 'Shop Floor',
+          name: 'Front B',
+          isActive: true,
+          createdAt: '2026-10-20T00:00:00Z',
+          updatedAt: '2026-10-20T00:00:00Z',
+        },
+        {
+          id: 'shelf-2',
+          areaId: 'area-1',
+          areaName: 'Shop Floor',
+          name: 'Back',
+          isActive: true,
+          createdAt: '2026-10-20T00:00:00Z',
+          updatedAt: '2026-10-20T00:00:00Z',
+        },
+      ]);
+    await turn();
+    harness.detectChanges();
+    const root = harness.fixture.nativeElement as HTMLElement;
+    setNamed(root, 'shelf', 'shelf-1');
+    setNamed(root, 'barcode', 'TEA');
+    submitForm(root, 'Barcode');
+    const http = TestBed.inject(HttpTestingController);
+    http.expectOne((request) => request.url === '/api/products/by-barcode/TEA').flush(product());
+    await turn();
+    harness.detectChanges();
+    clickButton(root, 'Complete sale');
+    http.expectOne((request) => request.method === 'POST' && request.url === '/api/sales').flush(sale());
+    await turn();
+    harness.detectChanges();
+
+    expect(text(harness)).toContain('Receipt 1');
+    setNamed(root, 'barcode', 'TEA');
+    submitForm(root, 'Barcode');
+    http.expectOne((request) => request.url === '/api/products/by-barcode/TEA').flush(product());
+    await turn();
+    harness.detectChanges();
+
+    expect(text(harness)).not.toContain('Receipt 1');
+    expect(text(harness)).toContain('Walk-in sale');
+    expect(root.querySelectorAll('[name="lineQuantity"]').length).toBe(1);
+    setNamed(root, 'shelf', 'shelf-2');
+    setNamed(root, 'barcode', 'TEA');
+    submitForm(root, 'Barcode');
+    http.expectOne((request) => request.url === '/api/products/by-barcode/TEA').flush(product());
+    await turn();
+    harness.detectChanges();
+
+    expect(root.querySelectorAll('[name="lineQuantity"]').length).toBe(2);
+    const shelves = [...root.querySelectorAll('[name="lineShelf"]')] as HTMLSelectElement[];
+    expect(shelves.map((shelf) => shelf.value)).toEqual(['shelf-1', 'shelf-2']);
+    root.querySelector('[name="quantity"]')?.dispatchEvent(
+      new KeyboardEvent('keydown', { key: 'Enter', ctrlKey: true, bubbles: true, cancelable: true }),
+    );
+    const created = http.expectOne((request) => request.method === 'POST' && request.url === '/api/sales');
+    expect(created.request.body.lines).toEqual([
+      { productId: 'product-1', shelfId: 'shelf-1', quantity: 1 },
+      { productId: 'product-1', shelfId: 'shelf-2', quantity: 1 },
+    ]);
+    expect(created.request.body.customerId).toBeUndefined();
+    created.flush(sale());
+    await turn();
+    harness.detectChanges();
+  });
+
+  it('asks for another shelf when the remembered shelf is gone', async () => {
+    remember('Cashier');
+    sessionStorage.setItem('retail360.posShelf', 'missing-shelf');
+    const harness = await open('/pos');
+    flushShelves();
+    await turn();
+    harness.detectChanges();
+    const root = harness.fixture.nativeElement as HTMLElement;
+
+    expect(text(harness)).toContain('The selected shelf is no longer available. Choose another shelf.');
+    expect((root.querySelector('[name="shelf"]') as HTMLSelectElement).value).toBe('');
+    expect(sessionStorage.getItem('retail360.posShelf')).toBeNull();
   });
 });
 
@@ -767,6 +1010,28 @@ function sale() {
     createdAt: '2026-10-19T21:05:46.5421+00:00',
     updatedAt: '2026-10-19T21:05:46.5421+00:00',
   };
+}
+
+function flushSearch(name: string, products: unknown[]): void {
+  const http = TestBed.inject(HttpTestingController);
+  http
+    .expectOne((request) => request.url === '/api/products' && request.params.get('name') === name)
+    .flush(products);
+  flushBarcodeMiss(http, name);
+}
+
+function flushBarcodeMiss(http: HttpTestingController, barcode: string): void {
+  http
+    .expectOne((request) => request.url === `/api/products/by-barcode/${encodeURIComponent(barcode)}`)
+    .flush({ error: 'No product has barcode.' }, { status: 404, statusText: 'Not Found' });
+}
+
+function flushShelfStock(shelfId = 'shelf-1', rows: unknown[] = []): void {
+  TestBed.inject(HttpTestingController)
+    .expectOne(
+      (request) => request.url === '/api/inventory/balances' && request.params.get('shelfId') === shelfId,
+    )
+    .flush(rows);
 }
 
 function flushShelves(): void {

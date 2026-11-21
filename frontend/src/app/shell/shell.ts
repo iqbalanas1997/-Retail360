@@ -1,4 +1,4 @@
-import { Component, effect, inject } from '@angular/core';
+import { Component, effect, inject, signal } from '@angular/core';
 import { toSignal } from '@angular/core/rxjs-interop';
 import { NavigationEnd, Router, RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
 import { filter, map, startWith } from 'rxjs';
@@ -13,6 +13,7 @@ import { SessionService } from '../core/session.service';
 export class Shell {
   private readonly router = inject(Router);
   protected readonly session = inject(SessionService);
+  protected readonly navOpen = signal(false);
   private readonly leaveWhenSignedOut = effect(() => {
     if (!this.session.hasSession()) {
       void this.router.navigateByUrl('/login');
@@ -27,6 +28,19 @@ export class Shell {
     ),
     { initialValue: 'Retail360' },
   );
+
+  private readonly closeNavOnNavigate = effect(() => {
+    this.title();
+    this.navOpen.set(false);
+  });
+
+  protected toggleNav(): void {
+    this.navOpen.update((open) => !open);
+  }
+
+  protected closeNav(): void {
+    this.navOpen.set(false);
+  }
 
   protected signOut(): void {
     this.session.clear();

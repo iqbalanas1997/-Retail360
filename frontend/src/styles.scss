@@ -71,29 +71,56 @@ label {
 
 .shell {
   display: grid;
-  grid-template-columns: 220px 1fr;
+  grid-template-columns: 14rem 1fr;
   min-height: 100vh;
 }
 
 .sidebar {
   background: var(--ink);
   color: var(--paper);
-  padding: 1.25rem 1rem;
+  padding: 1rem 0.75rem;
   display: flex;
   flex-direction: column;
-  gap: 0.35rem;
+  gap: 0.15rem;
+  position: sticky;
+  top: 0;
+  align-self: start;
+  max-height: 100vh;
+  overflow: auto;
 }
 
 .sidebar a {
   color: var(--paper);
   text-decoration: none;
-  padding: 0.45rem 0.55rem;
+  display: flex;
+  align-items: center;
+  min-height: 2.75rem;
+  padding: 0.35rem 0.65rem;
   border-radius: 6px;
 }
 
 .sidebar a.active,
 .sidebar a:hover {
   background: var(--green);
+}
+
+.topbar .nav-toggle,
+.nav-backdrop {
+  display: none;
+}
+
+button:focus-visible,
+a:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible {
+  outline: 2px solid var(--ink);
+  outline-offset: 2px;
+}
+
+.sidebar a:focus-visible,
+.sidebar button:focus-visible {
+  outline-color: var(--paper);
 }
 
 .brand {
@@ -120,9 +147,23 @@ label {
   justify-content: space-between;
   align-items: center;
   gap: 1rem;
-  padding: 1rem 1.25rem;
+  padding: 0.75rem 1.25rem;
   border-bottom: 1px solid var(--ink);
   background: var(--paper);
+}
+
+.topbar-title {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  min-width: 0;
+}
+
+.topbar a,
+.topbar button {
+  display: inline-flex;
+  align-items: center;
+  min-height: 2.75rem;
 }
 
 .topbar h1 {
@@ -277,7 +318,120 @@ a {
 }
 
 .pos-total {
-  font-size: 1.4rem;
+  font-size: 2rem;
+  font-weight: 700;
+  margin: 0;
+}
+
+.pos-page {
+  min-width: 0;
+  max-width: 100%;
+}
+
+.pos-entry {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.pos-scan {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 6.5rem minmax(9rem, 16rem) auto;
+  gap: 0.75rem;
+  align-items: end;
+}
+
+.pos-scan input[name='barcode'] {
+  font-size: 1.25rem;
+}
+
+.pos-find {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 0.75rem;
+  align-items: end;
+}
+
+.pos-products .table-wrap {
+  max-height: 16rem;
+}
+
+.pos-products tbody tr {
+  cursor: pointer;
+}
+
+.pos-products td {
+  min-height: 2.75rem;
+}
+
+.pos-stage {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 18rem;
+  gap: 1rem;
+  align-items: start;
+  margin-top: 1rem;
+  min-width: 0;
+}
+
+.pos-cart,
+.pos-products,
+.pos-checkout {
+  min-width: 0;
+}
+
+.pos-checkout {
+  position: sticky;
+  top: 0.75rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  padding: 0.75rem;
+  border: 1px solid var(--ink);
+  border-radius: 8px;
+  background: var(--paper);
+}
+
+.pos-page .pos-complete {
+  min-height: 3.25rem;
+  font-size: 1.125rem;
+}
+
+.pos-qty {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.pos-qty input {
+  width: 5.5rem;
+}
+
+.pos-match {
+  background: var(--green);
+  color: var(--paper);
+}
+
+.pos-receipt-sheet {
+  display: none;
+}
+
+.pos-page input,
+.pos-page select,
+.pos-page button,
+.pos-page .button {
+  min-height: 2.75rem;
+}
+
+.pos-customer {
+  margin-top: 1.5rem;
+}
+
+.shell,
+.workspace,
+.page,
+.toolbar {
+  min-width: 0;
+  max-width: 100%;
 }
 
 .barcode-value,
@@ -301,11 +455,45 @@ a {
   margin: 2mm;
 }
 
+@media (max-width: 1100px) {
+  .pos-stage {
+    grid-template-columns: 1fr;
+  }
+
+  .pos-checkout {
+    position: sticky;
+    bottom: 0;
+    top: auto;
+    z-index: 1;
+  }
+}
+
+@media (max-width: 800px) {
+  .pos-scan {
+    grid-template-columns: minmax(0, 1fr) 6.5rem;
+  }
+
+  .pos-scan label:first-child,
+  .pos-scan button {
+    grid-column: 1 / -1;
+  }
+
+  .pos-find {
+    grid-template-columns: 1fr;
+  }
+}
+
 @media print {
   .sidebar,
   .topbar,
-  .no-print {
+  .nav-backdrop,
+  .no-print,
+  .pos-work {
     display: none;
+  }
+
+  .pos-receipt-sheet {
+    display: block;
   }
 
   .shell {
@@ -347,26 +535,47 @@ a {
   font-weight: 700;
 }
 
-@media (max-width: 800px) {
+@media (max-width: 1100px) and (min-width: 768px) {
+  .shell {
+    grid-template-columns: 12rem 1fr;
+  }
+}
+
+@media (max-width: 767px) {
   .shell {
     grid-template-columns: 1fr;
+    overflow-x: hidden;
+  }
+
+  .topbar .nav-toggle {
+    display: inline-flex;
   }
 
   .sidebar {
-    flex-direction: row;
-    flex-wrap: wrap;
-    align-items: center;
+    display: none;
+    position: fixed;
+    z-index: 2;
+    inset: 0 auto 0 0;
+    width: min(18rem, 100%);
+    max-height: 100vh;
   }
 
-  .brand,
-  .nav-label {
-    width: 100%;
-    margin: 0;
+  .shell.nav-open .sidebar {
+    display: flex;
+  }
+
+  .shell.nav-open .nav-backdrop {
+    display: block;
+    position: fixed;
+    z-index: 1;
+    inset: 0;
+    border: 0;
+    padding: 0;
+    background: transparent;
   }
 
   .topbar,
   .user {
-    align-items: flex-start;
-    flex-direction: column;
+    flex-wrap: wrap;
   }
 }

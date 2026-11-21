@@ -1,9 +1,10 @@
-import { Component, ElementRef, inject, signal, viewChild } from '@angular/core';
+import { AfterViewInit, ChangeDetectorRef, Component, ElementRef, HostListener, inject, signal, viewChild } from '@angular/core';
 import { FormsModule } from '@angular/forms';
-import { Router, RouterLink } from '@angular/router';
+import { RouterLink } from '@angular/router';
 import { firstValueFrom } from 'rxjs';
 
 import { ApiError, toApiError } from '../core/api-error';
+import { formatScaled } from '../core/catalog-rules';
 import { type Product } from '../core/catalog.models';
 import { OperationAttempt } from '../core/inventory-rules';
 import { InventoryApi } from '../core/inventory-api.service';
@@ -19,8 +20,9 @@ import {
   saleAttemptKey,
   saleLineTotal,
   saleTotal,
+  formatSoldAt,
 } from '../core/sale-rules';
-import { type CompleteSaleBody } from '../core/sale.models';
+import { type CompleteSaleBody, type Sale } from '../core/sale.models';
 import { SessionService } from '../core/session.service';
 import { ShopApi } from '../core/shop-api.service';
 
@@ -38,25 +40,28 @@ interface CartLine {
   imports: [FormsModule, RouterLink],
   templateUrl: './pos-page.html',
 })
-export class PosPage {
+export class PosPage implements AfterViewInit {
   private readonly shopApi = inject(ShopApi);
   private readonly inventoryApi = inject(InventoryApi);
   private readonly salesApi = inject(SaleApi);
   private readonly customersApi = inject(CustomerApi);
   private readonly session = inject(SessionService);
-  private readonly router = inject(Router);
+  private readonly changes = inject(ChangeDetectorRef);
   private readonly attempt = new OperationAttempt();
   private readonly paymentAttempt = new OperationAttempt();
   private readonly barcodeInput = viewChild<ElementRef<HTMLInputElement>>('barcodeInput');
+  private readonly quantityInput = viewChild<ElementRef<HTMLInputElement>>('quantityInput');
+  private readonly productInput = viewChild<ElementRef<HTMLInputElement>>('productInput');
+  private readonly shelfInput = viewChild<ElementRef<HTMLSelectElement>>('shelfInput');
   private lineKey = 0;
   private lookupGeneration = 0;
   private shelfGeneration = 0;
   private customerGeneration = 0;
   private barcodeInFlight = '';
-  private completedSale: { id: string; key: string } | null = null;
+  private searchTimer: ReturnType<typeof setTimeout> | null = null;
+  private stockShelfId = '';
 
   protected readonly canSell = this.session.canCompleteSales;
-  protected readonly maxLines = MAX_SALE_LINES;
   protected readonly loading = signal(true);
   protected readonly finding = signal(false);
   protected readonly selling = signal(false);
@@ -64,9 +69,15 @@ export class PosPage {
   protected readonly error = signal('');
   protected readonly shelves = signal<Shelf[]>([]);
   protected readonly matches = signal<Product[]>([]);
+  protected readonly matchIndex = signal(-1);
   protected readonly lines = signal<CartLine[]>([]);
   protected readonly barcode = signal('');
   protected readonly productQuery = signal('');
+  protected readonly browseOpen = signal(false);
+  protected readonly browseRows = signal<Product[]>([]);
+  protected readonly browseMore = signal(false);
+  protected readonly shelfStock = signal<Record<string, number> | null>(null);
+  private browseOffset = 0;
   protected readonly quantity = signal('1');
   protected readonly shelfId = signal('');
   protected readonly customerQuery = signal('');
@@ -79,9 +90,43 @@ export class PosPage {
   protected readonly paymentAmount = signal('');
   protected readonly paying = signal(false);
   protected readonly paymentNotice = signal('');
+  protected readonly customerOpen = signal(false);
+  protected readonly receipt = signal<Sale | null>(null);
 
   constructor() {
     void this.loadShelves();
+  }
+
+  ngAfterViewInit(): void {
+    this.focusEntry();
+  }
+
+  @HostListener('keydown', ['$event'])
+  protected onKeydown(event: KeyboardEvent): void {
+    if (event.key === 'Escape') {
+      this.matches.set([]);
+      this.matchIndex.set(-1);
+      this.browseOpen.set(false);
+      if (!this.customer()) {
+        this.customerOpen.set(false);
+      }
+      this.focusBarcode();
+      event.preventDefault();
+      return;
+    }
+
+    if (event.key !== 'Enter' || (!event.ctrlKey && !event.metaKey)) {
+      return;
+    }
+
+    const name = event.target instanceof HTMLElement ? event.target.getAttribute('name') : '';
+    if (name === 'barcode') {
+      event.preventDefault();
+      return;
+    }
+
+    event.preventDefault();
+    void this.complete();
   }
 
   protected money(value: number): string {
@@ -139,7 +184,7 @@ export class PosPage {
         this.matches.set([product]);
       }
 
-      this.addProduct(product, current);
+      this.addProduct(product, current, 'scan');
     } catch (error) {
       if (generation !== this.lookupGeneration) {
         return;
@@ -159,6 +204,26 @@ export class PosPage {
     }
   }
 
+  private resetQuantity(): void {
+    this.quantity.set('1');
+    const input = this.quantityInput()?.nativeElement;
+    if (input) {
+      input.value = '1';
+    }
+  }
+
+  private clearProductQuery(): void {
+    this.productQuery.set('');
+    const input = this.productInput()?.nativeElement;
+    if (input) {
+      input.value = '';
+    }
+  }
+
+  private focusProduct(): void {
+    this.productInput()?.nativeElement.focus();
+  }
+
   private focusBarcode(): void {
     const input = this.barcodeInput()?.nativeElement;
     if (!input) {
@@ -172,29 +237,77 @@ export class PosPage {
     input.focus();
   }
 
+  protected onProductInput(value: string): void {
+    this.productQuery.set(value);
+    this.matchIndex.set(-1);
+    if (this.searchTimer) {
+      clearTimeout(this.searchTimer);
+      this.searchTimer = null;
+    }
+
+    const query = value.trim();
+    if (!query) {
+      this.matches.set([]);
+      if (this.browseOpen()) {
+        void this.loadBrowse(0);
+      }
+      return;
+    }
+
+    this.searchTimer = setTimeout(() => void this.searchProducts(), 250);
+  }
+
   protected async searchProducts(): Promise<void> {
+    if (this.searchTimer) {
+      clearTimeout(this.searchTimer);
+      this.searchTimer = null;
+    }
+
     if (this.selling() || !this.session.isSignedIn()) {
+      return;
+    }
+
+    const query = this.productQuery().trim();
+    if (!query) {
+      this.matches.set([]);
+      if (this.browseOpen()) {
+        void this.loadBrowse(0);
+      }
       return;
     }
 
     const generation = ++this.lookupGeneration;
     this.finding.set(true);
     this.error.set('');
+    void this.ensureShelfStock();
+
     try {
-      const products = await firstValueFrom(
-        this.shopApi.listProducts({
-          name: this.productQuery(),
-          activeOnly: true,
-          limit: 50,
-          offset: 0,
-        }),
-      );
+      const [listed, barcode] = await Promise.all([
+        firstValueFrom(
+          this.shopApi.listProducts({
+            name: query,
+            activeOnly: true,
+            limit: this.browseOpen() ? 20 : 8,
+            offset: 0,
+          }),
+        ),
+        this.lookupBarcode(query),
+      ]);
       if (generation !== this.lookupGeneration) {
         return;
       }
 
-      this.matches.set(products.filter((product) => product.isActive));
-      if (this.matches().length === 0) {
+      const products = listed.filter((product) => product.isActive);
+      const found = barcode.product;
+      if (found?.isActive && !products.some((product) => product.id === found.id)) {
+        products.unshift(found);
+      }
+
+      this.matchIndex.set(-1);
+      this.matches.set(products);
+      if (barcode.inactive || (found && !found.isActive)) {
+        this.error.set('Product is inactive.');
+      } else if (products.length === 0) {
         this.error.set('No products match this search.');
       }
     } catch (error) {
@@ -210,8 +323,160 @@ export class PosPage {
     }
   }
 
-  protected addProduct(product: Product, report = true): void {
-    if (this.selling() || this.lines().length >= MAX_SALE_LINES || !product.isActive) {
+  protected toggleBrowse(): void {
+    const open = !this.browseOpen();
+    this.browseOpen.set(open);
+    if (!open) {
+      return;
+    }
+
+    void this.ensureShelfStock();
+    if (this.productQuery().trim()) {
+      void this.searchProducts();
+      return;
+    }
+
+    void this.loadBrowse(0);
+  }
+
+  protected showMoreProducts(): void {
+    void this.loadBrowse(this.browseOffset + 20);
+  }
+
+  protected visibleProducts(): Product[] {
+    if (this.productQuery().trim()) {
+      return this.matches();
+    }
+
+    return this.browseOpen() ? this.browseRows() : this.matches();
+  }
+
+  protected stockLabel(productId: string): string {
+    const stock = this.shelfStock();
+    if (!this.shelfId() || !stock) {
+      return '—';
+    }
+
+    return formatScaled(stock[productId] ?? 0, 3);
+  }
+
+  protected onProductKey(event: KeyboardEvent): void {
+    const matches = this.visibleProducts();
+    if ((event.key === 'ArrowDown' || event.key === 'ArrowUp') && matches.length > 0) {
+      event.preventDefault();
+      const current = this.matchIndex();
+      const next =
+        event.key === 'ArrowDown'
+          ? (current + 1) % matches.length
+          : current <= 0
+            ? matches.length - 1
+            : current - 1;
+      this.matchIndex.set(next);
+      return;
+    }
+
+    if (event.key === 'Enter' && this.matchIndex() >= 0) {
+      event.preventDefault();
+      event.stopPropagation();
+      const product = matches[this.matchIndex()];
+      if (product) {
+        this.addProduct(product);
+      }
+    }
+  }
+
+  private async lookupBarcode(query: string): Promise<{ product: Product | null; inactive: boolean }> {
+    try {
+      return { product: await firstValueFrom(this.shopApi.findProductByBarcode(query)), inactive: false };
+    } catch (error) {
+      const failure = toApiError(error);
+      if (failure.status === 404) {
+        return { product: null, inactive: false };
+      }
+
+      if (failure.status === 409) {
+        return { product: null, inactive: true };
+      }
+
+      throw error;
+    }
+  }
+
+  private async loadBrowse(offset: number): Promise<void> {
+    if (this.selling() || !this.session.isSignedIn() || this.productQuery().trim()) {
+      return;
+    }
+
+    const generation = ++this.lookupGeneration;
+    this.finding.set(true);
+    this.error.set('');
+    try {
+      const products = await firstValueFrom(
+        this.shopApi.listProducts({
+          name: '',
+          activeOnly: true,
+          limit: 20,
+          offset,
+        }),
+      );
+      if (generation !== this.lookupGeneration) {
+        return;
+      }
+
+      const page = products.filter((product) => product.isActive);
+      this.browseOffset = offset;
+      this.browseMore.set(page.length === 20);
+      this.browseRows.set(offset === 0 ? page : [...this.browseRows(), ...page]);
+    } catch (error) {
+      if (generation !== this.lookupGeneration) {
+        return;
+      }
+
+      this.error.set(messageFrom(error));
+    } finally {
+      if (generation === this.lookupGeneration) {
+        this.finding.set(false);
+      }
+    }
+  }
+
+  private async ensureShelfStock(): Promise<void> {
+    const shelfId = this.shelfId();
+    if (!shelfId || this.stockShelfId === shelfId) {
+      return;
+    }
+
+    this.stockShelfId = shelfId;
+    try {
+      const rows = await firstValueFrom(this.inventoryApi.listBalances(undefined, shelfId));
+      if (this.shelfId() !== shelfId) {
+        return;
+      }
+
+      const stock: Record<string, number> = {};
+      for (const row of rows) {
+        stock[row.productId] = row.quantity;
+      }
+      this.shelfStock.set(stock);
+    } catch (error) {
+      if (this.shelfId() === shelfId) {
+        this.stockShelfId = '';
+        this.error.set(messageFrom(error));
+      }
+    }
+  }
+
+  protected onLineKey(event: KeyboardEvent): void {
+    if (event.key !== 'Enter') {
+      return;
+    }
+
+    event.preventDefault();
+    this.focusBarcode();
+  }
+
+  protected addProduct(product: Product, report = true, source: 'scan' | 'pick' = 'pick'): void {
+    if (this.selling() || !product.isActive) {
       if (!product.isActive && report) {
         this.error.set('Product is inactive.');
       }
@@ -238,20 +503,90 @@ export class PosPage {
       return;
     }
 
+    const shelfId = this.shelfId();
+    const existing = this.lines().find((line) => line.productId === product.id && line.shelfId === shelfId);
+    if (!existing && this.lines().length >= MAX_SALE_LINES) {
+      if (report) {
+        this.error.set(`A sale can have at most ${MAX_SALE_LINES} lines.`);
+      }
+
+      return;
+    }
+
+    let nextQuantity = formatQuantity(quantity);
+    if (existing) {
+      try {
+        nextQuantity = addQuantities(parseSaleQuantity(existing.quantity), quantity);
+      } catch (error) {
+        if (report) {
+          this.error.set(error instanceof Error ? error.message : 'The request failed.');
+        }
+
+        return;
+      }
+    }
+
+    if (this.receipt()) {
+      this.receipt.set(null);
+      this.clearCustomer();
+    }
+
     if (report) {
       this.error.set('');
+      this.matches.set([]);
+      this.matchIndex.set(-1);
+      if (source === 'scan' && this.browseOpen()) {
+        this.clearProductQuery();
+        void this.loadBrowse(0);
+      }
     }
-    this.lines.update((lines) => [
-      ...lines,
-      {
-        key: String(++this.lineKey),
-        productId: product.id,
-        productName: product.name,
-        unitPrice: product.sellingPrice,
-        quantity: formatQuantity(quantity),
-        shelfId: this.shelfId(),
-      },
-    ]);
+    if (existing) {
+      this.lines.update((lines) =>
+        lines.map((line) => (line.key === existing.key ? { ...line, quantity: nextQuantity } : line)),
+      );
+    } else {
+      this.lines.update((lines) => [
+        ...lines,
+        {
+          key: String(++this.lineKey),
+          productId: product.id,
+          productName: product.name,
+          unitPrice: product.sellingPrice,
+          quantity: nextQuantity,
+          shelfId,
+        },
+      ]);
+    }
+    this.resetQuantity();
+    if (report && source === 'pick') {
+      this.clearProductQuery();
+      if (this.browseOpen()) {
+        void this.loadBrowse(0);
+        this.focusProduct();
+        return;
+      }
+    }
+
+    this.focusBarcode();
+  }
+
+  protected rememberShelf(value: string): void {
+    if (value !== this.shelfId()) {
+      this.stockShelfId = '';
+      this.shelfStock.set(null);
+    }
+
+    this.shelfId.set(value);
+    if (value) {
+      sessionStorage.setItem(shelfStorageKey, value);
+      if (this.browseOpen()) {
+        void this.ensureShelfStock();
+      }
+      this.focusBarcode();
+      return;
+    }
+
+    sessionStorage.removeItem(shelfStorageKey);
   }
 
   protected updateQuantity(key: string, value: string): void {
@@ -259,7 +594,66 @@ export class PosPage {
   }
 
   protected updateShelf(key: string, value: string): void {
-    this.lines.update((lines) => lines.map((line) => (line.key === key ? { ...line, shelfId: value } : line)));
+    const current = this.lines().find((line) => line.key === key);
+    if (!current || current.shelfId === value) {
+      return;
+    }
+
+    const other = this.lines().find(
+      (line) => line.key !== key && line.productId === current.productId && line.shelfId === value && value !== '',
+    );
+    if (!other) {
+      this.lines.update((lines) => lines.map((line) => (line.key === key ? { ...line, shelfId: value } : line)));
+      return;
+    }
+
+    let quantity: string;
+    try {
+      quantity = addQuantities(parseSaleQuantity(other.quantity), parseSaleQuantity(current.quantity));
+    } catch (error) {
+      this.error.set(error instanceof Error ? error.message : 'The request failed.');
+      return;
+    }
+
+    this.error.set('');
+    this.lines.update((lines) =>
+      lines
+        .filter((line) => line.key !== key)
+        .map((line) => (line.key === other.key ? { ...line, quantity } : line)),
+    );
+  }
+
+  protected stepQuantity(key: string, direction: 1 | -1): void {
+    if (this.selling()) {
+      return;
+    }
+
+    const line = this.lines().find((item) => item.key === key);
+    if (!line) {
+      return;
+    }
+
+    let quantity: number;
+    try {
+      quantity = parseSaleQuantity(line.quantity);
+    } catch (error) {
+      this.error.set(error instanceof Error ? error.message : 'The request failed.');
+      return;
+    }
+
+    const thousandths = Math.round(quantity * 1000) + direction * 1000;
+    if (thousandths <= 0) {
+      this.removeLine(key);
+      this.focusBarcode();
+      return;
+    }
+
+    try {
+      this.updateQuantity(key, addQuantities(quantity, direction));
+      this.error.set('');
+    } catch (error) {
+      this.error.set(error instanceof Error ? error.message : 'The request failed.');
+    }
   }
 
   protected removeLine(key: string): void {
@@ -344,6 +738,7 @@ export class PosPage {
     this.outstanding.set(0);
     this.paymentAmount.set('');
     this.paymentNotice.set('');
+    this.customerOpen.set(false);
   }
 
   protected async recordPayment(): Promise<void> {
@@ -383,8 +778,43 @@ export class PosPage {
     return customer.phone ? `${customer.name} · ${customer.phone}` : customer.name;
   }
 
+  protected soldAt(sale: Sale): string {
+    return formatSoldAt(sale.soldAt);
+  }
+
+  protected receiptCustomer(sale: Sale): string {
+    const name = sale.customerName?.trim();
+    return name ? `Customer ${name}` : 'No customer';
+  }
+
+  protected newSale(): void {
+    if (this.selling() || this.paying()) {
+      return;
+    }
+
+    this.receipt.set(null);
+    this.lines.set([]);
+    this.matches.set([]);
+    this.barcode.set('');
+    this.clearProductQuery();
+    this.resetQuantity();
+    this.error.set('');
+    this.clearCustomer();
+    this.focusBarcode();
+  }
+
+  protected printReceipt(): void {
+    window.print();
+  }
+
   protected async complete(): Promise<void> {
-    if (!this.canSell() || this.selling() || this.paying() || !this.session.isSignedIn()) {
+    if (
+      !this.canSell() ||
+      this.selling() ||
+      this.paying() ||
+      this.lines().length === 0 ||
+      !this.session.isSignedIn()
+    ) {
       return;
     }
 
@@ -397,21 +827,21 @@ export class PosPage {
       return;
     }
 
-    const key = saleAttemptKey(body.lines, body.customerId ?? '', body.paymentMethod ?? 'cash');
-    if (this.completedSale?.key === key) {
-      await this.openReceipt(this.completedSale.id);
-      return;
-    }
-
     this.selling.set(true);
     try {
       const sale = await firstValueFrom(this.salesApi.complete(body));
-      this.completedSale = { id: sale.id, key };
-      await this.openReceipt(sale.id);
+      this.attempt.complete();
+      this.receipt.set(sale);
+      this.lines.set([]);
+      this.matches.set([]);
+      this.barcode.set('');
+      this.resetQuantity();
     } catch (error) {
       this.error.set(messageFrom(error));
     } finally {
       this.selling.set(false);
+      this.changes.detectChanges();
+      this.focusBarcode();
     }
   }
 
@@ -427,6 +857,7 @@ export class PosPage {
       }
 
       this.shelves.set(shelves);
+      this.restoreShelf(shelves);
     } catch (error) {
       if (generation !== this.shelfGeneration) {
         return;
@@ -438,16 +869,41 @@ export class PosPage {
     } finally {
       if (generation === this.shelfGeneration) {
         this.loading.set(false);
+        this.focusEntry();
       }
     }
   }
 
-  private async openReceipt(saleId: string): Promise<void> {
-    const opened = await this.router.navigate(['/sales', saleId], { state: { success: 'Sale completed.' } });
-    if (opened) {
-      this.attempt.complete();
-      this.lines.set([]);
+  private focusEntry(): void {
+    if (this.selling()) {
+      return;
     }
+
+    if (!this.shelfId()) {
+      const shelf = this.shelfInput()?.nativeElement;
+      if (shelf) {
+        shelf.focus();
+        return;
+      }
+    }
+
+    this.focusBarcode();
+  }
+
+  private restoreShelf(shelves: Shelf[]): void {
+    const saved = this.shelfId() || sessionStorage.getItem(shelfStorageKey) || '';
+    if (!saved) {
+      return;
+    }
+
+    if (shelves.some((shelf) => shelf.id === saved)) {
+      this.shelfId.set(saved);
+      return;
+    }
+
+    this.shelfId.set('');
+    sessionStorage.removeItem(shelfStorageKey);
+    this.error.set('The selected shelf is no longer available. Choose another shelf.');
   }
 
   private buildBody(): CompleteSaleBody {
@@ -491,8 +947,15 @@ export class PosPage {
   }
 }
 
+const shelfStorageKey = 'retail360.posShelf';
+
 function formatQuantity(value: number): string {
   return value.toFixed(3);
+}
+
+function addQuantities(left: number, right: number): string {
+  const thousandths = Math.round(left * 1000) + Math.round(right * 1000);
+  return parseSaleQuantity((thousandths / 1000).toFixed(3)).toFixed(3);
 }
 
 function barcodeMessage(barcode: string, error: unknown): string {

@@ -1,58 +1,66 @@
-<div class="shell">
+<div class="shell" [class.nav-open]="navOpen()">
+  <button type="button" class="nav-backdrop" (click)="closeNav()" [hidden]="!navOpen()" aria-label="Close menu"></button>
   <aside class="sidebar">
     <p class="brand">Retail360</p>
-    @if (session.canManageUsers() || session.canViewAudit()) {
-      <p class="nav-label">Access</p>
+    <p class="nav-label">Daily operations</p>
+    @if (session.canCompleteSales()) {
+      <a routerLink="/pos" routerLinkActive="active" (click)="closeNav()">POS</a>
+    }
+    <a routerLink="/sales" routerLinkActive="active" (click)="closeNav()">Sales</a>
+    <a routerLink="/purchases" routerLinkActive="active" (click)="closeNav()">Purchases</a>
+    <a routerLink="/expenses" routerLinkActive="active" (click)="closeNav()">Expenses</a>
+
+    <p class="nav-label">Products and inventory</p>
+    <a routerLink="/catalog/products" routerLinkActive="active" (click)="closeNav()">Products</a>
+    <a routerLink="/catalog/categories" routerLinkActive="active" (click)="closeNav()">Categories</a>
+    <a routerLink="/catalog/brands" routerLinkActive="active" (click)="closeNav()">Brands</a>
+    <a routerLink="/catalog/units" routerLinkActive="active" (click)="closeNav()">Units</a>
+    <a routerLink="/inventory/stock" routerLinkActive="active" (click)="closeNav()">Stock</a>
+    <a routerLink="/inventory/locations" routerLinkActive="active" (click)="closeNav()">Locations</a>
+    @if (session.canManageInventory()) {
+      <a routerLink="/inventory/opening" routerLinkActive="active" (click)="closeNav()">Opening</a>
+      <a routerLink="/inventory/adjustments" routerLinkActive="active" (click)="closeNav()">Adjust</a>
+      <a routerLink="/inventory/transfers" routerLinkActive="active" (click)="closeNav()">Transfer</a>
+    }
+
+    <p class="nav-label">People</p>
+    <a routerLink="/suppliers" routerLinkActive="active" (click)="closeNav()">Suppliers</a>
+    @if (session.canWriteCustomers()) {
+      <a routerLink="/customers" routerLinkActive="active" (click)="closeNav()">Customers</a>
+    }
+
+    @if (session.canViewReports() || session.canManageUsers() || session.canViewAudit()) {
+      <p class="nav-label">Management</p>
+      @if (session.canViewReports()) {
+        <a routerLink="/dashboard" routerLinkActive="active" (click)="closeNav()">Dashboard</a>
+      }
       @if (session.canManageUsers()) {
-        <a routerLink="/users" routerLinkActive="active">Users</a>
+        <a routerLink="/users" routerLinkActive="active" (click)="closeNav()">Users</a>
       }
       @if (session.canViewAudit()) {
-        <a routerLink="/audit" routerLinkActive="active">Audit</a>
+        <a routerLink="/audit" routerLinkActive="active" (click)="closeNav()">Audit</a>
       }
     }
-    @if (session.canViewReports()) {
-      <p class="nav-label">Shop</p>
-      <a routerLink="/dashboard" routerLinkActive="active">Dashboard</a>
-    }
-    <p class="nav-label">Catalog</p>
-    <a routerLink="/catalog/products" routerLinkActive="active">Products</a>
-    <a routerLink="/catalog/categories" routerLinkActive="active">Categories</a>
-    <a routerLink="/catalog/brands" routerLinkActive="active">Brands</a>
-    <a routerLink="/catalog/units" routerLinkActive="active">Units</a>
-    <p class="nav-label">Inventory</p>
-    <a routerLink="/inventory/stock" routerLinkActive="active">Stock</a>
-    <a routerLink="/inventory/locations" routerLinkActive="active">Locations</a>
-    @if (session.canManageInventory()) {
-      <a routerLink="/inventory/opening" routerLinkActive="active">Opening</a>
-      <a routerLink="/inventory/adjustments" routerLinkActive="active">Adjust</a>
-      <a routerLink="/inventory/transfers" routerLinkActive="active">Transfer</a>
-    }
-    <p class="nav-label">Suppliers</p>
-    <a routerLink="/suppliers" routerLinkActive="active">Suppliers</a>
-    @if (session.canWriteCustomers()) {
-      <p class="nav-label">Customers</p>
-      <a routerLink="/customers" routerLinkActive="active">Customers</a>
-    }
-    <p class="nav-label">Purchases</p>
-    <a routerLink="/purchases" routerLinkActive="active">Purchases</a>
-    <p class="nav-label">Expenses</p>
-    <a routerLink="/expenses" routerLinkActive="active">Expenses</a>
-    @if (session.canCompleteSales()) {
-      <p class="nav-label">Counter</p>
-      <a routerLink="/pos" routerLinkActive="active">POS</a>
-    }
-    <p class="nav-label">Sales</p>
-    <a routerLink="/sales" routerLinkActive="active">Sales</a>
   </aside>
   <div class="workspace">
     <header class="topbar">
-      <h1>{{ title() }}</h1>
+      <div class="topbar-title">
+        <button
+          type="button"
+          class="nav-toggle secondary"
+          (click)="toggleNav()"
+          [attr.aria-expanded]="navOpen()"
+        >
+          {{ navOpen() ? 'Close menu' : 'Menu' }}
+        </button>
+        <h1>{{ title() }}</h1>
+      </div>
       <div class="user">
         <span>{{ session.userName() }}</span>
         @if (session.roles().length > 0) {
           <span class="roles">{{ session.roles().join(', ') }}</span>
         }
-        <a routerLink="/account">Password</a>
+        <a routerLink="/account" (click)="closeNav()">Password</a>
         <button type="button" class="secondary" (click)="signOut()">Sign out</button>
       </div>
     </header>

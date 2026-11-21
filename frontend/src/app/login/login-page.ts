@@ -43,7 +43,9 @@ export class LoginPage {
     try {
       const response = await firstValueFrom(this.api.login(userName.trim(), password));
       this.session.remember(response);
-      await this.router.navigateByUrl('/catalog/products');
+      const home =
+        this.session.canCompleteSales() && !this.session.canViewReports() ? '/pos' : '/catalog/products';
+      await this.router.navigateByUrl(home);
     } catch (error) {
       this.error.set(error instanceof ApiError ? error.message : 'The request failed.');
     } finally {

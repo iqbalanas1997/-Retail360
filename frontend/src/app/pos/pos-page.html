@@ -1,234 +1,384 @@
-<form class="toolbar" (ngSubmit)="findBarcode()">
-  <label>
-    Barcode
-    <input
-      #barcodeInput
-      name="barcode"
-      [value]="barcode()"
-      (input)="barcode.set($any($event.target).value)"
-      autocomplete="off"
-      autofocus
-      [disabled]="selling()"
-    />
-  </label>
-  <button type="submit" [disabled]="finding() || selling()">Find barcode</button>
-</form>
+<div class="pos-page">
+  <div class="pos-work">
+    <div class="pos-entry">
+      <form class="pos-scan" (ngSubmit)="findBarcode()">
+        <label>
+          Barcode
+          <input
+            #barcodeInput
+            name="barcode"
+            [value]="barcode()"
+            (input)="barcode.set($any($event.target).value)"
+            autocomplete="off"
+            [disabled]="selling()"
+          />
+        </label>
+        <label>
+          Quantity
+          <input
+            #quantityInput
+            name="quantity"
+            [value]="quantity()"
+            (input)="quantity.set($any($event.target).value)"
+            inputmode="decimal"
+            [disabled]="selling()"
+          />
+        </label>
+        <label>
+          Shelf
+          <select
+            #shelfInput
+            name="shelf"
+            (change)="rememberShelf($any($event.target).value)"
+            [disabled]="selling()"
+          >
+            <option value="" [selected]="shelfId() === ''">Choose a shelf</option>
+            @for (shelf of shelves(); track shelf.id) {
+              <option [value]="shelf.id" [selected]="shelfId() === shelf.id">{{ shelfLabel(shelf) }}</option>
+            }
+          </select>
+        </label>
+        <button type="submit" class="secondary" [disabled]="finding() || selling()">Find barcode</button>
+      </form>
 
-<form class="toolbar" (ngSubmit)="findCustomer()">
-  <label>
-    Customer
-    <input
-      name="customer"
-      [value]="customerQuery()"
-      (input)="customerQuery.set($any($event.target).value)"
-      autocomplete="off"
-      [disabled]="selling()"
-    />
-  </label>
-  <button type="submit" [disabled]="findingCustomer() || selling()">Find customer</button>
-  @if (customer(); as selected) {
-    <span>{{ customerLabel(selected) }}</span>
-    <span>Outstanding {{ money(outstanding()) }}</span>
-    <button type="button" class="secondary" (click)="clearCustomer()" [disabled]="selling() || paying()">Clear customer</button>
-  }
-</form>
-@if (customer()) {
-  <form class="toolbar" (ngSubmit)="recordPayment()">
-    <label>
-      Sale payment
-      <select
-        name="salePayment"
-        (change)="paymentMethod.set($any($event.target).value)"
-        [disabled]="selling() || paying()"
-      >
-        <option value="cash" [selected]="paymentMethod() === 'cash'">Cash</option>
-        <option value="credit" [selected]="paymentMethod() === 'credit'">Credit</option>
-      </select>
-    </label>
-    <label>
-      Payment amount
-      <input
-        name="paymentAmount"
-        [value]="paymentAmount()"
-        (input)="paymentAmount.set($any($event.target).value)"
-        inputmode="decimal"
-        [disabled]="paying() || selling()"
-      />
-    </label>
-    <button type="submit" [disabled]="paying() || selling()">
-      {{ paying() ? 'Recording payment…' : 'Record payment' }}
-    </button>
-  </form>
-  <p class="hint">Cash stays selected. Credit uses the whole sale. Record payment collects part of the outstanding balance and does not change the cart.</p>
-  @if (paymentNotice()) {
-    <p class="notice" role="status">{{ paymentNotice() }}</p>
-  }
-}
-<p class="hint">Optional. A sale can be completed without a customer. Search by name or phone. This does not change the cash total.</p>
-@if (customerError()) {
-  <p class="notice error" role="alert">{{ customerError() }}</p>
-}
-@if (customerMatches().length > 0) {
-  <div class="table-wrap">
-    <table>
-      <thead>
-        <tr>
-          <th>Name</th>
-          <th>Phone</th>
-          <th></th>
-        </tr>
-      </thead>
-      <tbody>
-        @for (match of customerMatches(); track match.id) {
-          <tr>
-            <td>{{ match.name }}</td>
-            <td>{{ match.phone }}</td>
-            <td>
-              <button type="button" (click)="chooseCustomer(match)" [disabled]="selling()">Select</button>
-            </td>
-          </tr>
-        }
-      </tbody>
-    </table>
-  </div>
-}
+      <form class="pos-find" (ngSubmit)="searchProducts()">
+        <label>
+          Search products
+          <input
+            #productInput
+            name="productName"
+            [value]="productQuery()"
+            (input)="onProductInput($any($event.target).value)"
+            (keydown)="onProductKey($event)"
+            autocomplete="off"
+            placeholder="Name or barcode"
+            [disabled]="selling()"
+          />
+        </label>
+        <button type="button" class="secondary" (click)="toggleBrowse()" [disabled]="selling()">
+          {{ browseOpen() ? 'Close browse' : 'Browse products' }}
+        </button>
+      </form>
+    </div>
 
-<form class="toolbar" (ngSubmit)="searchProducts()">
-  <label>
-    Product
-    <input
-      name="productName"
-      [value]="productQuery()"
-      (input)="productQuery.set($any($event.target).value)"
-      autocomplete="off"
-      [disabled]="selling()"
-    />
-  </label>
-  <button type="submit" [disabled]="finding() || selling()">Search</button>
-  <label>
-    Quantity
-    <input
-      name="quantity"
-      [value]="quantity()"
-      (input)="quantity.set($any($event.target).value)"
-      inputmode="decimal"
-      [disabled]="selling()"
-    />
-  </label>
-  <label>
-    Shelf
-    <select name="shelf" (change)="shelfId.set($any($event.target).value)" [disabled]="selling()">
-      <option value="" [selected]="shelfId() === ''">Choose a shelf</option>
-      @for (shelf of shelves(); track shelf.id) {
-        <option [value]="shelf.id" [selected]="shelfId() === shelf.id">{{ shelfLabel(shelf) }}</option>
+    @if (error()) {
+      <p class="notice error" role="alert">{{ error() }}</p>
+      @if (shelfError()) {
+        <button type="button" class="secondary" (click)="reloadShelves()" [disabled]="loading()">Try again</button>
       }
-    </select>
-  </label>
-</form>
+    }
 
-@if (error()) {
-  <p class="notice error" role="alert">{{ error() }}</p>
-  @if (shelfError()) {
-    <button type="button" class="secondary" (click)="reloadShelves()" [disabled]="loading()">Try again</button>
-  }
-}
+    @if (loading()) {
+      <p class="status">Loading shelves…</p>
+    } @else if (shelves().length === 0 && !error()) {
+      <p class="status">No shelves are available.</p>
+    }
 
-@if (loading()) {
-  <p class="status">Loading shelves…</p>
-} @else if (shelves().length === 0 && !error()) {
-  <p class="status">No shelves are available.</p>
-}
-
-@if (matches().length > 0) {
-  <h2>Matches</h2>
-  <div class="table-wrap">
-    <table>
-      <thead>
-        <tr>
-          <th>Product</th>
-          <th>Selling price</th>
-          <th></th>
-        </tr>
-      </thead>
-      <tbody>
-        @for (product of matches(); track product.id) {
-          <tr>
-            <td>{{ product.name }}</td>
-            <td>{{ money(product.sellingPrice) }}</td>
-            <td>
-              <button type="button" (click)="addProduct(product)" [disabled]="selling() || lines().length >= maxLines">
-                Add
-              </button>
-            </td>
-          </tr>
+    @if (browseOpen() || matches().length > 0) {
+      <section class="pos-products" [attr.aria-label]="browseOpen() ? 'Browse products' : 'Search results'">
+        @if (finding()) {
+          <p class="status">Loading products…</p>
         }
-      </tbody>
-    </table>
-  </div>
-}
-
-<h2>Sale</h2>
-@if (lines().length === 0) {
-  <p class="status">Scan a barcode or search for a product.</p>
-} @else {
-  <div class="table-wrap">
-    <table>
-      <thead>
-        <tr>
-          <th>Product</th>
-          <th>Shelf</th>
-          <th>Quantity</th>
-          <th>Unit price</th>
-          <th>Line total</th>
-          <th></th>
-        </tr>
-      </thead>
-      <tbody>
-        @for (line of lines(); track line.key) {
-          <tr>
-            <td>{{ line.productName }}</td>
-            <td>
-              <select
-                name="lineShelf"
-                (change)="updateShelf(line.key, $any($event.target).value)"
-                [disabled]="selling()"
-              >
-                <option value="" [selected]="line.shelfId === ''">Choose a shelf</option>
-                @for (shelf of shelves(); track shelf.id) {
-                  <option [value]="shelf.id" [selected]="line.shelfId === shelf.id">{{ shelfLabel(shelf) }}</option>
+        @if (visibleProducts().length === 0 && !finding()) {
+          <p class="status">No matching products.</p>
+        }
+        @if (visibleProducts().length > 0) {
+          <div class="table-wrap pos-matches">
+            <table>
+              <thead>
+                <tr>
+                  <th>Product</th>
+                  <th>Unit</th>
+                  <th>Selling price</th>
+                  <th>On shelf</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody>
+                @for (product of visibleProducts(); track product.id; let index = $index) {
+                  <tr
+                    [class.pos-match]="matchIndex() === index"
+                    (click)="addProduct(product)"
+                  >
+                    <td>{{ product.name }}</td>
+                    <td>{{ product.unitName }}</td>
+                    <td>{{ money(product.sellingPrice) }}</td>
+                    <td>{{ stockLabel(product.id) }}</td>
+                    <td>
+                      <button
+                        type="button"
+                        (click)="$event.stopPropagation(); addProduct(product)"
+                        [disabled]="selling()"
+                      >
+                        Add
+                      </button>
+                    </td>
+                  </tr>
                 }
-              </select>
-            </td>
-            <td>
-              <input
-                name="lineQuantity"
-                [value]="line.quantity"
-                (input)="updateQuantity(line.key, $any($event.target).value)"
-                inputmode="decimal"
-                [disabled]="selling()"
-              />
-            </td>
-            <td>{{ money(line.unitPrice) }}</td>
-            <td>{{ lineMoney(line) }}</td>
-            <td>
-              <button type="button" class="secondary" (click)="removeLine(line.key)" [disabled]="selling()">
-                Remove
-              </button>
-            </td>
-          </tr>
+              </tbody>
+            </table>
+          </div>
         }
-      </tbody>
-    </table>
+        @if (browseOpen() && !productQuery().trim() && browseMore()) {
+          <button type="button" class="secondary" (click)="showMoreProducts()" [disabled]="finding() || selling()">
+            More products
+          </button>
+        }
+      </section>
+    }
+
+    <div class="pos-stage">
+      <section class="pos-cart" aria-label="Cart">
+        @if (receipt(); as sold) {
+          @if (lines().length === 0) {
+            <h2>Receipt {{ sold.receiptNumber }}</h2>
+            <div class="table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Product</th>
+                    <th>Quantity</th>
+                    <th>Unit price</th>
+                    <th>Line total</th>
+                    <th>Shelf</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  @for (line of sold.lines; track line.id) {
+                    <tr>
+                      <td>{{ line.productName }}</td>
+                      <td>{{ line.quantity }}</td>
+                      <td>{{ money(line.unitPrice) }}</td>
+                      <td>{{ money(line.lineTotal) }}</td>
+                      <td>{{ line.shelfName }}</td>
+                    </tr>
+                  }
+                </tbody>
+              </table>
+            </div>
+          }
+        }
+        @if (lines().length > 0) {
+          <h2>Sale</h2>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Product</th>
+                  <th>Quantity</th>
+                  <th>Unit price</th>
+                  <th>Line total</th>
+                  <th>Shelf</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody>
+                @for (line of lines(); track line.key) {
+                  <tr>
+                    <td>{{ line.productName }}</td>
+                    <td>
+                      <span class="pos-qty">
+                        <button type="button" class="secondary" (click)="stepQuantity(line.key, -1)" [disabled]="selling()" aria-label="Decrease quantity">−</button>
+                        <input
+                          name="lineQuantity"
+                          [value]="line.quantity"
+                          (input)="updateQuantity(line.key, $any($event.target).value)"
+                          (keydown)="onLineKey($event)"
+                          inputmode="decimal"
+                          [disabled]="selling()"
+                        />
+                        <button type="button" class="secondary" (click)="stepQuantity(line.key, 1)" [disabled]="selling()" aria-label="Increase quantity">+</button>
+                      </span>
+                    </td>
+                    <td>{{ money(line.unitPrice) }}</td>
+                    <td>{{ lineMoney(line) }}</td>
+                    <td>
+                      <select
+                        name="lineShelf"
+                        (change)="updateShelf(line.key, $any($event.target).value)"
+                        [disabled]="selling()"
+                      >
+                        <option value="" [selected]="line.shelfId === ''">Choose a shelf</option>
+                        @for (shelf of shelves(); track shelf.id) {
+                          <option [value]="shelf.id" [selected]="line.shelfId === shelf.id">{{ shelfLabel(shelf) }}</option>
+                        }
+                      </select>
+                    </td>
+                    <td>
+                      <button type="button" class="secondary" (click)="removeLine(line.key)" [disabled]="selling()">
+                        Remove
+                      </button>
+                    </td>
+                  </tr>
+                }
+              </tbody>
+            </table>
+          </div>
+        } @else if (!receipt()) {
+          <p class="status">Scan a barcode or search for a product.</p>
+        }
+      </section>
+
+      <aside class="pos-checkout">
+        @if (receipt(); as sold) {
+          @if (lines().length === 0) {
+            <p class="notice ok" role="status">Sale completed.</p>
+            <h2>Receipt {{ sold.receiptNumber }}</h2>
+            <p>{{ soldAt(sold) }}</p>
+            <p>{{ receiptCustomer(sold) }}</p>
+            <p>Payment {{ sold.paymentMethod }}</p>
+            <p class="pos-total">Total {{ money(sold.total) }}</p>
+            <div class="actions no-print">
+              <button type="button" (click)="newSale()">New sale</button>
+              <a class="button secondary" [routerLink]="['/sales', sold.id]">Open receipt</a>
+              <button type="button" class="secondary" (click)="printReceipt()">Print</button>
+            </div>
+            <p class="hint">The next scan starts a new sale. This receipt stays in Sales history.</p>
+          }
+        } @else {
+          <p class="pos-total">Total {{ lines().length > 0 ? documentTotal() : '—' }}</p>
+          @if (!customer()) {
+            <p class="hint">Walk-in sale. Cash is selected.</p>
+          }
+          @if (canSell()) {
+            <button type="button" class="pos-complete" (click)="complete()" [disabled]="selling() || paying() || lines().length === 0">
+              {{ selling() ? 'Completing sale…' : 'Complete sale' }}
+            </button>
+            <p class="hint">Ctrl+Enter completes the sale. Enter in the barcode field adds the product.</p>
+          } @else {
+            <p class="hint">Inventory staff can read sales and cannot complete one.</p>
+          }
+
+          <section class="pos-customer">
+            @if (!customer()) {
+              <button type="button" class="secondary" (click)="customerOpen.set(!customerOpen())" [disabled]="selling()">
+                {{ customerOpen() ? 'Hide customer search' : 'Add customer' }}
+              </button>
+            }
+            @if (customerOpen() && !customer()) {
+              <form class="toolbar" (ngSubmit)="findCustomer()">
+                <label>
+                  Customer
+                  <input
+                    name="customer"
+                    [value]="customerQuery()"
+                    (input)="customerQuery.set($any($event.target).value)"
+                    autocomplete="off"
+                    [disabled]="selling()"
+                  />
+                </label>
+                <button type="submit" [disabled]="findingCustomer() || selling()">Find customer</button>
+              </form>
+              <p class="hint">Optional. Search by name or phone. A cash sale does not need a customer.</p>
+              @if (customerError()) {
+                <p class="notice error" role="alert">{{ customerError() }}</p>
+              }
+              @if (customerMatches().length > 0) {
+                <div class="table-wrap">
+                  <table>
+                    <thead>
+                      <tr>
+                        <th>Name</th>
+                        <th>Phone</th>
+                        <th></th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      @for (match of customerMatches(); track match.id) {
+                        <tr>
+                          <td>{{ match.name }}</td>
+                          <td>{{ match.phone }}</td>
+                          <td>
+                            <button type="button" (click)="chooseCustomer(match)" [disabled]="selling()">Select</button>
+                          </td>
+                        </tr>
+                      }
+                    </tbody>
+                  </table>
+                </div>
+              }
+            }
+            @if (customer(); as selected) {
+              <p>{{ customerLabel(selected) }}</p>
+              <p>Outstanding {{ money(outstanding()) }}</p>
+              <button type="button" class="secondary" (click)="clearCustomer()" [disabled]="selling() || paying()">
+                Clear customer
+              </button>
+              <form class="toolbar" (ngSubmit)="$event.preventDefault()">
+                <label>
+                  This sale
+                  <select
+                    name="salePayment"
+                    (change)="paymentMethod.set($any($event.target).value)"
+                    [disabled]="selling() || paying()"
+                  >
+                    <option value="cash" [selected]="paymentMethod() === 'cash'">Cash</option>
+                    <option value="credit" [selected]="paymentMethod() === 'credit'">Credit</option>
+                  </select>
+                </label>
+              </form>
+              @if (paymentMethod() === 'credit') {
+                <p class="hint">Credit charges this sale to the customer and does not change the total.</p>
+              } @else {
+                <p class="hint">Cash is selected. Credit charges this sale and does not change the total.</p>
+              }
+              <form class="toolbar" (ngSubmit)="recordPayment()">
+                <label>
+                  Collect outstanding
+                  <input
+                    name="paymentAmount"
+                    [value]="paymentAmount()"
+                    (input)="paymentAmount.set($any($event.target).value)"
+                    inputmode="decimal"
+                    [disabled]="paying() || selling()"
+                  />
+                </label>
+                <button type="submit" [disabled]="paying() || selling()">
+                  {{ paying() ? 'Recording payment…' : 'Record payment' }}
+                </button>
+              </form>
+              <p class="hint">This collects money already owed. It does not change the sale total.</p>
+              @if (paymentNotice()) {
+                <p class="notice" role="status">{{ paymentNotice() }}</p>
+              }
+            }
+          </section>
+        }
+        <p class="hint">The charged total is calculated by the server. <a routerLink="/sales">Sales history</a></p>
+      </aside>
+    </div>
   </div>
-  <p class="pos-total">Total {{ documentTotal() }}</p>
-}
 
-@if (canSell()) {
-  <button type="button" (click)="complete()" [disabled]="selling() || paying() || lines().length === 0">
-    {{ selling() ? 'Completing sale…' : 'Complete sale' }}
-  </button>
-} @else {
-  <p class="hint">Inventory staff can read sales and cannot complete one.</p>
-}
-
-<p class="hint">The charged total is calculated by the server. <a routerLink="/sales">Sales history</a></p>
+  @if (receipt(); as sold) {
+    <article class="receipt pos-receipt-sheet">
+      <p>Sale completed.</p>
+      <h2>Receipt {{ sold.receiptNumber }}</h2>
+      <p>{{ soldAt(sold) }}</p>
+      <p>{{ receiptCustomer(sold) }}</p>
+      <p>Payment {{ sold.paymentMethod }}</p>
+      <table>
+        <thead>
+          <tr>
+            <th>Product</th>
+            <th>Shelf</th>
+            <th>Quantity</th>
+            <th>Unit price</th>
+            <th>Line total</th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (line of sold.lines; track line.id) {
+            <tr>
+              <td>{{ line.productName }}</td>
+              <td>{{ line.shelfName }}</td>
+              <td>{{ line.quantity }}</td>
+              <td>{{ money(line.unitPrice) }}</td>
+              <td>{{ money(line.lineTotal) }}</td>
+            </tr>
+          }
+        </tbody>
+      </table>
+      <p>Total {{ money(sold.total) }}</p>
+    </article>
+  }
+</div>

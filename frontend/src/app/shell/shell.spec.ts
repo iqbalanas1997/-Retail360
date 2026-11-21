@@ -79,10 +79,79 @@ describe('shell session expiry', () => {
     const fixture = TestBed.createComponent(Shell);
     fixture.detectChanges();
 
-    expect(fixture.nativeElement.textContent).not.toContain('Audit');
-    expect(fixture.nativeElement.textContent).not.toContain('Users');
-    expect(fixture.nativeElement.textContent).not.toContain('Customers');
-    expect(fixture.nativeElement.textContent).toContain('Password');
+    const text = fixture.nativeElement.textContent as string;
+    expect(text).not.toContain('Audit');
+    expect(text).not.toContain('Users');
+    expect(text).not.toContain('Customers');
+    expect(text).toContain('Password');
+    expect(text).toContain('POS');
+    expect(text.indexOf('POS')).toBeLessThan(text.indexOf('Products'));
+  });
+
+  it('hides POS from inventory staff and keeps stock available', () => {
+    remember(new Date(Date.now() + 60_000).toISOString(), 'Inventory Staff');
+    TestBed.configureTestingModule({
+      imports: [Shell],
+      providers: [provideRouter([{ path: 'login', component: LoginStub }])],
+    });
+    const fixture = TestBed.createComponent(Shell);
+    fixture.detectChanges();
+    const text = fixture.nativeElement.textContent as string;
+
+    expect(text).not.toContain('POS');
+    expect(text).not.toContain('Audit');
+    expect(text).not.toContain('Users');
+    expect(text).not.toContain('Customers');
+    expect(text).toContain('Stock');
+    expect(text).toContain('Opening');
+    expect(text).toContain('Sales');
+    expect(text).toContain('Purchases');
+  });
+
+  it('shows the manager shop links and hides Admin accounts', () => {
+    remember(new Date(Date.now() + 60_000).toISOString(), 'Manager');
+    TestBed.configureTestingModule({
+      imports: [Shell],
+      providers: [provideRouter([{ path: 'login', component: LoginStub }])],
+    });
+    const fixture = TestBed.createComponent(Shell);
+    fixture.detectChanges();
+    const text = fixture.nativeElement.textContent as string;
+
+    expect(text).toContain('Dashboard');
+    expect(text).toContain('Customers');
+    expect(text).toContain('POS');
+    expect(text.indexOf('POS')).toBeLessThan(text.indexOf('Products'));
+    expect(text).not.toContain('Audit');
+    expect(text).not.toContain('Users');
+  });
+
+  it('closes the menu after a route is chosen', async () => {
+    remember(new Date(Date.now() + 60_000).toISOString(), 'Cashier');
+    TestBed.configureTestingModule({
+      imports: [Shell],
+      providers: [
+        provideRouter([
+          { path: 'login', component: LoginStub },
+          { path: 'pos', component: LoginStub },
+        ]),
+      ],
+    });
+    const fixture = TestBed.createComponent(Shell);
+    fixture.detectChanges();
+    const root = fixture.nativeElement as HTMLElement;
+    const menu = [...root.querySelectorAll('button')].find((button) => button.textContent?.trim() === 'Menu');
+    menu?.click();
+    fixture.detectChanges();
+
+    expect(root.querySelector('.shell')?.classList.contains('nav-open')).toBe(true);
+    const pos = [...root.querySelectorAll('a')].find((link) => link.textContent?.trim() === 'POS');
+    pos?.click();
+    await fixture.whenStable();
+    fixture.detectChanges();
+
+    expect(TestBed.inject(Router).url).toBe('/pos');
+    expect(root.querySelector('.shell')?.classList.contains('nav-open')).toBe(false);
   });
 });
 
