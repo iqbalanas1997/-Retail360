@@ -39,7 +39,7 @@ Digitize daily grocery shop operations and provide real-time visibility into sto
 - Customer-wise sales history.
 - Credit sales and outstanding balances.
 
-The current customer record implements customer information and customer-wise cash-sale history. Credit sales and outstanding balances remain future work and are not stored on the customer.
+The customer record stores customer information. A cash sale can name a customer without creating a balance. A credit sale posts one charge, and a later payment is allocated to the oldest open charges. The outstanding balance is derived from that ledger. It is not stored on the customer. Supplier payments remain future work.
 
 ### 6. Expenses
 - Daily shop expenses.
@@ -92,3 +92,6 @@ The first implementation should prioritize:
 9. Users/roles/audit
 
 Future scalability items are architectural considerations, not automatic MVP features.
+
+## Verification status
+On 2026-11-08 the implemented catalog, inventory, purchasing, cash sales, suppliers, customers, expenses, dashboard, users, and audit behavior was regression-tested. The automated suites passed, and the same workflows were exercised on the local development database and in the browser. No defect was found. Credit sales, supplier payments, profit, inventory value, payables, and receivables are still not implemented.

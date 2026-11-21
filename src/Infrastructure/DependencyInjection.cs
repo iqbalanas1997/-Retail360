@@ -65,6 +65,8 @@ public static class DependencyInjection
         services.AddSingleton<IInventoryProductLookup>(provider => provider.GetRequiredService<StockLedgerStore>());
         services.AddSingleton<ISupplierStore, SupplierStore>();
         services.AddSingleton<ICustomerStore, CustomerStore>();
+        services.AddSingleton<CustomerCreditStore>();
+        services.AddSingleton<ICustomerCreditStore>(provider => provider.GetRequiredService<CustomerCreditStore>());
         services.AddSingleton<IPurchaseStore, PurchaseStore>();
         services.AddSingleton<ISaleStore, SaleStore>();
         services.AddSingleton<IExpenseStore, ExpenseStore>();

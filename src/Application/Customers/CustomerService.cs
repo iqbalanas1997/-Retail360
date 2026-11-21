@@ -12,12 +12,14 @@ public sealed class CustomerService
 
     private readonly ICustomerStore _customers;
     private readonly ISaleStore _sales;
+    private readonly ICustomerCreditStore _credit;
     private readonly IClock _clock;
 
-    public CustomerService(ICustomerStore customers, ISaleStore sales, IClock clock)
+    public CustomerService(ICustomerStore customers, ISaleStore sales, ICustomerCreditStore credit, IClock clock)
     {
         _customers = customers;
         _sales = sales;
+        _credit = credit;
         _clock = clock;
     }
 
@@ -36,7 +38,9 @@ public sealed class CustomerService
 
     public async Task<CustomerResponse> GetAsync(Guid id, CancellationToken cancellationToken)
     {
-        return ToResponse(await RequireAsync(id, cancellationToken));
+        var customer = await RequireAsync(id, cancellationToken);
+        var outstanding = await _credit.OutstandingAsync([customer.Id], cancellationToken);
+        return ToResponse(customer, outstanding.GetValueOrDefault(customer.Id));
     }
 
     public async Task<IReadOnlyList<CustomerSaleSummary>> ListSalesAsync(
@@ -62,7 +66,7 @@ public sealed class CustomerService
             command.Notes,
             _clock.UtcNow);
         await _customers.AddAsync(customer, cancellationToken);
-        return ToResponse(customer);
+        return ToResponse(customer, 0);
     }
 
     public async Task<CustomerResponse> UpdateAsync(
@@ -79,7 +83,7 @@ public sealed class CustomerService
             command.Notes,
             _clock.UtcNow);
         await _customers.UpdateAsync(customer, cancellationToken);
-        return ToResponse(customer);
+        return await GetAsync(id, cancellationToken);
     }
 
     public async Task<CustomerResponse> ActivateAsync(Guid id, CancellationToken cancellationToken)
@@ -87,7 +91,7 @@ public sealed class CustomerService
         var customer = await RequireAsync(id, cancellationToken);
         customer.Activate(_clock.UtcNow);
         await _customers.UpdateAsync(customer, cancellationToken);
-        return ToResponse(customer);
+        return await GetAsync(id, cancellationToken);
     }
 
     public async Task<CustomerResponse> DeactivateAsync(Guid id, CancellationToken cancellationToken)
@@ -95,7 +99,7 @@ public sealed class CustomerService
         var customer = await RequireAsync(id, cancellationToken);
         customer.Deactivate(_clock.UtcNow);
         await _customers.UpdateAsync(customer, cancellationToken);
-        return ToResponse(customer);
+        return await GetAsync(id, cancellationToken);
     }
 
     public async Task DeleteAsync(Guid id, CancellationToken cancellationToken)
@@ -113,7 +117,8 @@ public sealed class CustomerService
         CancellationToken cancellationToken)
     {
         var customers = await _customers.ListAsync(search, activeOnly, limit, offset, cancellationToken);
-        return customers.Select(ToResponse).ToArray();
+        var outstanding = await _credit.OutstandingAsync(customers.Select(customer => customer.Id).ToArray(), cancellationToken);
+        return customers.Select(customer => ToResponse(customer, outstanding.GetValueOrDefault(customer.Id))).ToArray();
     }
 
     private async Task<Customer> RequireAsync(Guid id, CancellationToken cancellationToken)
@@ -137,7 +142,7 @@ public sealed class CustomerService
         }
     }
 
-    private static CustomerResponse ToResponse(Customer customer)
+    private static CustomerResponse ToResponse(Customer customer, decimal outstanding)
     {
         return new CustomerResponse(
             customer.Id,
@@ -148,6 +153,7 @@ public sealed class CustomerService
             customer.Notes,
             customer.IsActive,
             customer.CreatedAt,
-            customer.UpdatedAt);
+            customer.UpdatedAt,
+            outstanding);
     }
 }

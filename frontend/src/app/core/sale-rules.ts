@@ -42,11 +42,13 @@ export function saleTotal(lineTotals: readonly number[]): number {
 export function saleAttemptKey(
   lines: readonly { productId: string; shelfId: string; quantity: number }[],
   customerId = '',
+  paymentMethod = 'cash',
 ): string {
   const lineKey = lines
     .map((line) => `${line.productId}|${line.shelfId}|${formatScaled(line.quantity, 3)}`)
     .join('||');
-  return customerId ? `${lineKey}||customer:${customerId}` : lineKey;
+  const withCustomer = customerId ? `${lineKey}||customer:${customerId}` : lineKey;
+  return paymentMethod === 'credit' ? `${withCustomer}||payment:credit` : withCustomer;
 }
 
 export function formatSoldAt(value: string): string {

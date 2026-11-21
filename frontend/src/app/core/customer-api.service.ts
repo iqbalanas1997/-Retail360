@@ -4,8 +4,10 @@ import { Observable } from 'rxjs';
 
 import {
   type Customer,
+  type CustomerPayment,
   type CustomerQuery,
   type CustomerSale,
+  type RecordCustomerPaymentBody,
   type SaveCustomerBody,
 } from './customer.models';
 
@@ -28,6 +30,10 @@ export class CustomerApi {
 
   get(id: string): Observable<Customer> {
     return this.http.get<Customer>(`/api/customers/${id}`);
+  }
+
+  recordPayment(id: string, body: RecordCustomerPaymentBody): Observable<CustomerPayment> {
+    return this.http.post<CustomerPayment>(`/api/customers/${id}/payments`, body);
   }
 
   sales(id: string, limit: number, offset: number): Observable<CustomerSale[]> {

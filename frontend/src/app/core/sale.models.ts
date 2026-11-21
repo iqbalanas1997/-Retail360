@@ -32,6 +32,7 @@ export interface CompleteSaleBody {
   operationId: string;
   lines: CompleteSaleLineBody[];
   customerId?: string;
+  paymentMethod?: string;
 }
 
 export interface SaleQuery {

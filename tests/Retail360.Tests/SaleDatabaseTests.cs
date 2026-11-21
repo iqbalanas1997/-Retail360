@@ -9,12 +9,15 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Hosting;
 using Npgsql;
 using Retail360.Application.Catalog;
+using Retail360.Application.Customers;
 using Retail360.Application.Identity;
 using Retail360.Application.Inventory;
 using Retail360.Application.Sales;
+using Retail360.Domain.Customers;
 using Retail360.Domain.Identity;
 using Retail360.Domain.Inventory;
 using Retail360.Domain.Sales;
+using Retail360.Infrastructure.Customers;
 using Retail360.Infrastructure.Database;
 using Retail360.Infrastructure.Identity;
 using Retail360.Infrastructure.Inventory;
@@ -66,6 +69,7 @@ public sealed class SaleDatabaseTests
 
         Assert.Equal(SaleDatabaseGuard.PermittedDatabase, name);
         Assert.Contains("008_sales", versions);
+        Assert.Contains("015_customer_credit", versions);
         Assert.Equal(1, rows);
         Assert.Equal(versions.Distinct(StringComparer.Ordinal).Count(), versions.Length);
     }
@@ -242,7 +246,8 @@ public sealed class SaleDatabaseTests
         var history = await new SaleStore(
             _database.Connections,
             transactions,
-            new StockLedgerStore(_database.Connections, transactions)).ListForCustomerAsync(
+            new StockLedgerStore(_database.Connections, transactions),
+            new CustomerCreditStore(_database.Connections, transactions)).ListForCustomerAsync(
             buyer,
             50,
             0,
@@ -322,6 +327,428 @@ public sealed class SaleDatabaseTests
         Assert.Equal(1, results.Count(result => result is InventoryRuleException));
         Assert.Equal(0.000m, quantity);
         Assert.Equal(1, saleMovements);
+    }
+
+    [Fact]
+    public async Task Credit_sale_charges_once_and_a_cash_sale_does_not()
+    {
+        var buyer = await SeedCustomerAsync("Credit Buyer", true, false, "0300111222");
+        var product = await SeedProductAsync("Lentils", 4.00m, true);
+        var shelf = await SeedShelfAsync(true);
+        await OpenAsync(product, shelf, 5.000m);
+        var operationId = Guid.NewGuid();
+        var credit = _database.CreateSales().CompleteAsync(
+            Command(operationId, product, shelf, 1.250m, buyer, SaleText.Credit),
+            CancellationToken.None);
+
+        var created = await credit;
+        var replay = await _database.CreateSales().CompleteAsync(
+            Command(operationId, product, shelf, 1.250m, buyer, SaleText.Credit),
+            CancellationToken.None);
+        var cash = await _database.CreateSales().CompleteAsync(
+            Command(Guid.NewGuid(), product, shelf, 1m, buyer),
+            CancellationToken.None);
+        var changed = await Assert.ThrowsAsync<SaleRuleException>(() => _database.CreateSales().CompleteAsync(
+            Command(operationId, product, shelf, 1.250m, buyer),
+            CancellationToken.None));
+        await using var connection = await _database.OpenAsync();
+        var charges = await connection.ExecuteScalarAsync<long>(
+            "select count(*) from customer_ledger_entries where customer_id = @Id and entry_type = 'charge';",
+            new { Id = buyer });
+        var chargeSale = await connection.ExecuteScalarAsync<Guid>(
+            "select sale_id from customer_ledger_entries where customer_id = @Id and entry_type = 'charge';",
+            new { Id = buyer });
+        var quantity = await connection.ExecuteScalarAsync<decimal>(
+            "select quantity from stock_balances where product_id = @ProductId and shelf_id = @ShelfId;",
+            new { ProductId = product, ShelfId = shelf });
+        var details = await connection.ExecuteScalarAsync<string>(
+            "select details::text from audit_entries where entity_id = @Id and action = 'sale.completed';",
+            new { Id = created.Id.ToString("D") });
+        var audits = await connection.ExecuteScalarAsync<long>(
+            "select count(*) from audit_entries where entity_id = @Id and action = 'sale.completed';",
+            new { Id = created.Id.ToString("D") });
+
+        Assert.Equal(SaleText.Credit, created.PaymentMethod);
+        Assert.Equal(5.00m, created.Total);
+        Assert.Equal(buyer, created.CustomerId);
+        Assert.Equal(created.Id, replay.Id);
+        Assert.Equal(SaleText.Cash, cash.PaymentMethod);
+        Assert.Equal(SaleRuleFailure.Conflict, changed.Failure);
+        Assert.Equal(1, charges);
+        Assert.Equal(created.Id, chargeSale);
+        Assert.Equal(2.750m, quantity);
+        Assert.Equal(1, audits);
+        Assert.Contains("\"paymentMethod\": \"credit\"", details, StringComparison.Ordinal);
+        Assert.DoesNotContain("0300111222", details, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task Credit_without_a_customer_or_a_positive_total_is_rejected()
+    {
+        var sales = _database.CreateSales();
+        var free = await SeedProductAsync("Sample", 0m, true);
+        var priced = await SeedProductAsync("Rice", 2.00m, true);
+        var shelf = await SeedShelfAsync(true);
+        await OpenAsync(free, shelf, 2m);
+        await OpenAsync(priced, shelf, 2m);
+        var buyer = await SeedCustomerAsync("No Credit", true, false, "0300222333");
+
+        var missingCustomer = await Assert.ThrowsAsync<SaleRuleException>(() => sales.CompleteAsync(
+            Command(Guid.NewGuid(), priced, shelf, 1m, null, SaleText.Credit),
+            CancellationToken.None));
+        var zero = await Assert.ThrowsAsync<SaleRuleException>(() => sales.CompleteAsync(
+            Command(Guid.NewGuid(), free, shelf, 1m, buyer, SaleText.Credit),
+            CancellationToken.None));
+        await using var connection = await _database.OpenAsync();
+        var charges = await connection.ExecuteScalarAsync<long>(
+            "select count(*) from customer_ledger_entries where customer_id = @Id;",
+            new { Id = buyer });
+        var freeStock = await connection.ExecuteScalarAsync<decimal>(
+            "select quantity from stock_balances where product_id = @Id;",
+            new { Id = free });
+
+        Assert.Equal(SaleRuleFailure.Invalid, missingCustomer.Failure);
+        Assert.Equal("A credit sale needs a customer.", missingCustomer.Message);
+        Assert.Equal(SaleRuleFailure.Invalid, zero.Failure);
+        Assert.Equal("A credit sale total must be greater than zero.", zero.Message);
+        Assert.Equal(0, charges);
+        Assert.Equal(2m, freeStock);
+    }
+
+    [Fact]
+    public async Task Failed_credit_sale_does_not_leave_a_charge()
+    {
+        var sales = _database.CreateSales();
+        var product = await SeedProductAsync("Short", 3.00m, true);
+        var shelf = await SeedShelfAsync(true);
+        await OpenAsync(product, shelf, 1m);
+        var buyer = await SeedCustomerAsync("Short Buyer", true, false, "0300333444");
+
+        var error = await Assert.ThrowsAsync<InventoryRuleException>(() => sales.CompleteAsync(
+            Command(Guid.NewGuid(), product, shelf, 2m, buyer, SaleText.Credit),
+            CancellationToken.None));
+        await using var connection = await _database.OpenAsync();
+        var charges = await connection.ExecuteScalarAsync<long>(
+            "select count(*) from customer_ledger_entries where customer_id = @Id;",
+            new { Id = buyer });
+        var quantity = await connection.ExecuteScalarAsync<decimal>(
+            "select quantity from stock_balances where product_id = @Id;",
+            new { Id = product });
+
+        Assert.Equal(InventoryRuleFailure.Conflict, error.Failure);
+        Assert.Equal(0, charges);
+        Assert.Equal(1m, quantity);
+    }
+
+    [Fact]
+    public async Task Payments_allocate_to_the_oldest_charge_and_reject_a_reused_operation()
+    {
+        var buyer = await SeedCustomerAsync("Oldest", true, false, "0300444555");
+        var other = await SeedCustomerAsync("Other payer", true, false, "0300555666");
+        var product = await SeedProductAsync("Beans", 10.00m, true);
+        var shelf = await SeedShelfAsync(true);
+        await OpenAsync(product, shelf, 3m);
+        var early = await _database.CreateSales(DateTimeOffset.Parse("2026-10-20T00:00:00Z")).CompleteAsync(
+            Command(Guid.NewGuid(), product, shelf, 1m, buyer, SaleText.Credit),
+            CancellationToken.None);
+        var later = await _database.CreateSales(DateTimeOffset.Parse("2026-10-21T00:00:00Z")).CompleteAsync(
+            Command(Guid.NewGuid(), product, shelf, 1m, buyer, SaleText.Credit),
+            CancellationToken.None);
+        var credit = _database.CreateCredit(DateTimeOffset.Parse("2026-10-22T00:00:00Z"));
+        var operationId = Guid.NewGuid();
+
+        var payment = await credit.RecordPaymentAsync(
+            buyer,
+            new RecordCustomerPaymentCommand(operationId, 15.00m),
+            CancellationToken.None);
+        var replay = await credit.RecordPaymentAsync(
+            buyer,
+            new RecordCustomerPaymentCommand(operationId, 15.00m),
+            CancellationToken.None);
+        var differentAmount = await Assert.ThrowsAsync<CustomerRuleException>(() => credit.RecordPaymentAsync(
+            buyer,
+            new RecordCustomerPaymentCommand(operationId, 10.00m),
+            CancellationToken.None));
+        var differentCustomer = await Assert.ThrowsAsync<CustomerRuleException>(() => credit.RecordPaymentAsync(
+            other,
+            new RecordCustomerPaymentCommand(operationId, 15.00m),
+            CancellationToken.None));
+        var overpay = await Assert.ThrowsAsync<CustomerRuleException>(() => credit.RecordPaymentAsync(
+            buyer,
+            new RecordCustomerPaymentCommand(Guid.NewGuid(), 6.00m),
+            CancellationToken.None));
+        var balance = await credit.GetBalanceAsync(buyer, CancellationToken.None);
+        await using var connection = await _database.OpenAsync();
+        var payments = await connection.ExecuteScalarAsync<long>(
+            "select count(*) from customer_ledger_entries where customer_id = @Id and entry_type = 'payment';",
+            new { Id = buyer });
+        var audits = await connection.ExecuteScalarAsync<long>(
+            """
+            select count(*)
+            from audit_entries
+            where entity_id = @Id and action = 'customer.payment_recorded';
+            """,
+            new { Id = buyer.ToString("D") });
+        var details = await connection.ExecuteScalarAsync<string>(
+            """
+            select details::text
+            from audit_entries
+            where entity_id = @Id and action = 'customer.payment_recorded';
+            """,
+            new { Id = buyer.ToString("D") });
+
+        Assert.Equal(15.00m, payment.Amount);
+        Assert.Equal(5.00m, payment.Outstanding);
+        Assert.Equal(early.Id, payment.Allocations[0].SaleId);
+        Assert.Equal(10.00m, payment.Allocations[0].Amount);
+        Assert.Equal(later.Id, payment.Allocations[1].SaleId);
+        Assert.Equal(5.00m, payment.Allocations[1].Amount);
+        Assert.Equal(payment.Id, replay.Id);
+        Assert.Equal(CustomerRuleFailure.Conflict, differentAmount.Failure);
+        Assert.Equal("This operation key was already used for a different payment.", differentAmount.Message);
+        Assert.Equal(CustomerRuleFailure.Conflict, differentCustomer.Failure);
+        Assert.Equal(CustomerRuleFailure.Conflict, overpay.Failure);
+        Assert.Equal("Payment is larger than the outstanding balance.", overpay.Message);
+        Assert.Equal(5.00m, balance.Outstanding);
+        Assert.Equal(1, payments);
+        Assert.Equal(1, audits);
+        Assert.Contains("15.00", details, StringComparison.Ordinal);
+        Assert.DoesNotContain("0300444555", details, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task Ledger_rejects_a_second_charge_an_unbalanced_allocation_and_any_change()
+    {
+        var buyer = await SeedCustomerAsync("Guard", true, false, "0300666777");
+        var product = await SeedProductAsync("Oil", 8.00m, true);
+        var shelf = await SeedShelfAsync(true);
+        await OpenAsync(product, shelf, 1m);
+        var sale = await _database.CreateSales().CompleteAsync(
+            Command(Guid.NewGuid(), product, shelf, 1m, buyer, SaleText.Credit),
+            CancellationToken.None);
+        await using var connection = await _database.OpenAsync();
+        var chargeId = await connection.ExecuteScalarAsync<Guid>(
+            "select id from customer_ledger_entries where sale_id = @SaleId;",
+            new { SaleId = sale.Id });
+
+        var secondCharge = await Assert.ThrowsAsync<PostgresException>(() => connection.ExecuteAsync(
+            """
+            insert into customer_ledger_entries (
+                id, operation_id, operation_fingerprint, customer_id, sale_id,
+                entry_type, amount, occurred_at, created_at)
+            values (
+                @Id, @OperationId, 'charge-again', @CustomerId, @SaleId,
+                'charge', 8.00, now(), now());
+            """,
+            new
+            {
+                Id = Guid.NewGuid(),
+                OperationId = Guid.NewGuid(),
+                CustomerId = buyer,
+                SaleId = sale.Id
+            }));
+        var changed = await Assert.ThrowsAsync<PostgresException>(() => connection.ExecuteAsync(
+            "update customer_ledger_entries set amount = 7.00 where id = @Id;",
+            new { Id = chargeId }));
+        var removed = await Assert.ThrowsAsync<PostgresException>(() => connection.ExecuteAsync(
+            "delete from customer_ledger_entries where id = @Id;",
+            new { Id = chargeId }));
+        await using var over = await connection.BeginTransactionAsync();
+        var paymentId = Guid.NewGuid();
+        await connection.ExecuteAsync(
+            """
+            insert into customer_ledger_entries (
+                id, operation_id, operation_fingerprint, customer_id, sale_id,
+                entry_type, amount, occurred_at, created_at)
+            values (
+                @Id, @OperationId, 'too-much', @CustomerId, null,
+                'payment', 8.00, now(), now());
+            insert into customer_payment_allocations (
+                id, payment_entry_id, charge_entry_id, amount, created_at)
+            values (@AllocationId, @Id, @ChargeId, 9.00, now());
+            """,
+            new
+            {
+                Id = paymentId,
+                OperationId = Guid.NewGuid(),
+                CustomerId = buyer,
+                AllocationId = Guid.NewGuid(),
+                ChargeId = chargeId
+            },
+            over);
+        PostgresException unbalanced;
+        try
+        {
+            await over.CommitAsync();
+            throw new InvalidOperationException("An allocation above the charge committed.");
+        }
+        catch (PostgresException exception)
+        {
+            unbalanced = exception;
+        }
+
+        await using var connectionAfter = await _database.OpenAsync();
+        var rows = await connectionAfter.ExecuteScalarAsync<long>(
+            "select count(*) from customer_ledger_entries where customer_id = @Id;",
+            new { Id = buyer });
+
+        Assert.Equal(PostgresErrorCodes.UniqueViolation, secondCharge.SqlState);
+        Assert.Equal("uq_customer_ledger_entries_charge_sale", secondCharge.ConstraintName);
+        Assert.Equal(PostgresErrorCodes.ObjectNotInPrerequisiteState, changed.SqlState);
+        Assert.Equal(PostgresErrorCodes.ObjectNotInPrerequisiteState, removed.SqlState);
+        Assert.Equal(PostgresErrorCodes.CheckViolation, unbalanced.SqlState);
+        Assert.Equal(1, rows);
+    }
+
+    [Fact]
+    public async Task Outstanding_customer_cannot_be_removed_and_a_settled_customer_can()
+    {
+        var buyer = await SeedCustomerAsync("Settle", true, false, "0300777888");
+        var product = await SeedProductAsync("Soap", 6.50m, true);
+        var shelf = await SeedShelfAsync(true);
+        await OpenAsync(product, shelf, 1m);
+        var sale = await _database.CreateSales().CompleteAsync(
+            Command(Guid.NewGuid(), product, shelf, 1m, buyer, SaleText.Credit),
+            CancellationToken.None);
+        var customers = _database.CreateCustomers(DateTimeOffset.Parse("2026-10-22T00:00:00Z"));
+        var blocked = await Assert.ThrowsAsync<CustomerRuleException>(() =>
+            customers.DeleteAsync(buyer, CancellationToken.None));
+        await _database.CreateCredit(DateTimeOffset.Parse("2026-10-22T01:00:00Z")).RecordPaymentAsync(
+            buyer,
+            new RecordCustomerPaymentCommand(Guid.NewGuid(), 6.50m),
+            CancellationToken.None);
+
+        await customers.DeleteAsync(buyer, CancellationToken.None);
+        var receipt = await _database.CreateSales().GetAsync(sale.Id, CancellationToken.None);
+        await using var connection = await _database.OpenAsync();
+        var deleted = await connection.ExecuteScalarAsync<bool>(
+            "select is_deleted from customers where id = @Id;",
+            new { Id = buyer });
+        var charges = await connection.ExecuteScalarAsync<long>(
+            "select count(*) from customer_ledger_entries where customer_id = @Id;",
+            new { Id = buyer });
+
+        Assert.Equal(CustomerRuleFailure.Conflict, blocked.Failure);
+        Assert.Equal("Customer still has an outstanding balance.", blocked.Message);
+        Assert.True(deleted);
+        Assert.Equal(SaleText.Credit, receipt.PaymentMethod);
+        Assert.Equal("Settle", receipt.CustomerName);
+        Assert.Equal(2, charges);
+    }
+
+    [Fact]
+    public async Task Concurrent_credit_sale_and_delete_do_not_leave_a_charge_on_a_removed_customer()
+    {
+        var buyer = await SeedCustomerAsync("Race", true, false, "0300888999");
+        var product = await SeedProductAsync("Race goods", 2.00m, true);
+        var shelf = await SeedShelfAsync(true);
+        await OpenAsync(product, shelf, 1m);
+        await using var holder = await _database.OpenAsync();
+        await using var gate = await holder.BeginTransactionAsync();
+        await holder.ExecuteAsync(
+            "select id from customers where id = @Id for update;",
+            new { Id = buyer },
+            gate);
+        var sale = _database.CreateSales().CompleteAsync(
+            Command(Guid.NewGuid(), product, shelf, 1m, buyer, SaleText.Credit),
+            CancellationToken.None);
+        var delete = _database.CreateCustomers(DateTimeOffset.Parse("2026-10-22T00:00:00Z"))
+            .DeleteAsync(buyer, CancellationToken.None);
+        await WaitForWaitingSessionsAsync(2, sale, delete);
+        await gate.CommitAsync();
+        var saleError = await WrapAsync(sale);
+        var deleteError = await WrapCustomerAsync(delete);
+        await using var connection = await _database.OpenAsync();
+        var removed = await connection.ExecuteScalarAsync<bool>(
+            "select is_deleted from customers where id = @Id;",
+            new { Id = buyer });
+        var charges = await connection.ExecuteScalarAsync<long>(
+            "select count(*) from customer_ledger_entries where customer_id = @Id and entry_type = 'charge';",
+            new { Id = buyer });
+
+        Assert.Equal(1, (saleError is null ? 1 : 0) + (deleteError is null ? 1 : 0));
+        Assert.False(removed && charges > 0);
+        if (saleError is null)
+        {
+            Assert.False(removed);
+            Assert.Equal(1, charges);
+        }
+        else
+        {
+            Assert.True(removed);
+            Assert.Equal(0, charges);
+        }
+    }
+
+    [Fact]
+    public async Task Concurrent_payments_cannot_settle_more_than_the_charge()
+    {
+        var buyer = await SeedCustomerAsync("Double pay", true, false, "0300999000");
+        var product = await SeedProductAsync("Double", 4.00m, true);
+        var shelf = await SeedShelfAsync(true);
+        await OpenAsync(product, shelf, 1m);
+        await _database.CreateSales().CompleteAsync(
+            Command(Guid.NewGuid(), product, shelf, 1m, buyer, SaleText.Credit),
+            CancellationToken.None);
+        var credit = _database.CreateCredit(DateTimeOffset.Parse("2026-10-22T00:00:00Z"));
+        await using var holder = await _database.OpenAsync();
+        await using var gate = await holder.BeginTransactionAsync();
+        await holder.ExecuteAsync(
+            "select id from customers where id = @Id for update;",
+            new { Id = buyer },
+            gate);
+        var first = credit.RecordPaymentAsync(buyer, new RecordCustomerPaymentCommand(Guid.NewGuid(), 4.00m), CancellationToken.None);
+        var second = credit.RecordPaymentAsync(buyer, new RecordCustomerPaymentCommand(Guid.NewGuid(), 4.00m), CancellationToken.None);
+        await WaitForWaitingSessionsAsync(2, first, second);
+        await gate.CommitAsync();
+        var results = await Task.WhenAll(WrapCustomerAsync(first), WrapCustomerAsync(second));
+        await using var connection = await _database.OpenAsync();
+        var payments = await connection.ExecuteScalarAsync<long>(
+            "select count(*) from customer_ledger_entries where customer_id = @Id and entry_type = 'payment';",
+            new { Id = buyer });
+        var outstanding = await connection.ExecuteScalarAsync<decimal>(
+            """
+            select coalesce(sum(case when entry_type = 'charge' then amount else -amount end), 0)
+            from customer_ledger_entries
+            where customer_id = @Id;
+            """,
+            new { Id = buyer });
+
+        Assert.Equal(1, results.Count(result => result is null));
+        Assert.Equal(1, results.Count(result => result is CustomerRuleException));
+        Assert.Equal(1, payments);
+        Assert.Equal(0m, outstanding);
+    }
+
+    [Fact]
+    public async Task Cashier_can_record_a_payment_and_inventory_staff_cannot()
+    {
+        var cashier = await CreateUserAsync(ShopRoleNames.Cashier);
+        var staff = await CreateUserAsync(ShopRoleNames.InventoryStaff);
+        var buyer = await SeedCustomerAsync("Counter pay", true, false, "0300123000");
+        var product = await SeedProductAsync("Counter goods", 3.00m, true);
+        var shelf = await SeedShelfAsync(true);
+        await OpenAsync(product, shelf, 1m);
+        await _database.CreateSales().CompleteAsync(
+            Command(Guid.NewGuid(), product, shelf, 1m, buyer, SaleText.Credit),
+            CancellationToken.None);
+        using var client = _database.CreateClient();
+        var cashierToken = await LoginAsync(client, cashier);
+        var staffToken = await LoginAsync(client, staff);
+        var body = new { operationId = Guid.NewGuid(), amount = 1.25m };
+
+        var staffPayment = await SendAsync(client, $"/api/customers/{buyer}/payments", staffToken, HttpMethod.Post, body);
+        var cashierPayment = await SendAsync(client, $"/api/customers/{buyer}/payments", cashierToken, HttpMethod.Post, body);
+        var cashierBalance = await SendAsync(client, $"/api/customers/{buyer}/balance", cashierToken);
+        var staffBalance = await SendAsync(client, $"/api/customers/{buyer}/balance", staffToken);
+
+        Assert.Equal(HttpStatusCode.Forbidden, staffPayment.StatusCode);
+        Assert.Equal(HttpStatusCode.Created, cashierPayment.StatusCode);
+        Assert.Equal(HttpStatusCode.OK, cashierBalance.StatusCode);
+        Assert.Equal(HttpStatusCode.Forbidden, staffBalance.StatusCode);
+        using var paid = JsonDocument.Parse(await cashierPayment.Content.ReadAsStringAsync());
+        Assert.Equal(1.75m, paid.RootElement.GetProperty("outstanding").GetDecimal());
+        Assert.Equal(1.25m, paid.RootElement.GetProperty("allocations")[0].GetProperty("amount").GetDecimal());
     }
 
     [Fact]
@@ -424,12 +851,14 @@ public sealed class SaleDatabaseTests
         Guid productId,
         Guid shelfId,
         decimal quantity,
-        Guid? customerId = null)
+        Guid? customerId = null,
+        string? paymentMethod = null)
     {
         return new CompleteSaleCommand(
             operationId,
             [new CompleteSaleLineCommand(productId, shelfId, quantity)],
-            customerId);
+            customerId,
+            paymentMethod);
     }
 
     private async Task<Guid> SeedCustomerAsync(string name, bool active, bool deleted, string phone)
@@ -556,6 +985,19 @@ public sealed class SaleDatabaseTests
             return exception;
         }
     }
+
+    private static async Task<Exception?> WrapCustomerAsync(Task task)
+    {
+        try
+        {
+            await task;
+            return null;
+        }
+        catch (Exception exception) when (exception is CustomerRuleException or SaleRuleException)
+        {
+            return exception;
+        }
+    }
 }
 
 public sealed class SaleDatabaseFixture : IAsyncLifetime
@@ -602,10 +1044,39 @@ public sealed class SaleDatabaseFixture : IAsyncLifetime
 
     public SaleService CreateSales()
     {
+        return CreateSales(DateTimeOffset.Parse("2026-10-20T00:00:00Z"));
+    }
+
+    public SaleService CreateSales(DateTimeOffset utcNow)
+    {
         var transactions = new PostgresTransaction(Connections);
         return new SaleService(
-            new SaleStore(Connections, transactions, new StockLedgerStore(Connections, transactions)),
-            new FixedClock(DateTimeOffset.Parse("2026-10-20T00:00:00Z")));
+            new SaleStore(
+                Connections,
+                transactions,
+                new StockLedgerStore(Connections, transactions),
+                new CustomerCreditStore(Connections, transactions)),
+            new FixedClock(utcNow));
+    }
+
+    public CustomerService CreateCustomers(DateTimeOffset utcNow)
+    {
+        var transactions = new PostgresTransaction(Connections);
+        var credit = new CustomerCreditStore(Connections, transactions);
+        return new CustomerService(
+            new CustomerStore(Connections, transactions),
+            new SaleStore(Connections, transactions, new StockLedgerStore(Connections, transactions), credit),
+            credit,
+            new FixedClock(utcNow));
+    }
+
+    public CustomerCreditService CreateCredit(DateTimeOffset utcNow)
+    {
+        var transactions = new PostgresTransaction(Connections);
+        return new CustomerCreditService(
+            new CustomerStore(Connections, transactions),
+            new CustomerCreditStore(Connections, transactions),
+            new FixedClock(utcNow));
     }
 
     public HttpClient CreateClient()

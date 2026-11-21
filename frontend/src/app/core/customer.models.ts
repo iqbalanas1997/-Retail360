@@ -8,6 +8,7 @@ export interface Customer {
   isActive: boolean;
   createdAt: string;
   updatedAt: string;
+  outstanding: number;
 }
 
 export interface SaveCustomerBody {
@@ -23,6 +24,31 @@ export interface CustomerQuery {
   activeOnly: boolean;
   limit: number;
   offset: number;
+}
+
+export interface CustomerBalance {
+  customerId: string;
+  outstanding: number;
+}
+
+export interface CustomerPaymentAllocation {
+  saleId: string;
+  receiptNumber: number;
+  amount: number;
+}
+
+export interface CustomerPayment {
+  id: string;
+  customerId: string;
+  amount: number;
+  occurredAt: string;
+  outstanding: number;
+  allocations: CustomerPaymentAllocation[];
+}
+
+export interface RecordCustomerPaymentBody {
+  operationId: string;
+  amount: number;
 }
 
 export interface CustomerSale {

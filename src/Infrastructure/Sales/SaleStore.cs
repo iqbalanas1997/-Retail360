@@ -7,6 +7,7 @@ using Retail360.Domain.Audit;
 using Retail360.Domain.Inventory;
 using Retail360.Domain.Sales;
 using Retail360.Infrastructure.Audit;
+using Retail360.Infrastructure.Customers;
 using Retail360.Infrastructure.Database;
 using Retail360.Infrastructure.Inventory;
 
@@ -17,15 +18,18 @@ public sealed class SaleStore : ISaleStore
     private readonly NpgsqlConnectionFactory _connections;
     private readonly PostgresTransaction _transactions;
     private readonly StockLedgerStore _ledger;
+    private readonly CustomerCreditStore _credit;
 
     public SaleStore(
         NpgsqlConnectionFactory connections,
         PostgresTransaction transactions,
-        StockLedgerStore ledger)
+        StockLedgerStore ledger,
+        CustomerCreditStore credit)
     {
         _connections = connections;
         _transactions = transactions;
         _ledger = ledger;
+        _credit = credit;
     }
 
     public async Task<SaleResponse?> FindAsync(Guid id, CancellationToken cancellationToken)
@@ -94,6 +98,7 @@ public sealed class SaleStore : ISaleStore
         string fingerprint,
         IReadOnlyList<CompleteSaleLineCommand> lines,
         Guid? customerId,
+        string paymentMethod,
         DateTimeOffset utcNow,
         CancellationToken cancellationToken)
     {
@@ -107,6 +112,7 @@ public sealed class SaleStore : ISaleStore
                     fingerprint,
                     lines,
                     customerId,
+                    paymentMethod,
                     utcNow,
                     token),
                 cancellationToken);
@@ -126,9 +132,15 @@ public sealed class SaleStore : ISaleStore
         string fingerprint,
         IReadOnlyList<CompleteSaleLineCommand> lines,
         Guid? customerId,
+        string paymentMethod,
         DateTimeOffset utcNow,
         CancellationToken token)
     {
+        if (paymentMethod == SaleText.Credit && customerId is null)
+        {
+            throw new SaleRuleException(SaleRuleFailure.Invalid, "A credit sale needs a customer.");
+        }
+
         var existingId = await connection.QuerySingleOrDefaultAsync<Guid?>(new CommandDefinition(
             """
             select id
@@ -190,6 +202,11 @@ public sealed class SaleStore : ISaleStore
             line.Quantity,
             products[line.ProductId].SellingPrice)).ToArray();
         var sale = Sale.Create(saleId, receiptNumber, operationId, fingerprint, utcNow, saleLines);
+        if (paymentMethod == SaleText.Credit && sale.Total <= 0)
+        {
+            throw new SaleRuleException(SaleRuleFailure.Invalid, "A credit sale total must be greater than zero.");
+        }
+
         await connection.ExecuteAsync(new CommandDefinition(
             """
             insert into sales (
@@ -206,7 +223,7 @@ public sealed class SaleStore : ISaleStore
                 sale.OperationId,
                 Fingerprint = sale.Fingerprint,
                 SoldAt = sale.SoldAt,
-                PaymentMethod = SaleText.Cash,
+                PaymentMethod = paymentMethod,
                 sale.Total,
                 CustomerId = customerId
             },
@@ -268,6 +285,11 @@ public sealed class SaleStore : ISaleStore
                 token);
         }
 
+        if (paymentMethod == SaleText.Credit)
+        {
+            await _credit.ChargeInTransactionAsync(connection, transaction, sale, customerId!.Value, utcNow, token);
+        }
+
         await AuditEntryWriter.AppendAsync(
             connection,
             transaction,
@@ -275,7 +297,7 @@ public sealed class SaleStore : ISaleStore
             AuditEntityTypes.Sale,
             sale.Id.ToString("D"),
             utcNow,
-            SaleDetails(sale, customerId),
+            SaleDetails(sale, customerId, paymentMethod),
             null,
             token);
         return (await ReadAsync(connection, transaction, sale.Id, token))!;
@@ -412,7 +434,7 @@ public sealed class SaleStore : ISaleStore
         }
     }
 
-    private static Dictionary<string, string?> SaleDetails(Sale sale, Guid? customerId)
+    private static Dictionary<string, string?> SaleDetails(Sale sale, Guid? customerId, string paymentMethod)
     {
         var details = new Dictionary<string, string?>
         {
@@ -422,6 +444,11 @@ public sealed class SaleStore : ISaleStore
         if (customerId is Guid id)
         {
             details["customerId"] = id.ToString("D");
+        }
+
+        if (paymentMethod == SaleText.Credit)
+        {
+            details["paymentMethod"] = SaleText.Credit;
         }
 
         return details;

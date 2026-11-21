@@ -7,6 +7,8 @@ import { ApiError } from '../core/api-error';
 import { parseName } from '../core/catalog-rules';
 import { CustomerApi } from '../core/customer-api.service';
 import { type Customer, type CustomerSale, type SaveCustomerBody } from '../core/customer.models';
+import { parseCustomerPayment } from '../core/customer-rules';
+import { OperationAttempt } from '../core/inventory-rules';
 import { formatMoney } from '../core/purchase-rules';
 import { formatSoldAt } from '../core/sale-rules';
 import { SessionService } from '../core/session.service';
@@ -24,6 +26,7 @@ export class CustomerFormPage {
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
   private historyGeneration = 0;
+  private readonly paymentAttempt = new OperationAttempt();
 
   protected readonly historyPageSize = 50;
   protected readonly canWrite = this.session.canWriteCustomers;
@@ -39,6 +42,8 @@ export class CustomerFormPage {
   protected readonly historyLoadingMore = signal(false);
   protected readonly historyError = signal('');
   protected readonly historyHasMore = signal(false);
+  protected readonly paymentAmount = signal('');
+  protected readonly paying = signal(false);
   protected readonly form = this.formBuilder.nonNullable.group({
     name: ['', Validators.required],
     phone: '',
@@ -112,6 +117,38 @@ export class CustomerFormPage {
       }
 
       this.loading.set(false);
+    }
+  }
+
+  protected async recordPayment(event?: Event): Promise<void> {
+    event?.preventDefault();
+    const existing = this.customer();
+    if (!existing || !this.canWrite() || this.paying() || this.saving()) {
+      return;
+    }
+
+    this.error.set('');
+    this.success.set('');
+    let amount: number;
+    try {
+      amount = parseCustomerPayment(this.paymentAmount());
+    } catch (error) {
+      this.error.set(error instanceof Error ? error.message : 'The request failed.');
+      return;
+    }
+
+    const operationId = this.paymentAttempt.idFor(`${existing.id}|${amount.toFixed(2)}`);
+    this.paying.set(true);
+    try {
+      const payment = await firstValueFrom(this.api.recordPayment(existing.id, { operationId, amount }));
+      this.paymentAttempt.complete();
+      this.paymentAmount.set('');
+      this.customer.set({ ...existing, outstanding: payment.outstanding });
+      this.success.set('Payment recorded.');
+    } catch (error) {
+      this.error.set(error instanceof ApiError ? error.message : 'The request failed.');
+    } finally {
+      this.paying.set(false);
     }
   }
 

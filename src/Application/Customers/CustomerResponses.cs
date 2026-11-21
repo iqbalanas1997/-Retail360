@@ -16,4 +16,5 @@ public sealed record CustomerResponse(
     string? Notes,
     bool IsActive,
     DateTimeOffset CreatedAt,
-    DateTimeOffset UpdatedAt);
+    DateTimeOffset UpdatedAt,
+    decimal Outstanding);

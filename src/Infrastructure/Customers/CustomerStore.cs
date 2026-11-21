@@ -1,4 +1,5 @@
 using Dapper;
+using Npgsql;
 using Retail360.Application.Customers;
 using Retail360.Domain.Audit;
 using Retail360.Domain.Customers;
@@ -108,7 +109,9 @@ public sealed class CustomerStore : ICustomerStore
         bool requireRow,
         CancellationToken cancellationToken)
     {
-        await _transactions.ExecuteAsync(async (connection, transaction, token) =>
+        try
+        {
+            await _transactions.ExecuteAsync(async (connection, transaction, token) =>
         {
             bool? previousActive = null;
             if (requireRow)
@@ -126,6 +129,25 @@ public sealed class CustomerStore : ICustomerStore
                 if (previousActive is null)
                 {
                     throw new CustomerRuleException(CustomerRuleFailure.NotFound, "Customer was not found.");
+                }
+
+                if (customer.IsDeleted)
+                {
+                    var outstanding = await connection.ExecuteScalarAsync<decimal>(new CommandDefinition(
+                        """
+                        select coalesce(sum(case when entry_type = 'charge' then amount else -amount end), 0)
+                        from customer_ledger_entries
+                        where customer_id = @Id;
+                        """,
+                        new { customer.Id },
+                        transaction,
+                        cancellationToken: token));
+                    if (outstanding > 0)
+                    {
+                        throw new CustomerRuleException(
+                            CustomerRuleFailure.Conflict,
+                            "Customer still has an outstanding balance.");
+                    }
                 }
             }
 
@@ -158,6 +180,15 @@ public sealed class CustomerStore : ICustomerStore
                 token);
             return 0;
         }, cancellationToken);
+        }
+        catch (PostgresException exception) when (
+            exception.SqlState == PostgresErrorCodes.CheckViolation
+            && exception.MessageText.Contains("outstanding", StringComparison.OrdinalIgnoreCase))
+        {
+            throw new CustomerRuleException(
+                CustomerRuleFailure.Conflict,
+                "Customer still has an outstanding balance.");
+        }
     }
 
     private static string? ContainsPattern(string? search)

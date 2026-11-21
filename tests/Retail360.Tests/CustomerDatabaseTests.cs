@@ -30,7 +30,7 @@ public class CustomerServiceTests
     public async Task Blank_name_does_not_reach_the_store()
     {
         var store = new CountingStore();
-        var service = new CustomerService(store, new EmptySales(), new FixedClock(DateTimeOffset.UnixEpoch));
+        var service = new CustomerService(store, new EmptySales(), new EmptyCredit(), new FixedClock(DateTimeOffset.UnixEpoch));
 
         var error = await Assert.ThrowsAsync<CustomerRuleException>(() => service.CreateAsync(
             new SaveCustomerCommand("   ", "0300", null, null, "note"),
@@ -101,6 +101,42 @@ public class CustomerServiceTests
             string fingerprint,
             IReadOnlyList<CompleteSaleLineCommand> lines,
             Guid? customerId,
+            string paymentMethod,
+            DateTimeOffset utcNow,
+            CancellationToken cancellationToken)
+        {
+            throw new NotSupportedException();
+        }
+    }
+
+    private sealed class EmptyCredit : ICustomerCreditStore
+    {
+        public Task<IReadOnlyDictionary<Guid, decimal>> OutstandingAsync(
+            IReadOnlyCollection<Guid> customerIds,
+            CancellationToken cancellationToken)
+        {
+            return Task.FromResult<IReadOnlyDictionary<Guid, decimal>>(new Dictionary<Guid, decimal>());
+        }
+
+        public Task<CustomerBalanceResponse> GetBalanceAsync(Guid customerId, CancellationToken cancellationToken)
+        {
+            throw new NotSupportedException();
+        }
+
+        public Task<IReadOnlyList<CustomerLedgerEntryResponse>> ListLedgerAsync(
+            Guid customerId,
+            int limit,
+            int offset,
+            CancellationToken cancellationToken)
+        {
+            throw new NotSupportedException();
+        }
+
+        public Task<CustomerPaymentResponse> RecordPaymentAsync(
+            Guid customerId,
+            Guid operationId,
+            decimal amount,
+            string fingerprint,
             DateTimeOffset utcNow,
             CancellationToken cancellationToken)
         {
@@ -423,7 +459,12 @@ public sealed class CustomerDatabaseFixture : IAsyncLifetime
         var transactions = new PostgresTransaction(Connections);
         return new CustomerService(
             new CustomerStore(Connections, transactions),
-            new SaleStore(Connections, transactions, new StockLedgerStore(Connections, transactions)),
+            new SaleStore(
+                Connections,
+                transactions,
+                new StockLedgerStore(Connections, transactions),
+                new CustomerCreditStore(Connections, transactions)),
+            new CustomerCreditStore(Connections, transactions),
             new FixedClock(utcNow));
     }
 

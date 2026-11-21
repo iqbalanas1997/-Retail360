@@ -612,6 +612,91 @@ describe('POS and sales screens', () => {
 
     expect(TestBed.inject(Router).url).toBe('/login');
   });
+
+  it('sends a credit sale only after a customer is selected and records a payment apart from the cart', async () => {
+    remember('Cashier');
+    const harness = await open('/pos');
+    flushShelves();
+    await turn();
+    harness.detectChanges();
+    const root = harness.fixture.nativeElement as HTMLElement;
+
+    expect(root.querySelector('[name="salePayment"]')).toBeNull();
+
+    setNamed(root, 'customer', 'Amina');
+    submitForm(root, 'Find customer');
+    TestBed.inject(HttpTestingController)
+      .expectOne((request) => request.url === '/api/customers')
+      .flush([
+        {
+          id: 'customer-1',
+          name: 'Amina',
+          phone: '0300',
+          email: null,
+          address: null,
+          notes: null,
+          isActive: true,
+          createdAt: '',
+          updatedAt: '',
+          outstanding: 12.5,
+        },
+      ]);
+    await turn();
+    harness.detectChanges();
+    clickButton(root, 'Select');
+    harness.detectChanges();
+
+    expect(text(harness)).toContain('Outstanding 12.50');
+    setNamed(root, 'salePayment', 'credit');
+    setNamed(root, 'shelf', 'shelf-1');
+    setNamed(root, 'quantity', '1');
+    setNamed(root, 'barcode', 'TEA');
+    submitForm(root, 'Barcode');
+    TestBed.inject(HttpTestingController)
+      .expectOne((request) => request.url === '/api/products/by-barcode/TEA')
+      .flush(product());
+    await turn();
+    harness.detectChanges();
+    setNamed(root, 'paymentAmount', '2.50');
+    submitForm(root, 'Payment amount');
+    const payment = TestBed.inject(HttpTestingController).expectOne(
+      (request) => request.method === 'POST' && request.url === '/api/customers/customer-1/payments',
+    );
+    expect(payment.request.body.amount).toBe(2.5);
+    expect(payment.request.body.operationId).toEqual(expect.any(String));
+    payment.flush({
+      id: 'payment-1',
+      customerId: 'customer-1',
+      amount: 2.5,
+      occurredAt: '2026-11-09T00:00:00Z',
+      outstanding: 10,
+      allocations: [{ saleId: 'sale-9', receiptNumber: 9, amount: 2.5 }],
+    });
+    await turn();
+    harness.detectChanges();
+    expect(text(harness)).toContain('Payment recorded.');
+    expect(text(harness)).toContain('Outstanding 10.00');
+
+    clickButton(root, 'Complete sale');
+    const created = TestBed.inject(HttpTestingController).expectOne(
+      (request) => request.method === 'POST' && request.url === '/api/sales',
+    );
+    expect(created.request.body.paymentMethod).toBe('credit');
+    expect(created.request.body.customerId).toBe('customer-1');
+    created.flush({ ...sale(), paymentMethod: 'credit', customerId: 'customer-1', customerName: 'Amina' });
+    await turn();
+    harness.detectChanges();
+    TestBed.inject(HttpTestingController).expectOne('/api/sales/sale-1').flush({
+      ...sale(),
+      paymentMethod: 'credit',
+      customerId: 'customer-1',
+      customerName: 'Amina',
+    });
+    await turn();
+    harness.detectChanges();
+
+    expect(text(harness)).toContain('credit');
+  });
 });
 
 function open(url: string): Promise<RouterTestingHarness> {

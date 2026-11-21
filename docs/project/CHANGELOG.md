@@ -10,6 +10,19 @@ Use this file for meaningful project-level changes that affect future AI context
 - Documentation updated
 
 ## Entries
+### 2026-11-09 — Customer credit ledger
+- A credit sale posts one append-only charge and the same outbound stock movements as a cash sale. A later payment is allocated to the oldest open charges. The outstanding balance is charges minus payments. `015_customer_credit.sql` adds the ledger and does not change existing sale or customer rows.
+- One sale can have one charge. Allocations must equal the payment and cannot exceed a charge. The same operation id with a different customer or amount is a conflict. A credit sale, a payment, and a customer delete lock the customer row. Historical ledger rows cannot be edited or deleted. A future correction is a new compensating entry.
+- Supplier payments and profit stay unimplemented. Cash remains the counter default.
+- Impacted modules: Customers, Sales, Audit.
+- Documentation updated: `DECISIONS.md`, `DATABASE.md`, `API_CONTRACTS.md`, `DOMAIN_MODEL.md`, `TASKS.md`, `MODULE_CATALOG.md`, `REQUIREMENTS.md`, `CHANGELOG.md`, `AGENTS.md`, `POS_UX.md`.
+
+### 2026-11-08 — Phase 1 regression
+- The existing Catalog, Inventory, Purchasing, Sales, Suppliers, Customers, Expenses, dashboard, staff, and Audit workflows were rechecked. No regression was found, and no new business module was added.
+- `dotnet test` passed 188 tests. Angular tests passed 120. The API and Angular production builds succeeded. On `retail360_dev`, 60 API checks passed, and the browser completed a barcode sale through to the receipt. Credit sales, supplier payments, and profit remain unimplemented.
+- Impacted modules: none. This was verification.
+- Documentation updated: `TASKS.md`, `MODULE_CATALOG.md`, `REQUIREMENTS.md`, `CHANGELOG.md`.
+
 ### 2026-10-31 — Access token stamp
 - A password change replaces `asp_net_users.security_stamp`. The access token carries that value, and the next protected request rejects a token whose stamp no longer matches. Deactivation and soft deletion still reject the account. A role change keeps the token and loads the new role from the database. The signed-in user changes their own password at `POST /api/auth/password`. Admin can still set another user's password. Both write `user.password_changed` with the user name only. Sign-in stays unaudited. `POST /api/auth/login` allows 20 attempts per minute per address in one process.
 - `014_security_stamp.sql` fills a missing stamp. It does not add a table. The Angular token stays in `sessionStorage`. A 401 returns to sign-in. A 403 does not.

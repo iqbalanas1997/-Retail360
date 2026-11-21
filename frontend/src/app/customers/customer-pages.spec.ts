@@ -169,6 +169,42 @@ describe('customer screens', () => {
     expect(TestBed.inject(Router).url).toBe('/customers');
     expect(text(harness)).toContain('Customer removed.');
   });
+
+  it('records a payment on the customer page without leaving the page', async () => {
+    remember('Admin');
+    const harness = await open('/customers/customer-1');
+    TestBed.inject(HttpTestingController)
+      .expectOne('/api/customers/customer-1')
+      .flush({ ...customer('Amina'), outstanding: 3.5 });
+    await turn();
+    flushSales();
+    await turn();
+    harness.detectChanges();
+
+    const root = harness.fixture.nativeElement as HTMLElement;
+    const amount = root.querySelector('input[name="paymentAmount"]') as HTMLInputElement;
+    amount.value = '1.00';
+    amount.dispatchEvent(new Event('input'));
+    clickButton(root, 'Record payment');
+    const http = TestBed.inject(HttpTestingController);
+    const payment = http.expectOne({ method: 'POST', url: '/api/customers/customer-1/payments' });
+    expect(payment.request.body.amount).toBe(1);
+    expect(payment.request.body.operationId).toEqual(expect.any(String));
+    payment.flush({
+      id: 'payment-1',
+      customerId: 'customer-1',
+      amount: 1,
+      occurredAt: '2026-11-09T00:00:00Z',
+      outstanding: 2.5,
+      allocations: [],
+    });
+    await turn();
+    harness.detectChanges();
+
+    expect(TestBed.inject(Router).url).toBe('/customers/customer-1');
+    expect(text(harness)).toContain('Payment recorded.');
+    expect(text(harness)).toContain('Outstanding 2.50');
+  });
 });
 
 function customer(name: string, id = 'customer-1') {
@@ -182,6 +218,7 @@ function customer(name: string, id = 'customer-1') {
     isActive: true,
     createdAt: '',
     updatedAt: '',
+    outstanding: 0,
   };
 }
 

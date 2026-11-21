@@ -34,4 +34,5 @@ public sealed record CompleteSaleLineCommand(Guid ProductId, Guid ShelfId, decim
 public sealed record CompleteSaleCommand(
     Guid OperationId,
     IReadOnlyList<CompleteSaleLineCommand>? Lines,
-    Guid? CustomerId = null);
+    Guid? CustomerId = null,
+    string? PaymentMethod = null);

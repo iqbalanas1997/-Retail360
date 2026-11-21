@@ -6,6 +6,7 @@ import { firstValueFrom } from 'rxjs';
 import { ApiError } from '../core/api-error';
 import { CustomerApi } from '../core/customer-api.service';
 import { type Customer } from '../core/customer.models';
+import { formatMoney } from '../core/purchase-rules';
 import { SessionService } from '../core/session.service';
 
 @Component({
@@ -40,6 +41,10 @@ export class CustomerListPage {
     }
 
     void this.reload();
+  }
+
+  protected money(value: number): string {
+    return formatMoney(value ?? 0);
   }
 
   protected status(customer: Customer): string {

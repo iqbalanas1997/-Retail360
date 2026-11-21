@@ -28,9 +28,42 @@
   <button type="submit" [disabled]="findingCustomer() || selling()">Find customer</button>
   @if (customer(); as selected) {
     <span>{{ customerLabel(selected) }}</span>
-    <button type="button" class="secondary" (click)="clearCustomer()" [disabled]="selling()">Clear customer</button>
+    <span>Outstanding {{ money(outstanding()) }}</span>
+    <button type="button" class="secondary" (click)="clearCustomer()" [disabled]="selling() || paying()">Clear customer</button>
   }
 </form>
+@if (customer()) {
+  <form class="toolbar" (ngSubmit)="recordPayment()">
+    <label>
+      Sale payment
+      <select
+        name="salePayment"
+        (change)="paymentMethod.set($any($event.target).value)"
+        [disabled]="selling() || paying()"
+      >
+        <option value="cash" [selected]="paymentMethod() === 'cash'">Cash</option>
+        <option value="credit" [selected]="paymentMethod() === 'credit'">Credit</option>
+      </select>
+    </label>
+    <label>
+      Payment amount
+      <input
+        name="paymentAmount"
+        [value]="paymentAmount()"
+        (input)="paymentAmount.set($any($event.target).value)"
+        inputmode="decimal"
+        [disabled]="paying() || selling()"
+      />
+    </label>
+    <button type="submit" [disabled]="paying() || selling()">
+      {{ paying() ? 'Recording payment…' : 'Record payment' }}
+    </button>
+  </form>
+  <p class="hint">Cash stays selected. Credit uses the whole sale. Record payment collects part of the outstanding balance and does not change the cart.</p>
+  @if (paymentNotice()) {
+    <p class="notice" role="status">{{ paymentNotice() }}</p>
+  }
+}
 <p class="hint">Optional. A sale can be completed without a customer. Search by name or phone. This does not change the cash total.</p>
 @if (customerError()) {
   <p class="notice error" role="alert">{{ customerError() }}</p>
@@ -191,7 +224,7 @@
 }
 
 @if (canSell()) {
-  <button type="button" (click)="complete()" [disabled]="selling() || lines().length === 0">
+  <button type="button" (click)="complete()" [disabled]="selling() || paying() || lines().length === 0">
     {{ selling() ? 'Completing sale…' : 'Complete sale' }}
   </button>
 } @else {

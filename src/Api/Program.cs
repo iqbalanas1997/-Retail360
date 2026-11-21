@@ -36,6 +36,7 @@ builder.Services.AddScoped<ShelfService>();
 builder.Services.AddScoped<StockService>();
 builder.Services.AddScoped<SupplierService>();
 builder.Services.AddScoped<CustomerService>();
+builder.Services.AddScoped<CustomerCreditService>();
 builder.Services.AddScoped<PurchaseService>();
 builder.Services.AddScoped<SaleService>();
 builder.Services.AddScoped<ExpenseService>();

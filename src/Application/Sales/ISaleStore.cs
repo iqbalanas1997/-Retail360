@@ -21,6 +21,7 @@ public interface ISaleStore
         string fingerprint,
         IReadOnlyList<CompleteSaleLineCommand> lines,
         Guid? customerId,
+        string paymentMethod,
         DateTimeOffset utcNow,
         CancellationToken cancellationToken);
 }

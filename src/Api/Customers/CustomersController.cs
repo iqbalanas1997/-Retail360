@@ -14,10 +14,12 @@ namespace Retail360.Api.Customers;
 public sealed class CustomersController : ControllerBase
 {
     private readonly CustomerService _customers;
+    private readonly CustomerCreditService _credit;
 
-    public CustomersController(CustomerService customers)
+    public CustomersController(CustomerService customers, CustomerCreditService credit)
     {
         _customers = customers;
+        _credit = credit;
     }
 
     [HttpGet]
@@ -46,6 +48,33 @@ public sealed class CustomersController : ControllerBase
         CancellationToken cancellationToken)
     {
         return Ok(await _customers.ListSalesAsync(id, limit, offset, cancellationToken));
+    }
+
+    [HttpGet("{id:guid}/balance")]
+    public async Task<ActionResult<CustomerBalanceResponse>> GetBalance(Guid id, CancellationToken cancellationToken)
+    {
+        return Ok(await _credit.GetBalanceAsync(id, cancellationToken));
+    }
+
+    [HttpGet("{id:guid}/ledger")]
+    public async Task<ActionResult<IReadOnlyList<CustomerLedgerEntryResponse>>> ListLedger(
+        Guid id,
+        [FromQuery] int? limit,
+        [FromQuery] int? offset,
+        CancellationToken cancellationToken)
+    {
+        return Ok(await _credit.ListLedgerAsync(id, limit, offset, cancellationToken));
+    }
+
+    [Authorize(Policy = ShopPolicies.SaleComplete)]
+    [HttpPost("{id:guid}/payments")]
+    public async Task<ActionResult<CustomerPaymentResponse>> RecordPayment(
+        Guid id,
+        [FromBody] RecordCustomerPaymentCommand? command,
+        CancellationToken cancellationToken)
+    {
+        var created = await _credit.RecordPaymentAsync(id, command, cancellationToken);
+        return CreatedAtAction(nameof(ListLedger), new { id }, created);
     }
 
     [Authorize(Policy = ShopPolicies.CustomerWrite)]

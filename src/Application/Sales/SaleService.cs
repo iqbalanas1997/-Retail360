@@ -86,14 +86,26 @@ public sealed class SaleService
                 : requested;
         }
 
+        var paymentMethod = SaleText.RequirePaymentMethod(command.PaymentMethod);
+        if (paymentMethod == SaleText.Credit && customerId is null)
+        {
+            throw new SaleRuleException(SaleRuleFailure.Invalid, "A credit sale needs a customer.");
+        }
+
         var fingerprint = SaleText.Fingerprint(
             prepared.Select(line => (line.ProductId, line.ShelfId, line.Quantity)).ToArray(),
             customerId);
+        if (paymentMethod == SaleText.Credit)
+        {
+            fingerprint = SaleText.CreditFingerprint(fingerprint);
+        }
+
         return _sales.CompleteAsync(
             operationId,
             fingerprint,
             prepared,
             customerId,
+            paymentMethod,
             _clock.UtcNow,
             cancellationToken);
     }

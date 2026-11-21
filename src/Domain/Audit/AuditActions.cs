@@ -58,6 +58,8 @@ public static class AuditActions
 
     public const string CustomerDeleted = "customer.deleted";
 
+    public const string CustomerPaymentRecorded = "customer.payment_recorded";
+
     public static readonly IReadOnlySet<string> All = new HashSet<string>(StringComparer.Ordinal)
     {
         UserCreated,
@@ -87,7 +89,8 @@ public static class AuditActions
         CustomerUpdated,
         CustomerActivated,
         CustomerDeactivated,
-        CustomerDeleted
+        CustomerDeleted,
+        CustomerPaymentRecorded
     };
 }
 

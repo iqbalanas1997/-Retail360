@@ -36,6 +36,7 @@
           <th>Phone</th>
           <th>Email</th>
           <th>Status</th>
+          <th>Outstanding</th>
           <th></th>
         </tr>
       </thead>
@@ -46,6 +47,7 @@
             <td>{{ customer.phone }}</td>
             <td>{{ customer.email }}</td>
             <td>{{ status(customer) }}</td>
+            <td>{{ money(customer.outstanding) }}</td>
             <td><a [routerLink]="['/customers', customer.id]">Open</a></td>
           </tr>
         }

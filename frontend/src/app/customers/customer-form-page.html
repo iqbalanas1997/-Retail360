@@ -72,9 +72,28 @@
     }
   </form>
 
-  @if (customer()) {
-    <h2>Cash sales</h2>
-    <p class="hint">These are cash sales recorded for this customer. Each total is the sale total.</p>
+  @if (customer(); as selected) {
+    <h2>Outstanding {{ money(selected.outstanding) }}</h2>
+    @if (canWrite()) {
+      <form class="toolbar" (submit)="recordPayment($event)">
+        <label>
+          Payment amount
+          <input
+            name="paymentAmount"
+            [value]="paymentAmount()"
+            (input)="paymentAmount.set($any($event.target).value)"
+            inputmode="decimal"
+            [disabled]="paying() || saving()"
+          />
+        </label>
+        <button type="submit" [disabled]="paying() || saving()">
+          {{ paying() ? 'Recording payment…' : 'Record payment' }}
+        </button>
+      </form>
+      <p class="hint">A payment is applied to the oldest credit sale. It does not change a cash sale.</p>
+    }
+    <h2>Sales</h2>
+    <p class="hint">These are the sales recorded for this customer. Each total is the sale total.</p>
     @if (historyError()) {
       <p class="notice error" role="alert">{{ historyError() }}</p>
       <button type="button" class="secondary" (click)="reloadHistory()">Try again</button>

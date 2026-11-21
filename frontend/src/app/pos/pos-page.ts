@@ -10,6 +10,7 @@ import { InventoryApi } from '../core/inventory-api.service';
 import { type Shelf } from '../core/inventory.models';
 import { CustomerApi } from '../core/customer-api.service';
 import { type Customer } from '../core/customer.models';
+import { parseCustomerPayment } from '../core/customer-rules';
 import { formatMoney } from '../core/purchase-rules';
 import { SaleApi } from '../core/sale-api.service';
 import {
@@ -45,6 +46,7 @@ export class PosPage {
   private readonly session = inject(SessionService);
   private readonly router = inject(Router);
   private readonly attempt = new OperationAttempt();
+  private readonly paymentAttempt = new OperationAttempt();
   private readonly barcodeInput = viewChild<ElementRef<HTMLInputElement>>('barcodeInput');
   private lineKey = 0;
   private lookupGeneration = 0;
@@ -72,6 +74,11 @@ export class PosPage {
   protected readonly customerError = signal('');
   protected readonly customerMatches = signal<Customer[]>([]);
   protected readonly customer = signal<Customer | null>(null);
+  protected readonly paymentMethod = signal<'cash' | 'credit'>('cash');
+  protected readonly outstanding = signal(0);
+  protected readonly paymentAmount = signal('');
+  protected readonly paying = signal(false);
+  protected readonly paymentNotice = signal('');
 
   constructor() {
     void this.loadShelves();
@@ -318,9 +325,11 @@ export class PosPage {
     }
 
     this.customer.set(customer);
+    this.outstanding.set(customer.outstanding ?? 0);
     this.customerMatches.set([]);
     this.customerError.set('');
     this.customerQuery.set('');
+    this.paymentNotice.set('');
   }
 
   protected clearCustomer(): void {
@@ -331,6 +340,43 @@ export class PosPage {
     this.customer.set(null);
     this.customerMatches.set([]);
     this.customerError.set('');
+    this.paymentMethod.set('cash');
+    this.outstanding.set(0);
+    this.paymentAmount.set('');
+    this.paymentNotice.set('');
+  }
+
+  protected async recordPayment(): Promise<void> {
+    const customer = this.customer();
+    if (!customer || !this.canSell() || this.paying() || this.selling() || !this.session.isSignedIn()) {
+      return;
+    }
+
+    this.paymentNotice.set('');
+    this.error.set('');
+    let amount: number;
+    try {
+      amount = parseCustomerPayment(this.paymentAmount());
+    } catch (error) {
+      this.paymentNotice.set(error instanceof Error ? error.message : 'The request failed.');
+      return;
+    }
+
+    const operationId = this.paymentAttempt.idFor(`${customer.id}|${amount.toFixed(2)}`);
+    this.paying.set(true);
+    try {
+      const payment = await firstValueFrom(
+        this.customersApi.recordPayment(customer.id, { operationId, amount }),
+      );
+      this.paymentAttempt.complete();
+      this.outstanding.set(payment.outstanding);
+      this.paymentAmount.set('');
+      this.paymentNotice.set('Payment recorded.');
+    } catch (error) {
+      this.paymentNotice.set(messageFrom(error));
+    } finally {
+      this.paying.set(false);
+    }
   }
 
   protected customerLabel(customer: Customer): string {
@@ -338,7 +384,7 @@ export class PosPage {
   }
 
   protected async complete(): Promise<void> {
-    if (!this.canSell() || this.selling() || !this.session.isSignedIn()) {
+    if (!this.canSell() || this.selling() || this.paying() || !this.session.isSignedIn()) {
       return;
     }
 
@@ -351,7 +397,7 @@ export class PosPage {
       return;
     }
 
-    const key = saleAttemptKey(body.lines, body.customerId ?? '');
+    const key = saleAttemptKey(body.lines, body.customerId ?? '', body.paymentMethod ?? 'cash');
     if (this.completedSale?.key === key) {
       await this.openReceipt(this.completedSale.id);
       return;
@@ -416,8 +462,13 @@ export class PosPage {
 
     saleTotal(lines.map((line, index) => saleLineTotal(line.quantity, this.lines()[index].unitPrice)));
     const customer = this.customer();
+    const paymentMethod = customer && this.paymentMethod() === 'credit' ? 'credit' : 'cash';
+    if (paymentMethod === 'credit' && !customer) {
+      throw new Error('A credit sale needs a customer.');
+    }
+
     const body: CompleteSaleBody = {
-      operationId: this.attempt.idFor(saleAttemptKey(lines, customer?.id ?? '')),
+      operationId: this.attempt.idFor(saleAttemptKey(lines, customer?.id ?? '', paymentMethod)),
       lines: lines.map((line) => ({
         productId: line.productId,
         shelfId: line.shelfId,
@@ -426,6 +477,10 @@ export class PosPage {
     };
     if (customer) {
       body.customerId = customer.id;
+    }
+
+    if (paymentMethod === 'credit') {
+      body.paymentMethod = 'credit';
     }
 
     return body;

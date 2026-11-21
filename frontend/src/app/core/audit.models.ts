@@ -48,6 +48,7 @@ export const AUDIT_ACTIONS: ReadonlyArray<{ value: string; label: string }> = [
   { value: 'customer.activated', label: 'Customer activated' },
   { value: 'customer.deactivated', label: 'Customer deactivated' },
   { value: 'customer.deleted', label: 'Customer removed' },
+  { value: 'customer.payment_recorded', label: 'Customer payment recorded' },
 ];
 
 export const AUDIT_ENTITY_TYPES: ReadonlyArray<{ value: string; label: string }> = [
