@@ -1,5 +1,6 @@
 <div class="pos-page">
   <div class="pos-work">
+    <div class="pos-main">
     <div class="pos-entry">
       <form class="pos-scan" (ngSubmit)="findBarcode()">
         <label>
@@ -74,61 +75,60 @@
       <p class="status">No shelves are available.</p>
     }
 
-    @if (browseOpen() || matches().length > 0) {
-      <section class="pos-products" [attr.aria-label]="browseOpen() ? 'Browse products' : 'Search results'">
-        @if (finding()) {
-          <p class="status">Loading products…</p>
-        }
-        @if (visibleProducts().length === 0 && !finding()) {
-          <p class="status">No matching products.</p>
-        }
-        @if (visibleProducts().length > 0) {
-          <div class="table-wrap pos-matches">
-            <table>
-              <thead>
-                <tr>
-                  <th>Product</th>
-                  <th>Unit</th>
-                  <th>Selling price</th>
-                  <th>On shelf</th>
-                  <th></th>
-                </tr>
-              </thead>
-              <tbody>
-                @for (product of visibleProducts(); track product.id; let index = $index) {
-                  <tr
-                    [class.pos-match]="matchIndex() === index"
-                    (click)="addProduct(product)"
-                  >
-                    <td>{{ product.name }}</td>
-                    <td>{{ product.unitName }}</td>
-                    <td>{{ money(product.sellingPrice) }}</td>
-                    <td>{{ stockLabel(product.id) }}</td>
-                    <td>
-                      <button
-                        type="button"
-                        (click)="$event.stopPropagation(); addProduct(product)"
-                        [disabled]="selling()"
-                      >
-                        Add
-                      </button>
-                    </td>
-                  </tr>
-                }
-              </tbody>
-            </table>
-          </div>
-        }
-        @if (browseOpen() && !productQuery().trim() && browseMore()) {
-          <button type="button" class="secondary" (click)="showMoreProducts()" [disabled]="finding() || selling()">
-            More products
-          </button>
-        }
-      </section>
-    }
-
     <div class="pos-stage">
       <section class="pos-cart" aria-label="Cart">
+        @if (browseOpen() || matches().length > 0) {
+          <section class="pos-products" [attr.aria-label]="browseOpen() ? 'Browse products' : 'Search results'">
+            @if (finding()) {
+              <p class="status">Loading products…</p>
+            }
+            @if (visibleProducts().length === 0 && !finding()) {
+              <p class="status">No matching products.</p>
+            }
+            @if (visibleProducts().length > 0) {
+              <div class="table-wrap pos-matches">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Product</th>
+                      <th>Unit</th>
+                      <th>Selling price</th>
+                      <th>On shelf</th>
+                      <th></th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    @for (product of visibleProducts(); track product.id; let index = $index) {
+                      <tr
+                        [class.pos-match]="matchIndex() === index"
+                        (click)="addProduct(product)"
+                      >
+                        <td>{{ product.name }}</td>
+                        <td>{{ product.unitName }}</td>
+                        <td>{{ money(product.sellingPrice) }}</td>
+                        <td>{{ stockLabel(product.id) }}</td>
+                        <td>
+                          <button
+                            type="button"
+                            (click)="$event.stopPropagation(); addProduct(product)"
+                            [disabled]="selling()"
+                          >
+                            Add
+                          </button>
+                        </td>
+                      </tr>
+                    }
+                  </tbody>
+                </table>
+              </div>
+            }
+            @if (browseOpen() && !productQuery().trim() && browseMore()) {
+              <button type="button" class="secondary" (click)="showMoreProducts()" [disabled]="finding() || selling()">
+                More products
+              </button>
+            }
+          </section>
+        }
         @if (receipt(); as sold) {
           @if (lines().length === 0) {
             <h2>Receipt {{ sold.receiptNumber }}</h2>
@@ -235,6 +235,8 @@
           <p class="status">Scan a barcode or search for a product.</p>
         }
       </section>
+    </div>
+    </div>
 
       <aside class="pos-checkout">
         @if (receipt(); as sold) {
@@ -376,7 +378,6 @@
         }
         <p class="hint">The charged total is calculated by the server. <a routerLink="/sales">Sales history</a></p>
       </aside>
-    </div>
   </div>
 
   @if (receipt(); as sold) {

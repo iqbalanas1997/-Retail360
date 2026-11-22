@@ -337,6 +337,17 @@ a {
   max-width: 100%;
 }
 
+.pos-work {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 22rem;
+  gap: 1rem 1.25rem;
+  align-items: start;
+}
+
+.pos-main {
+  min-width: 0;
+}
+
 .pos-entry {
   display: flex;
   flex-direction: column;
@@ -347,7 +358,7 @@ a {
 
 .pos-scan {
   display: grid;
-  grid-template-columns: minmax(0, 1.4fr) 6.5rem minmax(9rem, 16rem) auto;
+  grid-template-columns: minmax(0, 1fr) 6.5rem minmax(8rem, 13rem) auto;
   gap: 0.75rem;
   align-items: end;
 }
@@ -385,10 +396,6 @@ a {
 }
 
 .pos-stage {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) 22rem;
-  gap: 1rem;
-  align-items: start;
   margin-top: 1rem;
   min-width: 0;
 }
@@ -422,6 +429,7 @@ a {
 .pos-checkout {
   position: sticky;
   top: 0.75rem;
+  align-self: start;
   display: flex;
   flex-direction: column;
   gap: 0.65rem;
@@ -554,17 +562,14 @@ tr.pos-line-short td:first-child {
 }
 
 @media (max-width: 1100px) {
-  .pos-stage {
+  .pos-work {
     grid-template-columns: 1fr;
   }
 
   .pos-checkout {
     position: sticky;
-    bottom: 0;
-    top: auto;
+    top: 0.75rem;
     z-index: 2;
-    max-height: 46vh;
-    overflow: auto;
   }
 }
 
