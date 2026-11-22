@@ -27,7 +27,6 @@
         <label>
           Shelf
           <select
-            #shelfInput
             name="shelf"
             (change)="rememberShelf($any($event.target).value)"
             [disabled]="selling()"
@@ -40,6 +39,7 @@
         </label>
         <button type="submit" class="secondary" [disabled]="finding() || selling()">Find barcode</button>
       </form>
+      <p class="pos-shelf-note">Preferred shelf {{ preferredShelf() }}</p>
 
       <form class="pos-find" (ngSubmit)="searchProducts()">
         <label>
@@ -159,7 +159,7 @@
           }
         }
         @if (lines().length > 0) {
-          <h2>Sale</h2>
+          <h2>Cart</h2>
           <div class="table-wrap">
             <table>
               <thead>
@@ -178,7 +178,10 @@
                 @for (line of lines(); track line.key) {
                   <tr [class.pos-line-short]="lineShort(line)">
                     <td>
-                      {{ line.productName }}
+                      <span class="pos-product-name">{{ line.productName }}</span>
+                      @if (line.unitName) {
+                        <span class="pos-unit">{{ line.unitName }}</span>
+                      }
                       @if (lineNote(line)) {
                         <p class="pos-line-note">{{ lineNote(line) }}</p>
                       }
@@ -250,8 +253,21 @@
             <p class="hint">The next scan starts a new sale. This receipt stays in Sales history.</p>
           }
         } @else {
-          <p class="pos-total">Total {{ lines().length > 0 ? documentTotal() : '—' }}</p>
-          @if (!customer()) {
+          <p class="pos-kicker">To pay</p>
+          <p class="pos-total">{{ lines().length > 0 ? documentTotal() : '—' }}</p>
+          <dl class="pos-figures">
+            <div>
+              <dt>Items</dt>
+              <dd>{{ lines().length }}</dd>
+            </div>
+            <div>
+              <dt>Quantity</dt>
+              <dd>{{ quantityTotal() }}</dd>
+            </div>
+          </dl>
+          @if (customer(); as selected) {
+            <p class="pos-payer">{{ customerLabel(selected) }}</p>
+          } @else {
             <p class="hint">Walk-in sale. Cash is selected.</p>
           }
           @if (canSell()) {

@@ -30,6 +30,7 @@ interface CartLine {
   key: string;
   productId: string;
   productName: string;
+  unitName: string;
   unitPrice: number;
   quantity: string;
   shelfId: string;
@@ -59,7 +60,6 @@ export class PosPage implements AfterViewInit {
   private readonly barcodeInput = viewChild<ElementRef<HTMLInputElement>>('barcodeInput');
   private readonly quantityInput = viewChild<ElementRef<HTMLInputElement>>('quantityInput');
   private readonly productInput = viewChild<ElementRef<HTMLInputElement>>('productInput');
-  private readonly shelfInput = viewChild<ElementRef<HTMLSelectElement>>('shelfInput');
   private lineKey = 0;
   private lookupGeneration = 0;
   private shelfGeneration = 0;
@@ -154,7 +154,29 @@ export class PosPage implements AfterViewInit {
       return false;
     }
 
-    return this.lines().every((line) => this.lineStatus(line) === 'Available');
+    return this.lines().every((line) => lineCanSell(this.lineStatus(line)));
+  }
+
+  protected preferredShelf(): string {
+    const shelf = this.shelves().find((item) => item.id === this.shelfId());
+    return shelf ? this.shelfLabel(shelf) : 'Fullest shelf with enough stock';
+  }
+
+  protected quantityTotal(): string {
+    if (this.lines().length === 0) {
+      return '0';
+    }
+
+    let thousandths = 0;
+    for (const line of this.lines()) {
+      try {
+        thousandths += Math.round(parseSaleQuantity(line.quantity) * 1000);
+      } catch {
+        return '—';
+      }
+    }
+
+    return plainQuantity(thousandths / 1000);
   }
 
   protected shelfOptions(line: CartLine): ShelfChoice[] {
@@ -214,13 +236,22 @@ export class PosPage implements AfterViewInit {
     }
 
     const usable = this.usableThousandths(line.productId, line.shelfId, line.key, this.lines());
-    return usable >= Math.round(needed * 1000) ? 'Available' : 'Insufficient';
+    const neededThousandths = Math.round(needed * 1000);
+    if (usable < neededThousandths) {
+      return 'Insufficient';
+    }
+
+    return usable === neededThousandths ? 'Low' : 'Available';
   }
 
   protected lineClass(line: CartLine): string {
     const status = this.lineStatus(line);
     if (status === 'Available') {
       return 'pos-stock-ok';
+    }
+
+    if (status === 'Low') {
+      return 'pos-stock-low';
     }
 
     if (status === 'Insufficient' || status === 'Stock unavailable') {
@@ -245,7 +276,15 @@ export class PosPage implements AfterViewInit {
     }
 
     try {
-      return `${plainQuantity(parseSaleQuantity(line.quantity))} required. No single shelf has sufficient stock.`;
+      const required = plainQuantity(parseSaleQuantity(line.quantity));
+      const shelves = this.shelves()
+        .map((shelf) => {
+          const usable = this.usableThousandths(line.productId, shelf.id, line.key, this.lines());
+          return `${this.shelfLabel(shelf)}: ${plainQuantity(usable / 1000)} available`;
+        })
+        .join(', ');
+      const detail = shelves ? `${line.productName} – ${shelves}, ` : `${line.productName}. `;
+      return `${detail}${required} required. No single shelf has sufficient stock.`;
     } catch {
       return '';
     }
@@ -871,7 +910,7 @@ export class PosPage implements AfterViewInit {
     try {
       await this.refreshCartStock();
       this.reconcileStock();
-      if (!this.lines().every((line) => this.lineStatus(line) === 'Available')) {
+      if (!this.lines().every((line) => lineCanSell(this.lineStatus(line)))) {
         this.error.set(this.stockMessages());
         return;
       }
@@ -992,6 +1031,7 @@ export class PosPage implements AfterViewInit {
           key: String(++this.lineKey),
           productId: product.id,
           productName: product.name,
+          unitName: product.unitName,
           unitPrice: product.sellingPrice,
           quantity: nextQuantity,
           shelfId: target,
@@ -1217,14 +1257,6 @@ export class PosPage implements AfterViewInit {
       return;
     }
 
-    if (!this.shelfId()) {
-      const shelf = this.shelfInput()?.nativeElement;
-      if (shelf) {
-        shelf.focus();
-        return;
-      }
-    }
-
     this.focusBarcode();
   }
 
@@ -1289,6 +1321,10 @@ const shelfStorageKey = 'retail360.posShelf';
 
 function formatQuantity(value: number): string {
   return value.toFixed(3);
+}
+
+function lineCanSell(status: string): boolean {
+  return status === 'Available' || status === 'Low';
 }
 
 function plainQuantity(value: number): string {

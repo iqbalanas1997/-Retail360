@@ -775,7 +775,7 @@ describe('POS and sales screens', () => {
 
     expect(root.querySelector('[name="salePayment"]')).toBeNull();
     expect(text(harness)).toContain('Walk-in sale');
-    expect(document.activeElement).toBe(root.querySelector('[name="shelf"]'));
+    expect(document.activeElement).toBe(root.querySelector('[name="barcode"]'));
 
     clickButton(root, 'Add customer');
     harness.detectChanges();
