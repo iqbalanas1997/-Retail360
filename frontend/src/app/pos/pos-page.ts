@@ -3,7 +3,7 @@ import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
 import { firstValueFrom } from 'rxjs';
 
-import { ApiError, toApiError } from '../core/api-error';
+import { ApiError, toApiError, type StockShortage } from '../core/api-error';
 import { formatScaled } from '../core/catalog-rules';
 import { type Product } from '../core/catalog.models';
 import { OperationAttempt } from '../core/inventory-rules';
@@ -33,6 +33,13 @@ interface CartLine {
   unitPrice: number;
   quantity: string;
   shelfId: string;
+  stockNote: string;
+}
+
+interface ShelfChoice {
+  id: string;
+  enough: boolean;
+  label: string;
 }
 
 @Component({
@@ -60,6 +67,10 @@ export class PosPage implements AfterViewInit {
   private barcodeInFlight = '';
   private searchTimer: ReturnType<typeof setTimeout> | null = null;
   private stockShelfId = '';
+  private readonly productStock = new Map<string, Record<string, number>>();
+  private readonly stockRequests = new Map<string, Promise<Record<string, number> | null>>();
+  private readonly stockFailed = new Set<string>();
+  private readonly stockRevision = signal(0);
 
   protected readonly canSell = this.session.canCompleteSales;
   protected readonly loading = signal(true);
@@ -135,6 +146,114 @@ export class PosPage implements AfterViewInit {
 
   protected shelfLabel(shelf: Shelf): string {
     return shelf.isActive ? `${shelf.areaName} / ${shelf.name}` : `${shelf.areaName} / ${shelf.name} (inactive)`;
+  }
+
+  protected canFinish(): boolean {
+    this.stockRevision();
+    if (this.lines().length === 0 || this.selling() || this.paying()) {
+      return false;
+    }
+
+    return this.lines().every((line) => this.lineStatus(line) === 'Available');
+  }
+
+  protected shelfOptions(line: CartLine): ShelfChoice[] {
+    this.stockRevision();
+    let needed = 0;
+    let valid = false;
+    try {
+      needed = Math.round(parseSaleQuantity(line.quantity) * 1000);
+      valid = true;
+    } catch {
+      valid = false;
+    }
+
+    const known = this.productStock.has(line.productId);
+    return this.shelves().map((shelf) => {
+      const onHand = this.productStock.get(line.productId)?.[shelf.id] ?? 0;
+      const usable = this.usableThousandths(line.productId, shelf.id, line.key, this.lines());
+      const enough = valid && known && usable >= needed;
+      const available = known ? plainQuantity(onHand) : '…';
+      const state = !known ? 'checking' : enough ? 'sufficient' : 'insufficient';
+      return {
+        id: shelf.id,
+        enough,
+        label: `${this.shelfLabel(shelf)} – ${available} available (${state})`,
+      };
+    });
+  }
+
+  protected lineAvailable(line: CartLine): string {
+    this.stockRevision();
+    if (!line.shelfId || !this.productStock.has(line.productId)) {
+      return '—';
+    }
+
+    return plainQuantity(this.productStock.get(line.productId)?.[line.shelfId] ?? 0);
+  }
+
+  protected lineStatus(line: CartLine): string {
+    this.stockRevision();
+    if (this.stockFailed.has(line.productId) && !this.productStock.has(line.productId)) {
+      return 'Stock unavailable';
+    }
+
+    if (!this.productStock.has(line.productId)) {
+      return 'Checking stock';
+    }
+
+    let needed: number;
+    try {
+      needed = parseSaleQuantity(line.quantity);
+    } catch {
+      return 'Check quantity';
+    }
+
+    if (!line.shelfId) {
+      return 'Insufficient';
+    }
+
+    const usable = this.usableThousandths(line.productId, line.shelfId, line.key, this.lines());
+    return usable >= Math.round(needed * 1000) ? 'Available' : 'Insufficient';
+  }
+
+  protected lineClass(line: CartLine): string {
+    const status = this.lineStatus(line);
+    if (status === 'Available') {
+      return 'pos-stock-ok';
+    }
+
+    if (status === 'Insufficient' || status === 'Stock unavailable') {
+      return 'pos-stock-short';
+    }
+
+    return '';
+  }
+
+  protected lineNote(line: CartLine): string {
+    this.stockRevision();
+    if (line.stockNote) {
+      return line.stockNote;
+    }
+
+    if (this.stockFailed.has(line.productId) && !this.productStock.has(line.productId)) {
+      return `${line.productName} – Shelf stock could not be loaded.`;
+    }
+
+    if (this.lineStatus(line) !== 'Insufficient') {
+      return '';
+    }
+
+    try {
+      return `${plainQuantity(parseSaleQuantity(line.quantity))} required. No single shelf has sufficient stock.`;
+    } catch {
+      return '';
+    }
+  }
+
+  protected lineShort(line: CartLine): boolean {
+    const status = this.lineStatus(line);
+    return status === 'Insufficient' || status === 'Stock unavailable';
   }
 
   protected lineMoney(line: CartLine): string {
@@ -476,98 +595,7 @@ export class PosPage implements AfterViewInit {
   }
 
   protected addProduct(product: Product, report = true, source: 'scan' | 'pick' = 'pick'): void {
-    if (this.selling() || !product.isActive) {
-      if (!product.isActive && report) {
-        this.error.set('Product is inactive.');
-      }
-
-      return;
-    }
-
-    let quantity: number;
-    try {
-      quantity = parseSaleQuantity(this.quantity());
-    } catch (error) {
-      if (report) {
-        this.error.set(error instanceof Error ? error.message : 'The request failed.');
-      }
-
-      return;
-    }
-
-    if (!this.shelfId()) {
-      if (report) {
-        this.error.set('Choose a shelf for every line.');
-      }
-
-      return;
-    }
-
-    const shelfId = this.shelfId();
-    const existing = this.lines().find((line) => line.productId === product.id && line.shelfId === shelfId);
-    if (!existing && this.lines().length >= MAX_SALE_LINES) {
-      if (report) {
-        this.error.set(`A sale can have at most ${MAX_SALE_LINES} lines.`);
-      }
-
-      return;
-    }
-
-    let nextQuantity = formatQuantity(quantity);
-    if (existing) {
-      try {
-        nextQuantity = addQuantities(parseSaleQuantity(existing.quantity), quantity);
-      } catch (error) {
-        if (report) {
-          this.error.set(error instanceof Error ? error.message : 'The request failed.');
-        }
-
-        return;
-      }
-    }
-
-    if (this.receipt()) {
-      this.receipt.set(null);
-      this.clearCustomer();
-    }
-
-    if (report) {
-      this.error.set('');
-      this.matches.set([]);
-      this.matchIndex.set(-1);
-      if (source === 'scan' && this.browseOpen()) {
-        this.clearProductQuery();
-        void this.loadBrowse(0);
-      }
-    }
-    if (existing) {
-      this.lines.update((lines) =>
-        lines.map((line) => (line.key === existing.key ? { ...line, quantity: nextQuantity } : line)),
-      );
-    } else {
-      this.lines.update((lines) => [
-        ...lines,
-        {
-          key: String(++this.lineKey),
-          productId: product.id,
-          productName: product.name,
-          unitPrice: product.sellingPrice,
-          quantity: nextQuantity,
-          shelfId,
-        },
-      ]);
-    }
-    this.resetQuantity();
-    if (report && source === 'pick') {
-      this.clearProductQuery();
-      if (this.browseOpen()) {
-        void this.loadBrowse(0);
-        this.focusProduct();
-        return;
-      }
-    }
-
-    this.focusBarcode();
+    void this.commitProduct(product, report, source);
   }
 
   protected rememberShelf(value: string): void {
@@ -590,20 +618,38 @@ export class PosPage implements AfterViewInit {
   }
 
   protected updateQuantity(key: string, value: string): void {
-    this.lines.update((lines) => lines.map((line) => (line.key === key ? { ...line, quantity: value } : line)));
+    this.lines.update((lines) =>
+      lines.map((line) => (line.key === key ? { ...line, quantity: value, stockNote: '' } : line)),
+    );
+    this.reconcileStock();
   }
 
-  protected updateShelf(key: string, value: string): void {
+  protected updateShelf(key: string, select: HTMLSelectElement): void {
+    const value = select.value;
     const current = this.lines().find((line) => line.key === key);
-    if (!current || current.shelfId === value) {
+    if (!current || value === '') {
+      select.value = current?.shelfId ?? '';
+      return;
+    }
+
+    if (current.shelfId === value) {
+      return;
+    }
+
+    const choice = this.shelfOptions(current).find((option) => option.id === value);
+    if (!choice?.enough) {
+      select.value = current.shelfId;
       return;
     }
 
     const other = this.lines().find(
-      (line) => line.key !== key && line.productId === current.productId && line.shelfId === value && value !== '',
+      (line) => line.key !== key && line.productId === current.productId && line.shelfId === value,
     );
     if (!other) {
-      this.lines.update((lines) => lines.map((line) => (line.key === key ? { ...line, shelfId: value } : line)));
+      this.lines.update((lines) =>
+        lines.map((line) => (line.key === key ? { ...line, shelfId: value, stockNote: '' } : line)),
+      );
+      this.reconcileStock();
       return;
     }
 
@@ -619,8 +665,9 @@ export class PosPage implements AfterViewInit {
     this.lines.update((lines) =>
       lines
         .filter((line) => line.key !== key)
-        .map((line) => (line.key === other.key ? { ...line, quantity } : line)),
+        .map((line) => (line.key === other.key ? { ...line, quantity, stockNote: '' } : line)),
     );
+    this.reconcileStock();
   }
 
   protected stepQuantity(key: string, direction: 1 | -1): void {
@@ -662,6 +709,7 @@ export class PosPage implements AfterViewInit {
     }
 
     this.lines.update((lines) => lines.filter((line) => line.key !== key));
+    this.reconcileStock();
   }
 
   protected reloadShelves(): void {
@@ -819,16 +867,23 @@ export class PosPage implements AfterViewInit {
     }
 
     this.error.set('');
-    let body: CompleteSaleBody;
-    try {
-      body = this.buildBody();
-    } catch (error) {
-      this.error.set(error instanceof Error ? error.message : 'The request failed.');
-      return;
-    }
-
     this.selling.set(true);
     try {
+      await this.refreshCartStock();
+      this.reconcileStock();
+      if (!this.lines().every((line) => this.lineStatus(line) === 'Available')) {
+        this.error.set(this.stockMessages());
+        return;
+      }
+
+      let body: CompleteSaleBody;
+      try {
+        body = this.buildBody();
+      } catch (error) {
+        this.error.set(error instanceof Error ? error.message : 'The request failed.');
+        return;
+      }
+
       const sale = await firstValueFrom(this.salesApi.complete(body));
       this.attempt.complete();
       this.receipt.set(sale);
@@ -836,13 +891,296 @@ export class PosPage implements AfterViewInit {
       this.matches.set([]);
       this.barcode.set('');
       this.resetQuantity();
+      this.productStock.clear();
+      this.stockFailed.clear();
+      this.stockShelfId = '';
+      this.shelfStock.set(null);
     } catch (error) {
-      this.error.set(messageFrom(error));
+      const failure = toApiError(error);
+      if (failure.shortages.length > 0) {
+        await this.refreshCartStock();
+        this.applyShortages(failure.shortages);
+        this.reconcileStock();
+        this.error.set(this.stockMessages() || failure.shortages.map((item) => shortageMessage(item)).join(' '));
+      } else {
+        this.error.set(failure.message);
+      }
     } finally {
       this.selling.set(false);
       this.changes.detectChanges();
       this.focusBarcode();
     }
+  }
+
+  private async commitProduct(product: Product, report: boolean, source: 'scan' | 'pick'): Promise<void> {
+    if (this.selling() || !product.isActive) {
+      if (!product.isActive && report) {
+        this.error.set('Product is inactive.');
+      }
+
+      return;
+    }
+
+    let quantity: number;
+    try {
+      quantity = parseSaleQuantity(this.quantity());
+    } catch (error) {
+      if (report) {
+        this.error.set(error instanceof Error ? error.message : 'The request failed.');
+      }
+
+      return;
+    }
+
+    const stock = await this.stockFor(product.id);
+    if (this.selling() || !this.session.isSignedIn()) {
+      return;
+    }
+
+    const lines = this.lines();
+    const target = stock ? this.chooseShelf(product.id, quantity, this.shelfId(), '', lines) : '';
+    const existing = target
+      ? lines.find((line) => line.productId === product.id && line.shelfId === target)
+      : stock
+        ? (lines.find((line) => line.productId === product.id && line.shelfId === this.shelfId()) ??
+          lines.find((line) => line.productId === product.id))
+        : undefined;
+    if (!existing && lines.length >= MAX_SALE_LINES) {
+      if (report) {
+        this.error.set(`A sale can have at most ${MAX_SALE_LINES} lines.`);
+      }
+
+      return;
+    }
+
+    let nextQuantity = formatQuantity(quantity);
+    if (existing) {
+      try {
+        nextQuantity = addQuantities(parseSaleQuantity(existing.quantity), quantity);
+      } catch (error) {
+        if (report) {
+          this.error.set(error instanceof Error ? error.message : 'The request failed.');
+        }
+
+        return;
+      }
+    }
+
+    if (this.receipt()) {
+      this.receipt.set(null);
+      this.clearCustomer();
+    }
+
+    if (report) {
+      this.error.set('');
+      this.matches.set([]);
+      this.matchIndex.set(-1);
+      if (source === 'scan' && this.browseOpen()) {
+        this.clearProductQuery();
+        void this.loadBrowse(0);
+      }
+    }
+
+    if (existing) {
+      this.lines.update((current) =>
+        current.map((line) => (line.key === existing.key ? { ...line, quantity: nextQuantity, stockNote: '' } : line)),
+      );
+    } else {
+      this.lines.update((current) => [
+        ...current,
+        {
+          key: String(++this.lineKey),
+          productId: product.id,
+          productName: product.name,
+          unitPrice: product.sellingPrice,
+          quantity: nextQuantity,
+          shelfId: target,
+          stockNote: '',
+        },
+      ]);
+    }
+
+    this.reconcileStock();
+    this.resetQuantity();
+    if (report && source === 'pick') {
+      this.clearProductQuery();
+      if (this.browseOpen()) {
+        void this.loadBrowse(0);
+        this.focusProduct();
+        return;
+      }
+    }
+
+    this.focusBarcode();
+  }
+
+  private async stockFor(productId: string): Promise<Record<string, number> | null> {
+    if (this.productStock.has(productId)) {
+      return this.productStock.get(productId) ?? null;
+    }
+
+    const pending = this.stockRequests.get(productId);
+    if (pending) {
+      return pending;
+    }
+
+    const request = this.reloadStock(productId)
+      .then(() => {
+        this.stockRevision.update((value) => value + 1);
+        return this.stockFailed.has(productId) ? null : (this.productStock.get(productId) ?? null);
+      })
+      .finally(() => this.stockRequests.delete(productId));
+    this.stockRequests.set(productId, request);
+    return request;
+  }
+
+  private async refreshCartStock(): Promise<void> {
+    const ids = [...new Set(this.lines().map((line) => line.productId))];
+    await Promise.all(ids.map((id) => this.reloadStock(id)));
+  }
+
+  private async reloadStock(productId: string): Promise<void> {
+    try {
+      const rows = await firstValueFrom(this.inventoryApi.listBalances(productId));
+      const stock: Record<string, number> = {};
+      for (const row of rows) {
+        if (row.productId === productId) {
+          stock[row.shelfId] = row.quantity;
+        }
+      }
+
+      this.productStock.set(productId, stock);
+      this.stockFailed.delete(productId);
+    } catch {
+      this.stockFailed.add(productId);
+    }
+  }
+
+  private applyShortages(shortages: StockShortage[]): void {
+    for (const shortage of shortages) {
+      const stock = { ...(this.productStock.get(shortage.productId) ?? {}) };
+      stock[shortage.shelfId] = shortage.available;
+      this.productStock.set(shortage.productId, stock);
+      this.stockFailed.delete(shortage.productId);
+    }
+
+    const notes = new Map(shortages.map((item) => [`${item.productId}|${item.shelfId}`, shortageMessage(item)]));
+    this.lines.update((lines) =>
+      lines.map((line) => {
+        const note = notes.get(`${line.productId}|${line.shelfId}`);
+        return note ? { ...line, stockNote: note } : line;
+      }),
+    );
+  }
+
+  private stockMessages(): string {
+    return [...new Set(this.lines().map((line) => this.lineNote(line)).filter((note) => note.length > 0))].join(' ');
+  }
+
+  private chooseShelf(
+    productId: string,
+    quantity: number,
+    preferredId: string,
+    ignoreKey: string,
+    lines: CartLine[],
+  ): string {
+    const needed = Math.round(quantity * 1000);
+    if (!this.productStock.has(productId)) {
+      return '';
+    }
+
+    const candidates = this.shelves()
+      .map((shelf) => ({
+        shelf,
+        usable: this.usableThousandths(productId, shelf.id, ignoreKey, lines),
+      }))
+      .filter((item) => item.usable >= needed);
+    const preferred = candidates.find((item) => item.shelf.id === preferredId);
+    if (preferred) {
+      return preferred.shelf.id;
+    }
+
+    candidates.sort((left, right) => {
+      if (right.usable !== left.usable) {
+        return right.usable - left.usable;
+      }
+
+      const label = this.shelfLabel(left.shelf).localeCompare(this.shelfLabel(right.shelf));
+      return label === 0 ? left.shelf.id.localeCompare(right.shelf.id) : label;
+    });
+    return candidates[0]?.shelf.id ?? '';
+  }
+
+  private usableThousandths(productId: string, shelfId: string, ignoreKey: string, lines: CartLine[]): number {
+    const onHand = this.productStock.get(productId)?.[shelfId] ?? 0;
+    let reserved = 0;
+    for (const line of lines) {
+      if (line.key === ignoreKey || line.productId !== productId || line.shelfId !== shelfId) {
+        continue;
+      }
+
+      try {
+        reserved += Math.round(parseSaleQuantity(line.quantity) * 1000);
+      } catch {
+        continue;
+      }
+    }
+
+    return Math.round(onHand * 1000) - reserved;
+  }
+
+  private reconcileStock(): void {
+    let lines = this.lines().map((line) => ({ ...line }));
+    let changed = false;
+    for (let pass = 0; pass < lines.length + 2; pass += 1) {
+      let passChanged = false;
+      for (const line of lines) {
+        if (!this.productStock.has(line.productId)) {
+          continue;
+        }
+
+        let needed: number;
+        try {
+          needed = parseSaleQuantity(line.quantity);
+        } catch {
+          continue;
+        }
+
+        const usable = line.shelfId ? this.usableThousandths(line.productId, line.shelfId, line.key, lines) : -1;
+        if (line.shelfId && usable >= Math.round(needed * 1000)) {
+          if (line.stockNote) {
+            line.stockNote = '';
+            passChanged = true;
+          }
+          continue;
+        }
+
+        const chosen = this.chooseShelf(line.productId, needed, this.shelfId(), line.key, lines);
+        if (chosen !== line.shelfId) {
+          line.shelfId = chosen;
+          passChanged = true;
+        }
+
+        if (chosen && line.stockNote) {
+          line.stockNote = '';
+          passChanged = true;
+        }
+      }
+
+      const merged = mergeSameShelf(lines);
+      lines = merged.lines;
+      if (!passChanged && !merged.changed) {
+        break;
+      }
+
+      changed = true;
+    }
+
+    if (changed) {
+      this.lines.set(lines);
+    }
+
+    this.stockRevision.update((value) => value + 1);
   }
 
   private async loadShelves(): Promise<void> {
@@ -951,6 +1289,48 @@ const shelfStorageKey = 'retail360.posShelf';
 
 function formatQuantity(value: number): string {
   return value.toFixed(3);
+}
+
+function plainQuantity(value: number): string {
+  if (!Number.isFinite(value)) {
+    return '0';
+  }
+
+  return value
+    .toFixed(3)
+    .replace(/(\.\d*?)0+$/, '$1')
+    .replace(/\.$/, '');
+}
+
+function shortageMessage(shortage: StockShortage): string {
+  return `Insufficient stock: ${shortage.productName} – ${shortage.shelfName}. Required: ${plainQuantity(shortage.required)}, Available: ${plainQuantity(shortage.available)}.`;
+}
+
+function mergeSameShelf(lines: CartLine[]): { lines: CartLine[]; changed: boolean } {
+  const result: CartLine[] = [];
+  let changed = false;
+  for (const line of lines) {
+    if (!line.shelfId) {
+      result.push(line);
+      continue;
+    }
+
+    const existing = result.find((item) => item.productId === line.productId && item.shelfId === line.shelfId);
+    if (!existing) {
+      result.push(line);
+      continue;
+    }
+
+    try {
+      existing.quantity = addQuantities(parseSaleQuantity(existing.quantity), parseSaleQuantity(line.quantity));
+      existing.stockNote = existing.stockNote || line.stockNote;
+      changed = true;
+    } catch {
+      result.push(line);
+    }
+  }
+
+  return { lines: result, changed };
 }
 
 function addQuantities(left: number, right: number): string {

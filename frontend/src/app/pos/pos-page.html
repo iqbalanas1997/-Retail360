@@ -169,13 +169,20 @@
                   <th>Unit price</th>
                   <th>Line total</th>
                   <th>Shelf</th>
+                  <th>Available</th>
+                  <th>Status</th>
                   <th></th>
                 </tr>
               </thead>
               <tbody>
                 @for (line of lines(); track line.key) {
-                  <tr>
-                    <td>{{ line.productName }}</td>
+                  <tr [class.pos-line-short]="lineShort(line)">
+                    <td>
+                      {{ line.productName }}
+                      @if (lineNote(line)) {
+                        <p class="pos-line-note">{{ lineNote(line) }}</p>
+                      }
+                    </td>
                     <td>
                       <span class="pos-qty">
                         <button type="button" class="secondary" (click)="stepQuantity(line.key, -1)" [disabled]="selling()" aria-label="Decrease quantity">−</button>
@@ -195,15 +202,22 @@
                     <td>
                       <select
                         name="lineShelf"
-                        (change)="updateShelf(line.key, $any($event.target).value)"
+                        [value]="line.shelfId"
+                        (change)="updateShelf(line.key, $any($event.target))"
                         [disabled]="selling()"
                       >
-                        <option value="" [selected]="line.shelfId === ''">Choose a shelf</option>
-                        @for (shelf of shelves(); track shelf.id) {
-                          <option [value]="shelf.id" [selected]="line.shelfId === shelf.id">{{ shelfLabel(shelf) }}</option>
+                        @if (!line.shelfId) {
+                          <option value="" selected disabled>No shelf has enough stock</option>
+                        }
+                        @for (option of shelfOptions(line); track option.id) {
+                          <option [value]="option.id" [disabled]="!option.enough" [selected]="line.shelfId === option.id">
+                            {{ option.label }}
+                          </option>
                         }
                       </select>
                     </td>
+                    <td>{{ lineAvailable(line) }}</td>
+                    <td [class]="lineClass(line)">{{ lineStatus(line) }}</td>
                     <td>
                       <button type="button" class="secondary" (click)="removeLine(line.key)" [disabled]="selling()">
                         Remove
@@ -241,7 +255,7 @@
             <p class="hint">Walk-in sale. Cash is selected.</p>
           }
           @if (canSell()) {
-            <button type="button" class="pos-complete" (click)="complete()" [disabled]="selling() || paying() || lines().length === 0">
+            <button type="button" class="pos-complete" (click)="complete()" [disabled]="!canFinish()">
               {{ selling() ? 'Completing sale…' : 'Complete sale' }}
             </button>
             <p class="hint">Ctrl+Enter completes the sale. Enter in the barcode field adds the product.</p>

@@ -396,6 +396,27 @@ a {
   font-size: 1.125rem;
 }
 
+.pos-stock-ok {
+  color: var(--green);
+  font-weight: 700;
+}
+
+.pos-stock-short,
+.pos-line-note {
+  color: #9b2c2c;
+  font-weight: 700;
+}
+
+.pos-line-note {
+  margin: 0.35rem 0 0;
+  font-size: 0.875rem;
+  font-weight: 600;
+}
+
+tr.pos-line-short td:first-child {
+  box-shadow: inset 3px 0 0 #9b2c2c;
+}
+
 .pos-qty {
   display: flex;
   align-items: center;

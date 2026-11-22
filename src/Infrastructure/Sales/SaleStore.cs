@@ -254,6 +254,7 @@ public sealed class SaleStore : ISaleStore
             transaction,
             cancellationToken: token));
 
+        await EnsureShelfStockAsync(connection, transaction, sale.Lines, products, token);
         var reason = "Sale " + sale.Id.ToString("N");
         foreach (var group in sale.Lines.GroupBy(line => line.ProductId).OrderBy(group => group.Key))
         {
@@ -434,6 +435,89 @@ public sealed class SaleStore : ISaleStore
         }
     }
 
+    private static async Task EnsureShelfStockAsync(
+        NpgsqlConnection connection,
+        NpgsqlTransaction transaction,
+        IReadOnlyList<SaleLine> lines,
+        IReadOnlyDictionary<Guid, ProductRow> products,
+        CancellationToken token)
+    {
+        var grouped = lines
+            .GroupBy(line => (line.ProductId, line.ShelfId))
+            .Select(group => new
+            {
+                group.Key.ProductId,
+                group.Key.ShelfId,
+                Required = group.Sum(line => line.Quantity)
+            })
+            .OrderBy(item => item.ProductId)
+            .ThenBy(item => item.ShelfId)
+            .ToArray();
+        if (grouped.Length == 0)
+        {
+            return;
+        }
+
+        var shelfIds = grouped.Select(item => item.ShelfId).Distinct().OrderBy(id => id).ToArray();
+        var shelves = (await connection.QueryAsync<ShelfLabelRow>(new CommandDefinition(
+            """
+            select s.id, a.name as area_name, s.name, s.is_active
+            from shelves s
+            join areas a on a.id = s.area_id
+            where s.id = any(@Ids)
+            order by s.id
+            for update of s;
+            """,
+            new { Ids = shelfIds },
+            transaction,
+            cancellationToken: token))).ToDictionary(row => row.Id);
+        var productIds = grouped.Select(item => item.ProductId).Distinct().OrderBy(id => id).ToArray();
+        var balances = (await connection.QueryAsync<ShelfQuantityRow>(new CommandDefinition(
+            """
+            select product_id, shelf_id, quantity
+            from stock_balances
+            where product_id = any(@ProductIds) and shelf_id = any(@ShelfIds)
+            order by product_id, shelf_id
+            for update;
+            """,
+            new { ProductIds = productIds, ShelfIds = shelfIds },
+            transaction,
+            cancellationToken: token))).ToDictionary(row => (row.ProductId, row.ShelfId));
+
+        var shortages = new List<SaleStockShortage>();
+        foreach (var item in grouped)
+        {
+            if (!shelves.TryGetValue(item.ShelfId, out var shelf))
+            {
+                continue;
+            }
+
+            var available = balances.TryGetValue((item.ProductId, item.ShelfId), out var balance)
+                ? balance.Quantity
+                : 0m;
+            if (available >= item.Required)
+            {
+                continue;
+            }
+
+            var label = shelf.IsActive
+                ? shelf.AreaName + " / " + shelf.Name
+                : shelf.AreaName + " / " + shelf.Name + " (inactive)";
+            shortages.Add(new SaleStockShortage(
+                item.ProductId,
+                products[item.ProductId].Name,
+                item.ShelfId,
+                label,
+                item.Required,
+                available));
+        }
+
+        if (shortages.Count > 0)
+        {
+            throw new SaleStockException(shortages);
+        }
+    }
+
     private static Dictionary<string, string?> SaleDetails(Sale sale, Guid? customerId, string paymentMethod)
     {
         var details = new Dictionary<string, string?>
@@ -452,6 +536,26 @@ public sealed class SaleStore : ISaleStore
         }
 
         return details;
+    }
+
+    private sealed class ShelfLabelRow
+    {
+        public Guid Id { get; init; }
+
+        public string AreaName { get; init; } = string.Empty;
+
+        public string Name { get; init; } = string.Empty;
+
+        public bool IsActive { get; init; }
+    }
+
+    private sealed class ShelfQuantityRow
+    {
+        public Guid ProductId { get; init; }
+
+        public Guid ShelfId { get; init; }
+
+        public decimal Quantity { get; init; }
     }
 
     private sealed class ProductRow

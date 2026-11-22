@@ -35,13 +35,19 @@ describe('POS and sales screens', () => {
       .expectOne((request) => request.url === '/api/products/by-barcode/TEA')
       .flush(product());
     await turn();
+    flushProductStock();
+    await turn();
     harness.detectChanges();
 
     expect(text(harness)).toContain('Tea');
     expect(text(harness)).toContain('35.00');
     expect(text(harness)).toContain('43.75');
+    expect(text(harness)).toContain('100');
+    expect(text(harness)).toContain('Available');
     expect((root.querySelector('[name="lineShelf"]') as HTMLSelectElement).value).toBe('shelf-1');
     clickButton(root, 'Complete sale');
+    flushProductStock();
+    await turn();
     const created = TestBed.inject(HttpTestingController).expectOne(
       (request) => request.method === 'POST' && request.url === '/api/sales',
     );
@@ -146,8 +152,12 @@ describe('POS and sales screens', () => {
       .expectOne((request) => request.url === '/api/products/by-barcode/TEA')
       .flush(product());
     await turn();
+    flushProductStock();
+    await turn();
     harness.detectChanges();
     clickButton(root, 'Complete sale');
+    flushProductStock();
+    await turn();
     const created = TestBed.inject(HttpTestingController).expectOne(
       (request) => request.method === 'POST' && request.url === '/api/sales',
     );
@@ -181,8 +191,13 @@ describe('POS and sales screens', () => {
     await turn();
     harness.detectChanges();
     clickButton(root, 'Add');
+    flushProductStock();
+    await turn();
     harness.detectChanges();
     clickButton(root, 'Complete sale');
+    clickButton(root, 'Complete sale');
+    flushProductStock();
+    await turn();
     const http = TestBed.inject(HttpTestingController);
     const first = http.expectOne((request) => request.method === 'POST' && request.url === '/api/sales');
     const operationId = first.request.body.operationId as string;
@@ -194,6 +209,8 @@ describe('POS and sales screens', () => {
 
     expect(text(harness)).toContain('Shelf does not have enough stock.');
     clickButton(root, 'Complete sale');
+    flushProductStock();
+    await turn();
     const retry = http.expectOne((request) => request.method === 'POST' && request.url === '/api/sales');
     expect(retry.request.body.operationId).toBe(operationId);
     retry.flush({ error: 'Product is inactive.' }, { status: 409, statusText: 'Conflict' });
@@ -205,6 +222,8 @@ describe('POS and sales screens', () => {
     quantity.value = '2';
     quantity.dispatchEvent(new Event('input'));
     clickButton(root, 'Complete sale');
+    flushProductStock();
+    await turn();
     const changed = http.expectOne((request) => request.method === 'POST' && request.url === '/api/sales');
     expect(changed.request.body.operationId).not.toBe(operationId);
     expect(changed.request.body.lines).toEqual([{ productId: 'product-1', shelfId: 'shelf-1', quantity: 2 }]);
@@ -328,6 +347,8 @@ describe('POS and sales screens', () => {
     flushShelfStock();
     barcode.flush(product());
     await turn();
+    flushProductStock();
+    await turn();
     harness.detectChanges();
 
     expect(text(harness)).toContain('Rice');
@@ -356,6 +377,9 @@ describe('POS and sales screens', () => {
 
     expect(text(harness)).toContain('Pack');
     clickButton(root, 'Add');
+    await turn();
+    flushProductStock();
+    await turn();
     harness.detectChanges();
 
     expect((root.querySelector('[name="lineQuantity"]') as HTMLInputElement).value).toBe('2.000');
@@ -389,12 +413,16 @@ describe('POS and sales screens', () => {
     expect(text(harness)).toContain('4.000');
     expect(text(harness)).toContain('Rice');
     clickButton(root, 'Add');
+    await turn();
+    flushProductStock();
+    await turn();
     http
       .expectOne((request) => request.url === '/api/products' && request.params.get('offset') === '0')
       .flush([product(), { ...product(), id: 'product-2', name: 'Rice', sellingPrice: 2 }]);
     await turn();
     harness.detectChanges();
     clickButton(root, 'Add');
+    await turn();
     http
       .expectOne((request) => request.url === '/api/products' && request.params.get('offset') === '0')
       .flush([product(), { ...product(), id: 'product-2', name: 'Rice', sellingPrice: 2 }]);
@@ -426,6 +454,9 @@ describe('POS and sales screens', () => {
     harness.detectChanges();
     expect(root.querySelector('tr.pos-match')?.textContent).toContain('Tea');
     input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true }));
+    await turn();
+    flushProductStock();
+    await turn();
     harness.detectChanges();
 
     expect(root.querySelectorAll('[name="lineQuantity"]').length).toBe(1);
@@ -447,6 +478,8 @@ describe('POS and sales screens', () => {
     const lookup = http.expectOne((request) => request.url === '/api/products/by-barcode/TEA');
     http.expectNone((request) => request.url === '/api/products/by-barcode/TEA');
     lookup.flush(product());
+    await turn();
+    flushProductStock();
     await turn();
     harness.detectChanges();
 
@@ -472,6 +505,8 @@ describe('POS and sales screens', () => {
       (request) => request.url === '/api/products/by-barcode/00123',
     );
     lookup.flush({ ...product(), barcodes: ['00123'], sellingPrice: 35 });
+    await turn();
+    flushProductStock();
     await turn();
     harness.detectChanges();
 
@@ -516,6 +551,8 @@ describe('POS and sales screens', () => {
     submitForm(root, 'Barcode');
     http.expectOne((request) => request.url === '/api/products/by-barcode/TEA').flush(product());
     await turn();
+    flushProductStock();
+    await turn();
     harness.detectChanges();
 
     expect(text(harness)).toContain('Tea');
@@ -540,6 +577,9 @@ describe('POS and sales screens', () => {
     tea.flush(product());
     rice.flush({ ...product(), id: 'product-2', name: 'Rice', sellingPrice: 2, barcodes: ['RICE'] });
     await turn();
+    flushProductStock('product-1');
+    flushProductStock('product-2');
+    await turn();
     harness.detectChanges();
 
     expect(text(harness)).toContain('Tea');
@@ -561,6 +601,8 @@ describe('POS and sales screens', () => {
     submitForm(root, 'Barcode');
     const http = TestBed.inject(HttpTestingController);
     http.expectOne((request) => request.url === '/api/products/by-barcode/TEA').flush(product());
+    await turn();
+    flushProductStock();
     await turn();
     harness.detectChanges();
     setNamed(root, 'barcode', 'TEA');
@@ -609,9 +651,14 @@ describe('POS and sales screens', () => {
     expect(root.querySelector('[name="lineQuantity"]')).toBeNull();
     setNamed(root, 'quantity', '1.250');
     clickButton(root, 'Add');
+    await turn();
+    flushProductStock();
+    await turn();
     harness.detectChanges();
     expect(text(harness)).toContain('43.75');
     clickButton(root, 'Complete sale');
+    flushProductStock();
+    await turn();
     const http = TestBed.inject(HttpTestingController);
     const failed = http.expectOne((request) => request.method === 'POST' && request.url === '/api/sales');
     const operationId = failed.request.body.operationId as string;
@@ -623,6 +670,8 @@ describe('POS and sales screens', () => {
     expect(text(harness)).toContain('Tea');
     expect(root.querySelector('[name="lineQuantity"]')).not.toBeNull();
     clickButton(root, 'Complete sale');
+    flushProductStock();
+    await turn();
     const retry = http.expectOne((request) => request.method === 'POST' && request.url === '/api/sales');
     expect(retry.request.body.operationId).toBe(operationId);
     retry.flush(sale());
@@ -674,8 +723,13 @@ describe('POS and sales screens', () => {
     await turn();
     harness.detectChanges();
     clickButton(root, 'Add');
+    await turn();
+    flushProductStock();
+    await turn();
     harness.detectChanges();
     clickButton(root, 'Complete sale');
+    flushProductStock();
+    await turn();
     const http = TestBed.inject(HttpTestingController);
     http.expectOne((request) => request.method === 'POST' && request.url === '/api/sales').flush(sale());
     await turn();
@@ -758,6 +812,8 @@ describe('POS and sales screens', () => {
       .expectOne((request) => request.url === '/api/products/by-barcode/TEA')
       .flush(product());
     await turn();
+    flushProductStock();
+    await turn();
     harness.detectChanges();
     setNamed(root, 'paymentAmount', '2.50');
     submitForm(root, 'Collect outstanding');
@@ -797,6 +853,8 @@ describe('POS and sales screens', () => {
     expect(text(harness)).toContain('Outstanding 0.0');
 
     clickButton(root, 'Complete sale');
+    flushProductStock();
+    await turn();
     const created = TestBed.inject(HttpTestingController).expectOne(
       (request) => request.method === 'POST' && request.url === '/api/sales',
     );
@@ -827,11 +885,15 @@ describe('POS and sales screens', () => {
       .expectOne((request) => request.url === '/api/products/by-barcode/TEA')
       .flush(product());
     await turn();
+    flushProductStock();
+    await turn();
     harness.detectChanges();
 
     expect((root.querySelector('[name="lineQuantity"]') as HTMLInputElement).value).toBe('2.000');
     expect((root.querySelector('[name="quantity"]') as HTMLInputElement).value).toBe('1');
     clickButton(root, 'Complete sale');
+    flushProductStock();
+    await turn();
     TestBed.inject(HttpTestingController)
       .expectOne((request) => request.method === 'POST' && request.url === '/api/sales')
       .flush(sale());
@@ -887,8 +949,18 @@ describe('POS and sales screens', () => {
     const http = TestBed.inject(HttpTestingController);
     http.expectOne((request) => request.url === '/api/products/by-barcode/TEA').flush(product());
     await turn();
+    flushProductStock('product-1', [
+      { shelfId: 'shelf-1', quantity: 100 },
+      { shelfId: 'shelf-2', quantity: 100 },
+    ]);
+    await turn();
     harness.detectChanges();
     clickButton(root, 'Complete sale');
+    flushProductStock('product-1', [
+      { shelfId: 'shelf-1', quantity: 100 },
+      { shelfId: 'shelf-2', quantity: 100 },
+    ]);
+    await turn();
     http.expectOne((request) => request.method === 'POST' && request.url === '/api/sales').flush(sale());
     await turn();
     harness.detectChanges();
@@ -897,6 +969,11 @@ describe('POS and sales screens', () => {
     setNamed(root, 'barcode', 'TEA');
     submitForm(root, 'Barcode');
     http.expectOne((request) => request.url === '/api/products/by-barcode/TEA').flush(product());
+    await turn();
+    flushProductStock('product-1', [
+      { shelfId: 'shelf-1', quantity: 100 },
+      { shelfId: 'shelf-2', quantity: 100 },
+    ]);
     await turn();
     harness.detectChanges();
 
@@ -916,6 +993,11 @@ describe('POS and sales screens', () => {
     root.querySelector('[name="quantity"]')?.dispatchEvent(
       new KeyboardEvent('keydown', { key: 'Enter', ctrlKey: true, bubbles: true, cancelable: true }),
     );
+    flushProductStock('product-1', [
+      { shelfId: 'shelf-1', quantity: 100 },
+      { shelfId: 'shelf-2', quantity: 100 },
+    ]);
+    await turn();
     const created = http.expectOne((request) => request.method === 'POST' && request.url === '/api/sales');
     expect(created.request.body.lines).toEqual([
       { productId: 'product-1', shelfId: 'shelf-1', quantity: 1 },
@@ -962,6 +1044,266 @@ function remember(role: string): void {
     roles: [role],
   });
 }
+
+  it('shows shelf stock on every line and keeps the remembered shelf when it can cover the quantity', async () => {
+    remember('Cashier');
+    sessionStorage.setItem('retail360.posShelf', 'shelf-a');
+    const harness = await open('/pos');
+    flushNamedShelves();
+    await turn();
+    harness.detectChanges();
+    const root = harness.fixture.nativeElement as HTMLElement;
+    setNamed(root, 'quantity', '5');
+    setNamed(root, 'barcode', 'TEA');
+    submitForm(root, 'Barcode');
+    TestBed.inject(HttpTestingController)
+      .expectOne((request) => request.url === '/api/products/by-barcode/TEA')
+      .flush(product());
+    await turn();
+    flushProductStock('product-1', [
+      { shelfId: 'shelf-a', quantity: 20 },
+      { shelfId: 'shelf-b', quantity: 50 },
+    ]);
+    await turn();
+    harness.detectChanges();
+
+    const select = root.querySelector('[name="lineShelf"]') as HTMLSelectElement;
+    expect(select.value).toBe('shelf-a');
+    expect(text(harness)).toContain('20');
+    expect(text(harness)).toContain('Available');
+    expect(select.textContent).toContain('Shop Floor / Shelf A – 20 available (sufficient)');
+    expect(select.textContent).toContain('Shop Floor / Shelf B – 50 available (sufficient)');
+    expect(select.options[0].disabled).toBe(false);
+    expect(select.options[1].disabled).toBe(false);
+  });
+
+  it('selects another shelf when the remembered shelf is short and blocks that shelf', async () => {
+    remember('Cashier');
+    sessionStorage.setItem('retail360.posShelf', 'shelf-a');
+    const harness = await open('/pos');
+    flushNamedShelves();
+    await turn();
+    harness.detectChanges();
+    const root = harness.fixture.nativeElement as HTMLElement;
+    setNamed(root, 'quantity', '10');
+    setNamed(root, 'barcode', 'TEA');
+    submitForm(root, 'Barcode');
+    TestBed.inject(HttpTestingController)
+      .expectOne((request) => request.url === '/api/products/by-barcode/TEA')
+      .flush(product());
+    await turn();
+    flushProductStock('product-1', [
+      { shelfId: 'shelf-a', quantity: 5 },
+      { shelfId: 'shelf-b', quantity: 15 },
+    ]);
+    await turn();
+    harness.detectChanges();
+
+    const select = root.querySelector('[name="lineShelf"]') as HTMLSelectElement;
+    const options = [...select.options];
+    expect(select.value).toBe('shelf-b');
+    expect(text(harness)).toContain('Available');
+    expect(options.find((option) => option.value === 'shelf-a')?.disabled).toBe(true);
+    expect(options.find((option) => option.value === 'shelf-a')?.textContent).toContain('5 available (insufficient)');
+    expect(options.find((option) => option.value === 'shelf-b')?.disabled).toBe(false);
+    expect(options.find((option) => option.value === 'shelf-b')?.textContent).toContain('15 available (sufficient)');
+    setNamed(root, 'lineShelf', 'shelf-a');
+    harness.detectChanges();
+    expect((root.querySelector('[name="lineShelf"]') as HTMLSelectElement).value).toBe('shelf-b');
+  });
+
+  it('updates eligibility when the quantity changes and says when no shelf can cover it', async () => {
+    remember('Cashier');
+    sessionStorage.setItem('retail360.posShelf', 'shelf-a');
+    const harness = await open('/pos');
+    flushNamedShelves();
+    await turn();
+    harness.detectChanges();
+    const root = harness.fixture.nativeElement as HTMLElement;
+    setNamed(root, 'quantity', '5');
+    setNamed(root, 'barcode', 'TEA');
+    submitForm(root, 'Barcode');
+    TestBed.inject(HttpTestingController)
+      .expectOne((request) => request.url === '/api/products/by-barcode/TEA')
+      .flush(product());
+    await turn();
+    flushProductStock('product-1', [
+      { shelfId: 'shelf-a', quantity: 10 },
+      { shelfId: 'shelf-b', quantity: 20 },
+    ]);
+    await turn();
+    harness.detectChanges();
+
+    expect((root.querySelector('[name="lineShelf"]') as HTMLSelectElement).value).toBe('shelf-a');
+    const quantity = root.querySelector('[name="lineQuantity"]') as HTMLInputElement;
+    quantity.value = '25';
+    quantity.dispatchEvent(new Event('input'));
+    harness.detectChanges();
+
+    expect(text(harness)).toContain('25 required. No single shelf has sufficient stock.');
+    expect(text(harness)).toContain('Insufficient');
+    expect((root.querySelector('.pos-complete') as HTMLButtonElement).disabled).toBe(true);
+    const blocked = [...(root.querySelector('[name="lineShelf"]') as HTMLSelectElement).options];
+    expect(blocked.filter((option) => option.value !== '').every((option) => option.disabled)).toBe(true);
+
+    quantity.value = '15';
+    quantity.dispatchEvent(new Event('input'));
+    harness.detectChanges();
+
+    expect((root.querySelector('[name="lineShelf"]') as HTMLSelectElement).value).toBe('shelf-b');
+    expect(text(harness)).toContain('Available');
+    expect((root.querySelector('.pos-complete') as HTMLButtonElement).disabled).toBe(false);
+  });
+
+  it('combines the same product on one shelf and frees that stock when the line is removed', async () => {
+    remember('Cashier');
+    sessionStorage.setItem('retail360.posShelf', 'shelf-a');
+    const harness = await open('/pos');
+    flushNamedShelves();
+    await turn();
+    harness.detectChanges();
+    const root = harness.fixture.nativeElement as HTMLElement;
+    setNamed(root, 'quantity', '6');
+    setNamed(root, 'barcode', 'TEA');
+    submitForm(root, 'Barcode');
+    const http = TestBed.inject(HttpTestingController);
+    http.expectOne((request) => request.url === '/api/products/by-barcode/TEA').flush(product());
+    await turn();
+    flushProductStock('product-1', [{ shelfId: 'shelf-a', quantity: 10 }]);
+    await turn();
+    harness.detectChanges();
+
+    expect(text(harness)).toContain('Available');
+    setNamed(root, 'quantity', '5');
+    setNamed(root, 'barcode', 'TEA');
+    submitForm(root, 'Barcode');
+    http.expectOne((request) => request.url === '/api/products/by-barcode/TEA').flush(product());
+    await turn();
+    harness.detectChanges();
+
+    expect(root.querySelectorAll('[name="lineQuantity"]').length).toBe(1);
+    expect((root.querySelector('[name="lineQuantity"]') as HTMLInputElement).value).toBe('11.000');
+    expect(text(harness)).toContain('11 required. No single shelf has sufficient stock.');
+    expect(root.querySelector('.pos-stock-short')?.textContent).toContain('Insufficient');
+    clickButton(root, 'Remove');
+    harness.detectChanges();
+    expect(root.querySelector('[name="lineQuantity"]')).toBeNull();
+  });
+
+  it('moves a line onto a shelf that becomes free when another line is removed', async () => {
+    remember('Cashier');
+    sessionStorage.setItem('retail360.posShelf', 'shelf-a');
+    const harness = await open('/pos');
+    flushNamedShelves();
+    await turn();
+    harness.detectChanges();
+    const root = harness.fixture.nativeElement as HTMLElement;
+    setNamed(root, 'quantity', '15');
+    setNamed(root, 'barcode', 'TEA');
+    submitForm(root, 'Barcode');
+    const http = TestBed.inject(HttpTestingController);
+    http.expectOne((request) => request.url === '/api/products/by-barcode/TEA').flush(product());
+    await turn();
+    flushProductStock('product-1', [
+      { shelfId: 'shelf-a', quantity: 20 },
+      { shelfId: 'shelf-b', quantity: 10 },
+    ]);
+    await turn();
+    harness.detectChanges();
+    setNamed(root, 'shelf', 'shelf-b');
+    setNamed(root, 'quantity', '8');
+    setNamed(root, 'barcode', 'TEA');
+    submitForm(root, 'Barcode');
+    http.expectOne((request) => request.url === '/api/products/by-barcode/TEA').flush(product());
+    await turn();
+    harness.detectChanges();
+
+    expect(root.querySelectorAll('[name="lineQuantity"]').length).toBe(2);
+    const second = root.querySelectorAll('[name="lineQuantity"]')[1] as HTMLInputElement;
+    second.value = '12';
+    second.dispatchEvent(new Event('input'));
+    harness.detectChanges();
+    expect(text(harness)).toContain('12 required. No single shelf has sufficient stock.');
+    clickButton(root, 'Remove');
+    harness.detectChanges();
+
+    expect(root.querySelectorAll('[name="lineQuantity"]').length).toBe(1);
+    expect((root.querySelector('[name="lineShelf"]') as HTMLSelectElement).value).toBe('shelf-a');
+    expect(text(harness)).toContain('Available');
+  });
+
+  it('names every product when stock changes before the sale is stored', async () => {
+    remember('Cashier');
+    const harness = await open('/pos');
+    flushShelves();
+    await turn();
+    harness.detectChanges();
+    const root = harness.fixture.nativeElement as HTMLElement;
+    setNamed(root, 'shelf', 'shelf-1');
+    setNamed(root, 'quantity', '10');
+    setNamed(root, 'barcode', 'TEA');
+    submitForm(root, 'Barcode');
+    const http = TestBed.inject(HttpTestingController);
+    http.expectOne((request) => request.url === '/api/products/by-barcode/TEA').flush(product());
+    await turn();
+    flushProductStock();
+    await turn();
+    harness.detectChanges();
+    setNamed(root, 'shelf', 'shelf-1');
+    setNamed(root, 'quantity', '4');
+    setNamed(root, 'barcode', 'RICE');
+    submitForm(root, 'Barcode');
+    http
+      .expectOne((request) => request.url === '/api/products/by-barcode/RICE')
+      .flush({ ...product(), id: 'product-2', name: 'Basmati Rice', sellingPrice: 2, barcodes: ['RICE'] });
+    await turn();
+    flushProductStock('product-2');
+    await turn();
+    harness.detectChanges();
+    clickButton(root, 'Complete sale');
+    flushProductStock();
+    flushProductStock('product-2');
+    await turn();
+    const created = http.expectOne((request) => request.method === 'POST' && request.url === '/api/sales');
+    created.flush(
+      {
+        error: 'Shelf does not have enough stock.',
+        shortages: [
+          {
+            productId: 'product-1',
+            productName: 'Tea',
+            shelfId: 'shelf-1',
+            shelfName: 'Shop Floor / Front B',
+            required: 10,
+            available: 6,
+          },
+          {
+            productId: 'product-2',
+            productName: 'Basmati Rice',
+            shelfId: 'shelf-1',
+            shelfName: 'Shop Floor / Front B',
+            required: 4,
+            available: 2,
+          },
+        ],
+      },
+      { status: 409, statusText: 'Conflict' },
+    );
+    await turn();
+    flushProductStock('product-1', [{ shelfId: 'shelf-1', quantity: 6 }]);
+    flushProductStock('product-2', [{ shelfId: 'shelf-1', quantity: 2 }]);
+    await turn();
+    harness.detectChanges();
+
+    expect(text(harness)).toContain('Insufficient stock: Tea – Shop Floor / Front B. Required: 10, Available: 6.');
+    expect(text(harness)).toContain(
+      'Insufficient stock: Basmati Rice – Shop Floor / Front B. Required: 4, Available: 2.',
+    );
+    expect(text(harness)).not.toContain('Shelf does not have enough stock.');
+    expect(root.querySelectorAll('[name="lineQuantity"]').length).toBe(2);
+    expect((root.querySelector('.pos-complete') as HTMLButtonElement).disabled).toBe(true);
+    http.expectNone((request) => request.method === 'POST' && request.url === '/api/sales');
+  });
 
 function token(role: string): string {
   const body = btoa(JSON.stringify({ role })).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/g, '');
@@ -1026,12 +1368,59 @@ function flushBarcodeMiss(http: HttpTestingController, barcode: string): void {
     .flush({ error: 'No product has barcode.' }, { status: 404, statusText: 'Not Found' });
 }
 
+function flushProductStock(
+  productId = 'product-1',
+  rows: { shelfId: string; quantity: number }[] = [{ shelfId: 'shelf-1', quantity: 100 }],
+): void {
+  TestBed.inject(HttpTestingController)
+    .expectOne(
+      (request) => request.url === '/api/inventory/balances' && request.params.get('productId') === productId,
+    )
+    .flush(
+      rows.map((row) => ({
+        productId,
+        productName: 'Tea',
+        shelfId: row.shelfId,
+        shelfName: row.shelfId,
+        areaId: 'area-1',
+        areaName: 'Shop Floor',
+        quantity: row.quantity,
+        shelfIsActive: true,
+      })),
+    );
+}
+
 function flushShelfStock(shelfId = 'shelf-1', rows: unknown[] = []): void {
   TestBed.inject(HttpTestingController)
     .expectOne(
       (request) => request.url === '/api/inventory/balances' && request.params.get('shelfId') === shelfId,
     )
     .flush(rows);
+}
+
+function flushNamedShelves(): void {
+  TestBed.inject(HttpTestingController)
+    .expectOne((request) => request.url === '/api/shelves')
+    .flush([
+      {
+        id: 'shelf-a',
+        areaId: 'area-1',
+        areaName: 'Shop Floor',
+        name: 'Shelf A',
+        isActive: true,
+        createdAt: '2026-10-20T00:00:00Z',
+        updatedAt: '2026-10-20T00:00:00Z',
+      },
+      {
+        id: 'shelf-b',
+        areaId: 'area-1',
+        areaName: 'Shop Floor',
+        name: 'Shelf B',
+        isActive: true,
+        createdAt: '2026-10-20T00:00:00Z',
+        updatedAt: '2026-10-20T00:00:00Z',
+      },
+    ]);
 }
 
 function flushShelves(): void {

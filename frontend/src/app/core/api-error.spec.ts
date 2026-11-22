@@ -21,4 +21,53 @@ describe('API errors', () => {
       'The request failed.',
     );
   });
+
+  it('keeps every named shortage from a sale conflict', () => {
+    const failure = toApiError(
+      new HttpErrorResponse({
+        status: 409,
+        error: {
+          error: 'Shelf does not have enough stock.',
+          shortages: [
+            {
+              productId: 'product-1',
+              productName: 'Basmati Rice',
+              shelfId: 'shelf-1',
+              shelfName: 'Shop Floor / Shelf A',
+              required: 10,
+              available: 6,
+            },
+            {
+              productId: 'product-2',
+              productName: 'Milk',
+              shelfId: 'shelf-2',
+              shelfName: 'Shop Floor / Shelf C',
+              required: 4,
+              available: 2,
+            },
+          ],
+        },
+      }),
+    );
+
+    expect(failure.message).toBe('Shelf does not have enough stock.');
+    expect(failure.shortages).toEqual([
+      {
+        productId: 'product-1',
+        productName: 'Basmati Rice',
+        shelfId: 'shelf-1',
+        shelfName: 'Shop Floor / Shelf A',
+        required: 10,
+        available: 6,
+      },
+      {
+        productId: 'product-2',
+        productName: 'Milk',
+        shelfId: 'shelf-2',
+        shelfName: 'Shop Floor / Shelf C',
+        required: 4,
+        available: 2,
+      },
+    ]);
+  });
 });

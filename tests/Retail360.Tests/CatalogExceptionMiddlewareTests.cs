@@ -44,6 +44,41 @@ public class CatalogExceptionMiddlewareTests
         using var document = await JsonDocument.ParseAsync(context.Response.Body);
         Assert.Equal(statusCode, context.Response.StatusCode);
         Assert.Equal(message, document.RootElement.GetProperty("error").GetString());
+        Assert.False(document.RootElement.TryGetProperty("shortages", out _));
+    }
+
+    [Fact]
+    public async Task Sale_stock_shortage_keeps_the_error_and_names_every_line()
+    {
+        var productId = Guid.Parse("11111111-1111-1111-1111-111111111111");
+        var shelfId = Guid.Parse("22222222-2222-2222-2222-222222222222");
+        var middleware = new CatalogExceptionMiddleware(
+            _ => throw new SaleStockException(
+            [
+                new SaleStockShortage(productId, "Basmati Rice", shelfId, "Shop / Shelf A", 10m, 6m),
+                new SaleStockShortage(Guid.Parse("33333333-3333-3333-3333-333333333333"), "Milk", shelfId, "Shop / Shelf A", 4m, 2m)
+            ]),
+            NullLogger<CatalogExceptionMiddleware>.Instance);
+        var context = new DefaultHttpContext();
+        context.Response.Body = new MemoryStream();
+
+        await middleware.InvokeAsync(context);
+
+        context.Response.Body.Position = 0;
+        using var document = await JsonDocument.ParseAsync(context.Response.Body);
+        var shortages = document.RootElement.GetProperty("shortages");
+        Assert.Equal(StatusCodes.Status409Conflict, context.Response.StatusCode);
+        Assert.Equal("Shelf does not have enough stock.", document.RootElement.GetProperty("error").GetString());
+        Assert.Equal(2, shortages.GetArrayLength());
+        Assert.Equal("Basmati Rice", shortages[0].GetProperty("productName").GetString());
+        Assert.Equal(productId.ToString(), shortages[0].GetProperty("productId").GetString());
+        Assert.Equal(shelfId.ToString(), shortages[0].GetProperty("shelfId").GetString());
+        Assert.Equal("Shop / Shelf A", shortages[0].GetProperty("shelfName").GetString());
+        Assert.Equal(10m, shortages[0].GetProperty("required").GetDecimal());
+        Assert.Equal(6m, shortages[0].GetProperty("available").GetDecimal());
+        Assert.Equal("Milk", shortages[1].GetProperty("productName").GetString());
+        Assert.Equal(4m, shortages[1].GetProperty("required").GetDecimal());
+        Assert.Equal(2m, shortages[1].GetProperty("available").GetDecimal());
     }
 
     [Fact]

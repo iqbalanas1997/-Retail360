@@ -1,9 +1,19 @@
 import { HttpErrorResponse } from '@angular/common/http';
 
+export interface StockShortage {
+  productId: string;
+  productName: string;
+  shelfId: string;
+  shelfName: string;
+  required: number;
+  available: number;
+}
+
 export class ApiError extends Error {
   constructor(
     readonly status: number,
     message: string,
+    readonly shortages: StockShortage[] = [],
   ) {
     super(message);
   }
@@ -21,7 +31,7 @@ export function toApiError(error: unknown): ApiError {
         ? body.error
         : '';
     if (serverMessage) {
-      return new ApiError(error.status, serverMessage);
+      return new ApiError(error.status, serverMessage, readShortages(body));
     }
 
     if (error.status === 0 || error.status >= 500) {
@@ -40,4 +50,38 @@ export function toApiError(error: unknown): ApiError {
   }
 
   return new ApiError(0, 'The request failed.');
+}
+
+function readShortages(body: unknown): StockShortage[] {
+  if (typeof body !== 'object' || body === null || !('shortages' in body) || !Array.isArray(body.shortages)) {
+    return [];
+  }
+
+  return body.shortages.flatMap((item) => {
+    if (typeof item !== 'object' || item === null) {
+      return [];
+    }
+
+    const row = item as Record<string, unknown>;
+    const required = typeof row['required'] === 'number' ? row['required'] : Number(row['required']);
+    const available = typeof row['available'] === 'number' ? row['available'] : Number(row['available']);
+    if (typeof row['productId'] !== 'string' || typeof row['shelfId'] !== 'string') {
+      return [];
+    }
+
+    if (!Number.isFinite(required) || !Number.isFinite(available)) {
+      return [];
+    }
+
+    return [
+      {
+        productId: row['productId'],
+        productName: typeof row['productName'] === 'string' ? row['productName'] : '',
+        shelfId: row['shelfId'],
+        shelfName: typeof row['shelfName'] === 'string' ? row['shelfName'] : '',
+        required,
+        available,
+      },
+    ];
+  });
 }

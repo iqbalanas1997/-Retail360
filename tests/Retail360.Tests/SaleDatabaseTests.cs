@@ -155,7 +155,7 @@ public sealed class SaleDatabaseTests
         var missing = await Assert.ThrowsAsync<SaleRuleException>(() => sales.CompleteAsync(
             Command(Guid.NewGuid(), Guid.NewGuid(), shelf, 1m),
             CancellationToken.None));
-        var shortStock = await Assert.ThrowsAsync<InventoryRuleException>(() => sales.CompleteAsync(
+        var shortStock = await Assert.ThrowsAsync<SaleStockException>(() => sales.CompleteAsync(
             Command(Guid.NewGuid(), product, shelf, 2m),
             CancellationToken.None));
         await using var connection = await _database.OpenAsync();
@@ -167,10 +167,62 @@ public sealed class SaleDatabaseTests
             new { ProductId = product });
 
         Assert.Equal(SaleRuleFailure.NotFound, missing.Failure);
-        Assert.Equal(InventoryRuleFailure.Conflict, shortStock.Failure);
+        Assert.Equal(SaleRuleFailure.Conflict, shortStock.Failure);
         Assert.Equal("Shelf does not have enough stock.", shortStock.Message);
+        var shortage = Assert.Single(shortStock.Shortages);
+        Assert.Equal(product, shortage.ProductId);
+        Assert.Equal("Rice", shortage.ProductName);
+        Assert.Equal(shelf, shortage.ShelfId);
+        Assert.Equal(2m, shortage.Required);
+        Assert.Equal(1.000m, shortage.Available);
         Assert.Equal(0, salesForProduct);
         Assert.Equal(1.000m, quantity);
+    }
+
+    [Fact]
+    public async Task Every_short_line_is_named_and_the_sale_is_not_stored()
+    {
+        var sales = _database.CreateSales();
+        var rice = await SeedProductAsync("Basmati Rice", 2.00m, true);
+        var milk = await SeedProductAsync("Milk", 1.50m, true);
+        var shelfA = await SeedShelfAsync(true);
+        var shelfB = await SeedShelfAsync(true);
+        await OpenAsync(rice, shelfA, 6m);
+        await OpenAsync(milk, shelfB, 2m);
+
+        var error = await Assert.ThrowsAsync<SaleStockException>(() => sales.CompleteAsync(
+            new CompleteSaleCommand(
+                Guid.NewGuid(),
+                [
+                    new CompleteSaleLineCommand(rice, shelfA, 10m),
+                    new CompleteSaleLineCommand(milk, shelfB, 4m)
+                ],
+                null,
+                null),
+            CancellationToken.None));
+        await using var connection = await _database.OpenAsync();
+        var stored = await connection.ExecuteScalarAsync<long>(
+            "select count(*) from sale_lines where product_id = any(@Ids);",
+            new { Ids = new[] { rice, milk } });
+        var riceQuantity = await connection.ExecuteScalarAsync<decimal>(
+            "select quantity from stock_balances where product_id = @Id;",
+            new { Id = rice });
+        var milkQuantity = await connection.ExecuteScalarAsync<decimal>(
+            "select quantity from stock_balances where product_id = @Id;",
+            new { Id = milk });
+
+        Assert.Equal(2, error.Shortages.Count);
+        Assert.Contains(
+            error.Shortages,
+            item => item.ProductId == rice && item.ProductName == "Basmati Rice" && item.ShelfId == shelfA
+                && item.Required == 10m && item.Available == 6m && item.ShelfName.Contains(" / ", StringComparison.Ordinal));
+        Assert.Contains(
+            error.Shortages,
+            item => item.ProductId == milk && item.ProductName == "Milk" && item.ShelfId == shelfB
+                && item.Required == 4m && item.Available == 2m);
+        Assert.Equal(0, stored);
+        Assert.Equal(6m, riceQuantity);
+        Assert.Equal(2m, milkQuantity);
     }
 
     [Fact]
@@ -324,7 +376,7 @@ public sealed class SaleDatabaseTests
             new { ProductId = product });
 
         Assert.Equal(1, results.Count(result => result is null));
-        Assert.Equal(1, results.Count(result => result is InventoryRuleException));
+        Assert.Equal(1, results.Count(result => result is SaleStockException));
         Assert.Equal(0.000m, quantity);
         Assert.Equal(1, saleMovements);
     }
@@ -424,7 +476,7 @@ public sealed class SaleDatabaseTests
         await OpenAsync(product, shelf, 1m);
         var buyer = await SeedCustomerAsync("Short Buyer", true, false, "0300333444");
 
-        var error = await Assert.ThrowsAsync<InventoryRuleException>(() => sales.CompleteAsync(
+        var error = await Assert.ThrowsAsync<SaleStockException>(() => sales.CompleteAsync(
             Command(Guid.NewGuid(), product, shelf, 2m, buyer, SaleText.Credit),
             CancellationToken.None));
         await using var connection = await _database.OpenAsync();
@@ -435,7 +487,8 @@ public sealed class SaleDatabaseTests
             "select quantity from stock_balances where product_id = @Id;",
             new { Id = product });
 
-        Assert.Equal(InventoryRuleFailure.Conflict, error.Failure);
+        Assert.Equal(SaleRuleFailure.Conflict, error.Failure);
+        Assert.Equal("Shelf does not have enough stock.", error.Message);
         Assert.Equal(0, charges);
         Assert.Equal(1m, quantity);
     }

@@ -46,6 +46,10 @@ public sealed class CatalogExceptionMiddleware
         {
             await WriteRuleAsync(context, exception, StatusFor(exception.Failure));
         }
+        catch (SaleStockException exception)
+        {
+            await WriteStockAsync(context, exception);
+        }
         catch (SaleRuleException exception)
         {
             await WriteRuleAsync(context, exception, StatusFor(exception.Failure));
@@ -98,6 +102,32 @@ public sealed class CatalogExceptionMiddleware
             exception.Message,
             context.TraceIdentifier);
         await WriteBodyAsync(context, statusCode, exception.Message);
+    }
+
+    private async Task WriteStockAsync(HttpContext context, SaleStockException exception)
+    {
+        _logger.LogWarning(
+            "Shop rule rejected {Method} {Path} with {StatusCode}. {Error} TraceId={TraceId}",
+            context.Request.Method,
+            context.Request.Path.Value,
+            StatusCodes.Status409Conflict,
+            exception.Message,
+            context.TraceIdentifier);
+        context.Response.StatusCode = StatusCodes.Status409Conflict;
+        context.Response.ContentType = "application/json";
+        await context.Response.WriteAsJsonAsync(new
+        {
+            error = exception.Message,
+            shortages = exception.Shortages.Select(shortage => new
+            {
+                productId = shortage.ProductId,
+                productName = shortage.ProductName,
+                shelfId = shortage.ShelfId,
+                shelfName = shortage.ShelfName,
+                required = shortage.Required,
+                available = shortage.Available
+            })
+        });
     }
 
     private static async Task WriteBodyAsync(HttpContext context, int statusCode, string message)

@@ -7,7 +7,7 @@ public enum SaleRuleFailure
     Conflict
 }
 
-public sealed class SaleRuleException : Exception
+public class SaleRuleException : Exception
 {
     public SaleRuleException(SaleRuleFailure failure, string message)
         : base(message)
@@ -16,4 +16,23 @@ public sealed class SaleRuleException : Exception
     }
 
     public SaleRuleFailure Failure { get; }
+}
+
+public sealed record SaleStockShortage(
+    Guid ProductId,
+    string ProductName,
+    Guid ShelfId,
+    string ShelfName,
+    decimal Required,
+    decimal Available);
+
+public sealed class SaleStockException : SaleRuleException
+{
+    public SaleStockException(IReadOnlyList<SaleStockShortage> shortages)
+        : base(SaleRuleFailure.Conflict, "Shelf does not have enough stock.")
+    {
+        Shortages = shortages;
+    }
+
+    public IReadOnlyList<SaleStockShortage> Shortages { get; }
 }
