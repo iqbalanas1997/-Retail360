@@ -1,10 +1,9 @@
-import { AfterViewInit, ChangeDetectorRef, Component, ElementRef, HostListener, inject, signal, viewChild } from '@angular/core';
+import { AfterViewInit, afterNextRender, ChangeDetectorRef, Component, ElementRef, HostListener, inject, Injector, signal, viewChild } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
 import { firstValueFrom } from 'rxjs';
 
 import { ApiError, toApiError, type StockShortage } from '../core/api-error';
-import { formatScaled } from '../core/catalog-rules';
 import { type Product } from '../core/catalog.models';
 import { OperationAttempt } from '../core/inventory-rules';
 import { InventoryApi } from '../core/inventory-api.service';
@@ -55,11 +54,14 @@ export class PosPage implements AfterViewInit {
   private readonly customersApi = inject(CustomerApi);
   private readonly session = inject(SessionService);
   private readonly changes = inject(ChangeDetectorRef);
+  private readonly injector = inject(Injector);
   private readonly attempt = new OperationAttempt();
   private readonly paymentAttempt = new OperationAttempt();
   private readonly barcodeInput = viewChild<ElementRef<HTMLInputElement>>('barcodeInput');
   private readonly quantityInput = viewChild<ElementRef<HTMLInputElement>>('quantityInput');
   private readonly productInput = viewChild<ElementRef<HTMLInputElement>>('productInput');
+  private readonly modalSearch = viewChild<ElementRef<HTMLInputElement>>('modalSearch');
+  private readonly resultsList = viewChild<ElementRef<HTMLElement>>('resultsList');
   private lineKey = 0;
   private lookupGeneration = 0;
   private shelfGeneration = 0;
@@ -85,6 +87,7 @@ export class PosPage implements AfterViewInit {
   protected readonly barcode = signal('');
   protected readonly productQuery = signal('');
   protected readonly browseOpen = signal(false);
+  protected readonly resultsOpen = signal(false);
   protected readonly browseRows = signal<Product[]>([]);
   protected readonly browseMore = signal(false);
   protected readonly shelfStock = signal<Record<string, number> | null>(null);
@@ -115,13 +118,10 @@ export class PosPage implements AfterViewInit {
   @HostListener('keydown', ['$event'])
   protected onKeydown(event: KeyboardEvent): void {
     if (event.key === 'Escape') {
-      this.matches.set([]);
-      this.matchIndex.set(-1);
-      this.browseOpen.set(false);
+      this.closeResults();
       if (!this.customer()) {
         this.customerOpen.set(false);
       }
-      this.focusBarcode();
       event.preventDefault();
       return;
     }
@@ -378,8 +378,18 @@ export class PosPage implements AfterViewInit {
     }
   }
 
-  private focusProduct(): void {
-    this.productInput()?.nativeElement.focus();
+  private focusResults(kind: 'search' | 'list'): void {
+    afterNextRender(
+      () => {
+        if (!this.browseOpen() && !this.resultsOpen()) {
+          return;
+        }
+
+        const node = kind === 'search' ? this.modalSearch()?.nativeElement : this.resultsList()?.nativeElement;
+        node?.focus();
+      },
+      { injector: this.injector },
+    );
   }
 
   private focusBarcode(): void {
@@ -408,6 +418,8 @@ export class PosPage implements AfterViewInit {
       this.matches.set([]);
       if (this.browseOpen()) {
         void this.loadBrowse(0);
+      } else {
+        this.resultsOpen.set(false);
       }
       return;
     }
@@ -430,8 +442,17 @@ export class PosPage implements AfterViewInit {
       this.matches.set([]);
       if (this.browseOpen()) {
         void this.loadBrowse(0);
+      } else {
+        this.resultsOpen.set(false);
       }
       return;
+    }
+
+    const opening = !this.resultsOpen() && !this.browseOpen();
+    const fromPageSearch = document.activeElement === this.productInput()?.nativeElement;
+    this.resultsOpen.set(true);
+    if (opening || fromPageSearch) {
+      this.focusResults('search');
     }
 
     const generation = ++this.lookupGeneration;
@@ -481,20 +502,46 @@ export class PosPage implements AfterViewInit {
     }
   }
 
+  protected closeResults(): void {
+    this.matches.set([]);
+    this.matchIndex.set(-1);
+    this.browseOpen.set(false);
+    this.resultsOpen.set(false);
+    this.focusBarcode();
+  }
+
+  protected onResultsKey(event: KeyboardEvent): void {
+    const target = event.target;
+    if (target instanceof HTMLElement && target.closest('input, select, textarea, button')) {
+      return;
+    }
+
+    this.onProductKey(event);
+  }
+
   protected toggleBrowse(): void {
     const open = !this.browseOpen();
     this.browseOpen.set(open);
     if (!open) {
+      if (!this.productQuery().trim()) {
+        this.matches.set([]);
+        this.matchIndex.set(-1);
+        this.resultsOpen.set(false);
+      }
+      this.focusBarcode();
       return;
     }
 
+    this.resultsOpen.set(true);
     void this.ensureShelfStock();
     if (this.productQuery().trim()) {
       void this.searchProducts();
+      this.focusResults('search');
       return;
     }
 
     void this.loadBrowse(0);
+    this.focusResults('list');
   }
 
   protected showMoreProducts(): void {
@@ -507,15 +554,6 @@ export class PosPage implements AfterViewInit {
     }
 
     return this.browseOpen() ? this.browseRows() : this.matches();
-  }
-
-  protected stockLabel(productId: string): string {
-    const stock = this.shelfStock();
-    if (!this.shelfId() || !stock) {
-      return '—';
-    }
-
-    return formatScaled(stock[productId] ?? 0, 3);
   }
 
   protected onProductKey(event: KeyboardEvent): void {
@@ -585,6 +623,9 @@ export class PosPage implements AfterViewInit {
       this.browseOffset = offset;
       this.browseMore.set(page.length === 20);
       this.browseRows.set(offset === 0 ? page : [...this.browseRows(), ...page]);
+      if (offset === 0 && this.browseOpen() && !this.productQuery().trim()) {
+        this.focusResults('list');
+      }
     } catch (error) {
       if (generation !== this.lookupGeneration) {
         return;
@@ -1017,6 +1058,8 @@ export class PosPage implements AfterViewInit {
       if (source === 'scan' && this.browseOpen()) {
         this.clearProductQuery();
         void this.loadBrowse(0);
+      } else if (source === 'scan') {
+        this.resultsOpen.set(false);
       }
     }
 
@@ -1046,9 +1089,11 @@ export class PosPage implements AfterViewInit {
       this.clearProductQuery();
       if (this.browseOpen()) {
         void this.loadBrowse(0);
-        this.focusProduct();
+        this.focusResults('list');
         return;
       }
+
+      this.resultsOpen.set(false);
     }
 
     this.focusBarcode();

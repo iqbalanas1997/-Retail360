@@ -77,58 +77,6 @@
 
     <div class="pos-stage">
       <section class="pos-cart" aria-label="Cart">
-        @if (browseOpen() || matches().length > 0) {
-          <section class="pos-products" [attr.aria-label]="browseOpen() ? 'Browse products' : 'Search results'">
-            @if (finding()) {
-              <p class="status">Loading products…</p>
-            }
-            @if (visibleProducts().length === 0 && !finding()) {
-              <p class="status">No matching products.</p>
-            }
-            @if (visibleProducts().length > 0) {
-              <div class="table-wrap pos-matches">
-                <table>
-                  <thead>
-                    <tr>
-                      <th>Product</th>
-                      <th>Unit</th>
-                      <th>Selling price</th>
-                      <th>On shelf</th>
-                      <th></th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    @for (product of visibleProducts(); track product.id; let index = $index) {
-                      <tr
-                        [class.pos-match]="matchIndex() === index"
-                        (click)="addProduct(product)"
-                      >
-                        <td>{{ product.name }}</td>
-                        <td>{{ product.unitName }}</td>
-                        <td>{{ money(product.sellingPrice) }}</td>
-                        <td>{{ stockLabel(product.id) }}</td>
-                        <td>
-                          <button
-                            type="button"
-                            (click)="$event.stopPropagation(); addProduct(product)"
-                            [disabled]="selling()"
-                          >
-                            Add
-                          </button>
-                        </td>
-                      </tr>
-                    }
-                  </tbody>
-                </table>
-              </div>
-            }
-            @if (browseOpen() && !productQuery().trim() && browseMore()) {
-              <button type="button" class="secondary" (click)="showMoreProducts()" [disabled]="finding() || selling()">
-                More products
-              </button>
-            }
-          </section>
-        }
         @if (receipt(); as sold) {
           @if (lines().length === 0) {
             <h2>Receipt {{ sold.receiptNumber }}</h2>
@@ -159,78 +107,71 @@
           }
         }
         @if (lines().length > 0) {
-          <h2>Cart</h2>
-          <div class="table-wrap">
-            <table>
-              <thead>
-                <tr>
-                  <th>Product</th>
-                  <th>Quantity</th>
-                  <th>Unit price</th>
-                  <th>Line total</th>
-                  <th>Shelf</th>
-                  <th>Available</th>
-                  <th>Status</th>
-                  <th></th>
-                </tr>
-              </thead>
-              <tbody>
-                @for (line of lines(); track line.key) {
-                  <tr [class.pos-line-short]="lineShort(line)">
-                    <td>
-                      <span class="pos-product-name">{{ line.productName }}</span>
-                      @if (line.unitName) {
-                        <span class="pos-unit">{{ line.unitName }}</span>
-                      }
-                      @if (lineNote(line)) {
-                        <p class="pos-line-note">{{ lineNote(line) }}</p>
-                      }
-                    </td>
-                    <td>
-                      <span class="pos-qty">
-                        <button type="button" class="secondary" (click)="stepQuantity(line.key, -1)" [disabled]="selling()" aria-label="Decrease quantity">−</button>
-                        <input
-                          name="lineQuantity"
-                          [value]="line.quantity"
-                          (input)="updateQuantity(line.key, $any($event.target).value)"
-                          (keydown)="onLineKey($event)"
-                          inputmode="decimal"
-                          [disabled]="selling()"
-                        />
-                        <button type="button" class="secondary" (click)="stepQuantity(line.key, 1)" [disabled]="selling()" aria-label="Increase quantity">+</button>
-                      </span>
-                    </td>
-                    <td>{{ money(line.unitPrice) }}</td>
-                    <td>{{ lineMoney(line) }}</td>
-                    <td>
-                      <select
-                        name="lineShelf"
-                        [value]="line.shelfId"
-                        (change)="updateShelf(line.key, $any($event.target))"
-                        [disabled]="selling()"
-                      >
-                        @if (!line.shelfId) {
-                          <option value="" selected disabled>No shelf has enough stock</option>
-                        }
-                        @for (option of shelfOptions(line); track option.id) {
-                          <option [value]="option.id" [disabled]="!option.enough" [selected]="line.shelfId === option.id">
-                            {{ option.label }}
-                          </option>
-                        }
-                      </select>
-                    </td>
-                    <td>{{ lineAvailable(line) }}</td>
-                    <td [class]="lineClass(line)">{{ lineStatus(line) }}</td>
-                    <td>
-                      <button type="button" class="secondary" (click)="removeLine(line.key)" [disabled]="selling()">
-                        Remove
-                      </button>
-                    </td>
-                  </tr>
-                }
-              </tbody>
-            </table>
+          <div class="pos-cart-head">
+            <h2>Shopping cart <span class="pos-cart-count">{{ lines().length }} {{ lines().length === 1 ? 'item' : 'items' }}</span></h2>
           </div>
+          <ul class="pos-lines">
+            @for (line of lines(); track line.key) {
+              <li class="pos-line" [class.pos-line-short]="lineShort(line)">
+                <div class="pos-line-main">
+                  <div>
+                    <p class="pos-product-name">{{ line.productName }}</p>
+                    @if (line.unitName) {
+                      <p class="pos-unit">{{ line.unitName }}</p>
+                    }
+                    @if (lineNote(line)) {
+                      <p class="pos-line-note">{{ lineNote(line) }}</p>
+                    }
+                  </div>
+                  <div class="pos-line-pay">
+                    <p class="pos-line-total">{{ lineMoney(line) }}</p>
+                    <p class="pos-line-price">{{ money(line.unitPrice) }}</p>
+                  </div>
+                </div>
+                <div class="pos-line-controls">
+                  <span class="pos-qty">
+                    <button type="button" class="secondary" (click)="stepQuantity(line.key, -1)" [disabled]="selling()" aria-label="Decrease quantity">−</button>
+                    <input
+                      name="lineQuantity"
+                      [value]="line.quantity"
+                      (input)="updateQuantity(line.key, $any($event.target).value)"
+                      (keydown)="onLineKey($event)"
+                      inputmode="decimal"
+                      [disabled]="selling()"
+                    />
+                    <button type="button" class="secondary" (click)="stepQuantity(line.key, 1)" [disabled]="selling()" aria-label="Increase quantity">+</button>
+                  </span>
+                  <label class="pos-line-shelf">
+                    Shelf
+                    <select
+                      name="lineShelf"
+                      [value]="line.shelfId"
+                      (change)="updateShelf(line.key, $any($event.target))"
+                      [disabled]="selling()"
+                    >
+                      @if (!line.shelfId) {
+                        <option value="" selected disabled>No shelf has enough stock</option>
+                      }
+                      @for (option of shelfOptions(line); track option.id) {
+                        <option [value]="option.id" [disabled]="!option.enough" [selected]="line.shelfId === option.id">
+                          {{ option.label }}
+                        </option>
+                      }
+                    </select>
+                  </label>
+                  <p class="pos-line-stock">
+                    <span [class]="lineStatus(line) === 'Available' ? lineClass(line) : ''">Available {{ lineAvailable(line) }}</span>
+                    @if (lineStatus(line) !== 'Available') {
+                      <span [class]="lineClass(line)">{{ lineStatus(line) }}</span>
+                    }
+                  </p>
+                  <button type="button" class="secondary" (click)="removeLine(line.key)" [disabled]="selling()">
+                    Remove
+                  </button>
+                </div>
+              </li>
+            }
+          </ul>
         } @else if (!receipt()) {
           <p class="status">Scan a barcode or search for a product.</p>
         }
@@ -255,22 +196,18 @@
             <p class="hint">The next scan starts a new sale. This receipt stays in Sales history.</p>
           }
         } @else {
-          <p class="pos-kicker">To pay</p>
-          <p class="pos-total">{{ lines().length > 0 ? documentTotal() : '—' }}</p>
-          <dl class="pos-figures">
-            <div>
-              <dt>Items</dt>
-              <dd>{{ lines().length }}</dd>
-            </div>
-            <div>
-              <dt>Quantity</dt>
-              <dd>{{ quantityTotal() }}</dd>
-            </div>
-          </dl>
+          <div class="pos-due">
+            <p class="pos-kicker">To pay</p>
+            <p class="pos-total">{{ lines().length > 0 ? documentTotal() : '—' }}</p>
+          </div>
+          <p class="pos-meta">
+            <span>Items {{ lines().length }}</span>
+            <span>Quantity {{ quantityTotal() }}</span>
+          </p>
           @if (customer(); as selected) {
             <p class="pos-payer">{{ customerLabel(selected) }}</p>
           } @else {
-            <p class="hint">Walk-in sale. Cash is selected.</p>
+            <p class="pos-walk">Walk-in sale. Cash is selected.</p>
           }
           @if (canSell()) {
             <button type="button" class="pos-complete" (click)="complete()" [disabled]="!canFinish()">
@@ -281,13 +218,13 @@
             <p class="hint">Inventory staff can read sales and cannot complete one.</p>
           }
 
-          <section class="pos-customer">
-            @if (!customer()) {
-              <button type="button" class="secondary" (click)="customerOpen.set(!customerOpen())" [disabled]="selling()">
-                {{ customerOpen() ? 'Hide customer search' : 'Add customer' }}
-              </button>
-            }
-            @if (customerOpen() && !customer()) {
+          @if (!customer()) {
+            <button type="button" class="secondary pos-add-customer" (click)="customerOpen.set(!customerOpen())" [disabled]="selling()">
+              {{ customerOpen() ? 'Hide customer search' : 'Add customer' }}
+            </button>
+          }
+          @if (customerOpen() && !customer()) {
+            <section class="pos-customer" aria-label="Customer search">
               <form class="toolbar" (ngSubmit)="findCustomer()">
                 <label>
                   Customer
@@ -329,10 +266,11 @@
                   </table>
                 </div>
               }
-            }
-            @if (customer(); as selected) {
-              <p>{{ customerLabel(selected) }}</p>
-              <p>Outstanding {{ money(outstanding()) }}</p>
+            </section>
+          }
+          @if (customer(); as selected) {
+            <section class="pos-customer" aria-label="Customer">
+              <p class="pos-owed">Outstanding {{ money(outstanding()) }}</p>
               <button type="button" class="secondary" (click)="clearCustomer()" [disabled]="selling() || paying()">
                 Clear customer
               </button>
@@ -373,12 +311,84 @@
               @if (paymentNotice()) {
                 <p class="notice" role="status">{{ paymentNotice() }}</p>
               }
-            }
-          </section>
+            </section>
+          }
         }
-        <p class="hint">The charged total is calculated by the server. <a routerLink="/sales">Sales history</a></p>
+        <p class="pos-history">The charged total is calculated by the server. <a routerLink="/sales">Sales history</a></p>
       </aside>
   </div>
+
+  @if (browseOpen() || resultsOpen()) {
+    <div class="pos-backdrop" (click)="closeResults()">
+      <div
+        #resultsList
+        class="pos-modal"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="pos-results-title"
+        tabindex="-1"
+        (click)="$event.stopPropagation()"
+        (keydown)="onResultsKey($event)"
+      >
+        <div class="pos-modal-head">
+          <h2 id="pos-results-title">{{ browseOpen() && !productQuery().trim() ? 'Browse products' : 'Search results' }}</h2>
+          <button type="button" class="secondary" (click)="closeResults()">Close</button>
+        </div>
+        <form class="pos-modal-find" (ngSubmit)="searchProducts()">
+          <label>
+            Search
+            <input
+              #modalSearch
+              [value]="productQuery()"
+              (input)="onProductInput($any($event.target).value)"
+              (keydown)="onProductKey($event)"
+              autocomplete="off"
+              placeholder="Name or barcode"
+              [disabled]="selling()"
+            />
+          </label>
+        </form>
+        <section class="pos-products" [attr.aria-label]="browseOpen() && !productQuery().trim() ? 'Browse products' : 'Search results'">
+          @if (finding()) {
+            <p class="status">Loading products…</p>
+          }
+          @if (visibleProducts().length === 0 && !finding()) {
+            <p class="status">No matching products.</p>
+          }
+          @if (visibleProducts().length > 0) {
+            <div class="table-wrap pos-matches">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Product</th>
+                    <th>Unit</th>
+                    <th class="pos-money">Selling price</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  @for (product of visibleProducts(); track product.id; let index = $index) {
+                    <tr
+                      [class.pos-match]="matchIndex() === index"
+                      (click)="addProduct(product)"
+                    >
+                      <td class="pos-product-name">{{ product.name }}</td>
+                      <td>{{ product.unitName }}</td>
+                      <td class="pos-money">{{ money(product.sellingPrice) }}</td>
+                    </tr>
+                  }
+                </tbody>
+              </table>
+            </div>
+          }
+          @if (browseOpen() && !productQuery().trim() && browseMore()) {
+            <button type="button" class="secondary" (click)="showMoreProducts()" [disabled]="finding() || selling()">
+              More products
+            </button>
+          }
+        </section>
+      </div>
+    </div>
+  }
 
   @if (receipt(); as sold) {
     <article class="receipt pos-receipt-sheet">

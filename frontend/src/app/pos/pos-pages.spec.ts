@@ -190,7 +190,7 @@ describe('POS and sales screens', () => {
     flushShelfStock();
     await turn();
     harness.detectChanges();
-    clickButton(root, 'Add');
+    clickProduct(root);
     flushProductStock();
     await turn();
     harness.detectChanges();
@@ -376,7 +376,7 @@ describe('POS and sales screens', () => {
     harness.detectChanges();
 
     expect(text(harness)).toContain('Pack');
-    clickButton(root, 'Add');
+    clickProduct(root);
     await turn();
     flushProductStock();
     await turn();
@@ -410,9 +410,19 @@ describe('POS and sales screens', () => {
     await turn();
     harness.detectChanges();
 
-    expect(text(harness)).toContain('4.000');
     expect(text(harness)).toContain('Rice');
-    clickButton(root, 'Add');
+    expect(root.querySelector('.pos-products')?.textContent).not.toContain('On shelf');
+    const products = root.querySelector('.pos-products');
+    const cart = root.querySelector('.pos-cart');
+    const dialog = root.querySelector('[role="dialog"]');
+    expect(products).not.toBeNull();
+    expect(dialog?.getAttribute('aria-modal')).toBe('true');
+    expect(cart?.contains(products)).toBe(false);
+    expect(root.querySelector('.pos-stage-results')).toBeNull();
+    expect([...root.querySelectorAll('.pos-products button')].some((button) => button.textContent?.trim() === 'Add')).toBe(
+      false,
+    );
+    clickProduct(root);
     await turn();
     flushProductStock();
     await turn();
@@ -421,7 +431,7 @@ describe('POS and sales screens', () => {
       .flush([product(), { ...product(), id: 'product-2', name: 'Rice', sellingPrice: 2 }]);
     await turn();
     harness.detectChanges();
-    clickButton(root, 'Add');
+    clickProduct(root);
     await turn();
     http
       .expectOne((request) => request.url === '/api/products' && request.params.get('offset') === '0')
@@ -432,6 +442,11 @@ describe('POS and sales screens', () => {
     expect(root.querySelectorAll('[name="lineQuantity"]').length).toBe(1);
     expect((root.querySelector('[name="lineQuantity"]') as HTMLInputElement).value).toBe('2.000');
     expect(text(harness)).toContain('Close browse');
+    expect(root.querySelector('.pos-cart')?.contains(root.querySelector('.pos-products'))).toBe(false);
+    clickButton(root, 'Close browse');
+    harness.detectChanges();
+    expect(root.querySelector('.pos-products')).toBeNull();
+    expect(document.activeElement).toBe(root.querySelector('[name="barcode"]'));
   });
 
   it('searches while typing and adds the highlighted product with Enter', async () => {
@@ -449,6 +464,7 @@ describe('POS and sales screens', () => {
     await turn();
     harness.detectChanges();
 
+    expect(root.querySelector('.pos-cart')?.contains(root.querySelector('.pos-products'))).toBe(false);
     const input = root.querySelector('[name="productName"]') as HTMLInputElement;
     input.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true }));
     harness.detectChanges();
@@ -644,13 +660,13 @@ describe('POS and sales screens', () => {
     flushShelfStock();
     await turn();
     harness.detectChanges();
-    clickButton(root, 'Add');
+    clickProduct(root);
     harness.detectChanges();
 
     expect(text(harness)).toContain('Quantity must be greater than zero with at most 3 decimal places.');
     expect(root.querySelector('[name="lineQuantity"]')).toBeNull();
     setNamed(root, 'quantity', '1.250');
-    clickButton(root, 'Add');
+    clickProduct(root);
     await turn();
     flushProductStock();
     await turn();
@@ -722,7 +738,7 @@ describe('POS and sales screens', () => {
     flushShelfStock();
     await turn();
     harness.detectChanges();
-    clickButton(root, 'Add');
+    clickProduct(root);
     await turn();
     flushProductStock();
     await turn();
@@ -1460,6 +1476,11 @@ function submitForm(root: HTMLElement, legend: string): void {
 function clickButton(root: HTMLElement, label: string): void {
   const button = [...root.querySelectorAll('button')].find((item) => item.textContent?.trim() === label) as HTMLButtonElement;
   button.click();
+}
+
+function clickProduct(root: HTMLElement): void {
+  const row = root.querySelector('.pos-products tbody tr') as HTMLElement;
+  row.click();
 }
 
 function text(harness: RouterTestingHarness): string {
