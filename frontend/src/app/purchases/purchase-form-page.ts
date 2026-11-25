@@ -128,8 +128,18 @@ export class PurchaseFormPage {
     return this.shelves().filter((shelf) => shelf.isActive);
   }
 
+  protected onProductKey(event: KeyboardEvent): void {
+    if (event.key !== 'Enter') {
+      return;
+    }
+
+    event.preventDefault();
+    event.stopPropagation();
+    void this.findProducts();
+  }
+
   protected async findProducts(): Promise<void> {
-    if (this.finding() || this.saving()) {
+    if (this.finding() || this.saving() || !this.editable()) {
       return;
     }
 

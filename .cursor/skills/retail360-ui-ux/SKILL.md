@@ -26,8 +26,9 @@ Business behavior stays with `AGENTS.md`, the domain docs, and `.cursor/skills/g
 ## Existing frontend
 
 - Angular 21 standalone pages. There is no shared component library and no UI kit.
-- One global stylesheet, `frontend/src/styles.scss`. Tokens are `--ink` (`#1f2933`), `--paper` (`#f4f0e6`), and `--green` (`#1f6b4a`). Those are the three brand colors. Add another accent only when contrast or status cannot be solved with them, and say why.
-- Reuse the existing classes before inventing new ones: `toolbar`, `form`, `inline`, `actions`, `table-wrap`, `notice`, `notice.ok`, `notice.error`, `hint`, `status`, `summary-grid`, `metric`, `button`, and `button.secondary`.
+- One global stylesheet, `frontend/src/styles.scss`. Tokens are `--ink` (`#1f2933`), `--paper` (`#f4f0e6`), and `--green` (`#1f6b4a`). Shortage status uses `#9b2c2c`. Those are the brand colors. Add another accent only when contrast or status cannot be solved with them, and say why.
+- Visual system is lightweight and calm: soft borders as ink at low opacity, modest radius, clear spacing. No purple themes, glow, glass, emoji clusters, or animation/transition spectacle. Usability comes before decoration.
+- Reuse the existing classes before inventing new ones: `toolbar`, `form`, `inline`, `actions`, `table-wrap`, `notice`, `notice.ok`, `notice.error`, `hint`, `status`, `summary-grid`, `metric`, `button`, and `button.secondary`. Prefer those and the existing POS classes in `styles.scss` over new names.
 - Pages own their templates. API access and rules live in `frontend/src/app/core/`. Keep business rules there.
 - Shell navigation is `frontend/src/app/shell/shell.html`, gated by `SessionService`. Routes are in `frontend/src/app/app.routes.ts`. Home redirects to `/catalog/products`. A cashier still signs in to `/pos`. The groups are Daily operations, Products and inventory, People, and Management. Hide a group that has no links for the signed-in role. POS stays first when the role can sell.
 - Tests are Vitest: `npx ng test --watch=false` from `frontend/`. Production build is `npx ng build --configuration=production`. Leave the 500 kB warning and 1 MB error budgets, and the 4 kB / 8 kB component-style budgets, unchanged.
@@ -65,9 +66,16 @@ Text on `--paper` and `--ink` must stay readable. Focus must be visible. Control
 
 ### POS and sales
 
-`/pos` is the priority screen. The barcode and product search stay across the top left, the cart fills the space below them, and the total, item count, quantity, and Complete sale stay in a checkout panel at the upper right. Cash is the default and the shortest path: scan, search, or browse, then quantity, shelf, cart, complete sale, receipt. Barcode, name search, and Browse products stay available together. The barcode input is focused on arrival and after a scan. Enter looks up the code and does not complete the sale. A finished scan clears the field. Search matches while typing, including a barcode, and Enter or a click adds the highlighted product. Browse and search open in a dialog over the counter so the cart does not move or shrink. A row click adds the product, browse stays open after an add, and Escape, Close, or the backdrop returns focus to the barcode field. The checkout panel stays in place. An unknown code, an inactive product, or an API error stays on the page and the cart remains. Quantity and remove stay on the line. Show the available quantity and stock status on each cart line. A shelf option shows its quantity and stays disabled when it cannot cover that line. If no shelf can cover the quantity, name the product, each shelf's usable quantity, and the quantity required beside that line. A line that uses the last usable quantity on its shelf is marked Low and can still be sold. Do not split one line across shelves.
+`/pos` is the priority screen. Follow `docs/ui/POS_UX.md` and the implemented counter when they conflict with older rule wording.
 
-Credit appears only after an active customer is selected. The outstanding balance and a payment amount are shown then. A payment does not change the cart. Omit `paymentMethod` for cash. Send `credit` only when credit is selected and a customer is present.
+- Layout: barcode and product search across the top left; cart full width below them; To Pay, item count, quantity, and Complete sale in a green checkout panel at the upper right. Cash is the default and the shortest path: scan, search, or browse, then quantity, shelf, cart, complete sale, receipt.
+- Cart: ticket/list lines, not a dense admin spreadsheet. Product name is dominant; line total is bold and easy to find; quantity is one control with ≥44px hit targets; unit price, shelf, stock status, and Remove stay secondary.
+- To Pay: green panel with the amount on a paper plate, strong total typography, and one primary Complete sale. Customer search, credit, and outstanding appear only when needed. Cash stays the walk-in default. Credit appears only after an active customer is selected. Outstanding collection is a separate amount and does not change the sale total.
+- Browse and search: open in a dialog over the counter so the cart does not move or shrink. Results are a table of product, unit, and selling price that scrolls once inside the dialog. There is no Add button. The whole row is the control: click/tap or Enter on the highlighted row adds. Arrow keys move the highlight. Browse stays open after an add. Escape, Close, or the backdrop returns focus to the barcode field. Barcode and Find barcode stay on the main page, not inside the dialog.
+- Barcode: focused on arrival and after a scan. Enter looks up the code and does not complete the sale. A finished scan clears the field. An unknown code, an inactive product, or an API error stays on the page and the cart remains.
+- Stock on cart lines: show available quantity and status. A shelf option that cannot cover the line stays disabled. If no shelf can cover the quantity, name the product, each shelf's usable quantity, and the quantity required. Low may still be sold. Do not split one line across shelves.
+
+Omit `paymentMethod` for cash. Send `credit` only when credit is selected and a customer is present.
 
 `/sales` lists receipts. `/sales/:id` is the saved receipt and can be printed. A later payment does not rewrite it. Inventory Staff can read sales and cannot sell. Do not put dashboard or admin tools on the counter.
 
@@ -125,13 +133,15 @@ Do not add structure to make a screen look newer.
 - Do not change business rules, validation, or who can do an action.
 - Do not change an API request or response to make the screen easier.
 - Do not change database schema, migrations, or stored data.
+- Do not invent features for a UI task (discounts, payables, profit tiles, coupons, drafts, SKU, product images).
 - Do not remove a feature, route, or control without explicit approval.
 - Do not bypass role checks or show cashier-hidden customer fields.
 - Do not weaken an error, audit entry, or idempotency behavior.
 - Do not raise the production bundle budgets.
+- If documentation and code disagree, say so. Prefer the implemented counter and `docs/ui/POS_UX.md` for counter UX.
 - If the layout needs a backend or database change, stop, explain the need, and wait.
 
-`.cursor/rules/60-pos-ux.mdc` lists selecting a payment method as a step of every sale. The implemented counter and `docs/ui/POS_UX.md` keep cash selected until a customer is chosen. Follow the implemented counter.
+`.cursor/rules/60-pos-ux.mdc` may still list selecting a payment method as a sale step. The implemented counter and `docs/ui/POS_UX.md` keep cash selected until a customer is chosen. Follow the implemented counter.
 
 ## Workflow
 

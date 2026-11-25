@@ -183,6 +183,41 @@ describe('purchase screens', () => {
     expect(TestBed.inject(HttpTestingController).match(() => true)).toHaveLength(0);
   });
 
+  it('finds products with Enter and does not save the purchase', async () => {
+    remember('Manager');
+    const harness = await open('/purchases/new');
+    flushForm();
+    await turn();
+    harness.detectChanges();
+    const root = harness.fixture.nativeElement as HTMLElement;
+    const input = root.querySelector('[name="productName"]') as HTMLInputElement;
+    input.value = 'Rice';
+    input.dispatchEvent(new Event('input'));
+    input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true }));
+    const http = TestBed.inject(HttpTestingController);
+    http.expectOne((request) => request.url === '/api/products' && request.params.get('name') === 'Rice').flush([
+      {
+        id: 'product-2',
+        name: 'Rice',
+        categoryId: null,
+        brandId: null,
+        unitId: 'unit-1',
+        unitName: 'kg',
+        purchasePrice: 1,
+        sellingPrice: 2,
+        minimumStock: 0,
+        isActive: true,
+        barcodes: [],
+      },
+    ]);
+    http.expectNone((request) => request.method === 'POST' && request.url === '/api/purchases');
+    await turn();
+    harness.detectChanges();
+
+    expect(text(harness)).toContain('Rice');
+    expect(text(harness)).toContain('Enter finds products');
+  });
+
   it('lets inventory staff receive a recorded purchase and keeps the operation id on retry', async () => {
     remember('Inventory Staff');
     const harness = await open('/purchases/purchase-1');

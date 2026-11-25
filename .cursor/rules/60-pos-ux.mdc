@@ -9,16 +9,17 @@ Primary counter flow:
 1. Find/scan product.
 2. Enter quantity.
 3. Add/review cart.
-4. Select payment method.
-5. Complete sale.
-6. Show/print receipt.
+4. Complete sale (cash is the walk-in default; credit only after an active customer is chosen).
+5. Show/print receipt.
 
 Design goals:
 - Maximum simplicity for full-day counter use.
 - Prefer one main POS screen.
-- Avoid unnecessary pages and dialogs.
-- Large readable text and controls.
+- Avoid unnecessary pages. Browse and search open in a dialog over the counter so the cart stays full width; a row click adds the product (no Add button). Escape, Close, or the backdrop returns focus to the barcode field.
+- Large readable text and controls (≥44px quantity targets on cart lines).
 - Keyboard/scanner friendly.
-- Maximum three primary visual colors unless a usability reason requires more.
+- Maximum three primary visual colors unless a usability reason requires more (`--ink`, `--paper`, `--green`; shortage `#9b2c2c`).
 - Show only information needed for the current task.
 - Low-stock/admin information should not distract the cashier.
+
+Follow `docs/ui/POS_UX.md` and the implemented `/pos` screen when this rule and older wording disagree.

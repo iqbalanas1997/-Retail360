@@ -287,7 +287,7 @@ describe('POS and sales screens', () => {
     expect(text(harness)).toContain('Receipt 1');
     expect(text(harness)).toContain('Tea');
     expect(text(harness)).toContain('Front B');
-    expect(text(harness)).toContain('cash');
+    expect(text(harness)).toContain('Cash');
     expect(text(harness)).toContain('Print');
     const print = vi.spyOn(window, 'print').mockImplementation(() => undefined);
     clickButton(harness.fixture.nativeElement as HTMLElement, 'Print');

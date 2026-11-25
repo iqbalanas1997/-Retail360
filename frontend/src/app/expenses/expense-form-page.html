@@ -41,12 +41,7 @@
       Notes
       <textarea formControlName="notes" rows="3"></textarea>
     </label>
-    <label>
-      Payment
-      <select formControlName="paymentMethod">
-        <option value="cash">Cash</option>
-      </select>
-    </label>
+    <p class="hint">Payment is cash.</p>
     @if (canWrite()) {
       <button type="submit" [disabled]="saving()">
         {{ saving() ? 'Saving…' : (creating ? 'Record expense' : 'Save expense') }}

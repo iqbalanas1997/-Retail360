@@ -24,7 +24,7 @@ Do not add a UI kit, charts, supplier payment status, a receivable tile, or a pr
 | --- | --- |
 | Shell and role links | `frontend/src/app/shell/shell.html`, `frontend/src/app/core/session.service.ts` |
 | Routes and page titles | `frontend/src/app/app.routes.ts` |
-| Styles | `frontend/src/styles.scss` only. Tokens are `--ink` `#1f2933`, `--paper` `#f4f0e6`, `--green` `#1f6b4a` |
+| Styles | `frontend/src/styles.scss` only. Tokens are `--ink` `#1f2933`, `--paper` `#f4f0e6`, `--green` `#1f6b4a`, shortage `#9b2c2c`, plus soft `--line` / `--line-strong` and `--radius` |
 | Shared classes | `toolbar`, `form`, `card`, `table-wrap`, `notice`, `notice.ok`, `notice.error`, `hint`, `status`, `summary-grid`, `metric`, `button.secondary`, `check` |
 | Pages | One standalone component per route. No shared widget folder |
 | Tests | Vitest specs beside the pages |
@@ -44,7 +44,7 @@ Role gates that the layout must keep:
 
 ### Shell and navigation
 
-The sidebar groups Access, Shop, Catalog, Inventory, Suppliers, Customers, Purchases, Expenses, Counter, and Sales. Labels are plain. The active link turns green.
+The sidebar is deep ink with paper text. Group labels are quiet toggles (tracked uppercase with «/»). Open/closed state per group is stored in `localStorage` as `retail360.shell.navGroups` (defaults all open). Navigating into a closed group opens it so the active link stays visible. Active routes use a quiet green accent bar and soft fill. On wide screens a quiet « » control collapses the rail to first-letter marks with native `title` tooltips (`retail360.shell.navCollapsed`); in that letter-rail mode every link stays shown and group headers hide. Below 768px rail collapse is ignored; the Menu drawer keeps the same group toggles and still closes after a route.
 
 A cashier still sees catalog, inventory, suppliers, purchases, and expenses before POS. Sign-in goes to `/catalog/products` (`login-page.ts`). That is the right home for someone editing products and the wrong home for someone selling.
 
@@ -60,9 +60,7 @@ The four period buttons are the same green, so the selected period is not visibl
 
 `/pos` focuses the barcode field, clears it when a lookup starts, and returns focus for the next scan (`pos-page.ts` `findBarcode`, `focusBarcode`). Enter submits the lookup and does not complete the sale. Quantity defaults to 1. Cash is selected. Credit and the outstanding balance appear only after a customer is selected. The cart shows name, shelf, quantity, price, line total, and remove. The server total is labeled as such. A failed sale keeps the cart and the operation id.
 
-`/sales` searches by receipt number and links to the receipt. The receipt shows the customer, payment, lines, total, and Print. Print hides the sidebar.
-
-`/sales` does not show cash or credit, although `Sale.paymentMethod` is on the model and the list API returns it.
+`/sales` searches by receipt number and links to the receipt. The list shows Cash or Credit from `Sale.paymentMethod` on a soft white panel. The receipt uses clearer meta and total blocks, Print, and New sale when the role can sell. Print hides the sidebar. Existing receipt fields only.
 
 ### Catalog
 
@@ -84,7 +82,7 @@ Locations edit every area and shelf inline. The actions are clear and the rows a
 
 The list filters by supplier and by recorded or received, and shows reference, supplier, date, total, and status. The document form is supplier, date, reference, notes, and lines. Receive is a separate block that asks for an active shelf per line. Recorded and received stay distinct. There is no payment status, and the screen should not gain one.
 
-The product finder sits inside the save form (`purchase-form-page.html`) and does not handle Enter. Enter in that field can submit "Save purchase".
+The product finder sits inside the save form (`purchase-form-page.html`). Enter in that field finds products and does not save the purchase. The list and form use the soft white table/panel chrome from Phase 1. Recorded versus received stay separate; there is no payment or payable UI.
 
 ### Suppliers
 
@@ -100,7 +98,7 @@ Outstanding of zero uses the same `0.0` formatting as other money.
 
 ### Expenses
 
-The list filters by date and category and shows a total. The form is category, amount, date, notes, and payment. Payment is a dropdown whose only option is Cash. Notes on the list can make rows tall. Otherwise the screen matches the rest of the shop.
+The list filters by date and category and shows a total on a soft white panel with right-aligned amounts. The form is category, amount, date, and notes. Payment is fixed cash text, not a dropdown. Categories stay the fixed set. Notes on the list can make rows tall.
 
 ### Users
 
@@ -128,11 +126,11 @@ Verified means the behavior was read in source and, where noted, seen in the run
 | U4 | P1 | Customer and old-credit controls interrupt the cash sale | `pos-page.html` always shows customer search. After a customer is selected, Sale payment and Payment amount sit above the cart. The amount records a balance payment and does not change the cart |
 | U5 | P1 | An edited quantity applies to the next scan | `addProduct` reads `quantity()` and does not set it back to 1 |
 | U6 | P1 | Stock search misses products that are not loaded | `stock-page.html` hint and `visibleRows()` filter only `rows()` |
-| U7 | P1 | Enter in a purchase product search can save the document | Finder inputs are inside the save form in `purchase-form-page.html`, with no Enter handler. Stock posting does intercept Enter |
+| U7 | P1 | Enter in a purchase product search can save the document | Done Phase 2. Finder Enter calls `onProductKey` and searches only |
 | U8 | P1 | Narrow layout puts the whole menu above the work | `styles.scss` max-width 800px wraps the sidebar |
 | U9 | P2 | Zero money is shown as `0.0` | `formatScaled` in `catalog-rules.ts`. Live dashboard totals and a product minimum of `0.0` |
 | U10 | P2 | The dashboard does not show which period is selected, and low stock is last | `dashboard-page.html` has no selected style. Live period buttons were the same green. Low stock follows the other sections |
-| U11 | P2 | Sales history hides cash versus credit | `sale-list-page.html` columns are receipt, sold, customer, total. `Sale.paymentMethod` exists |
+| U11 | P2 | Sales history hides cash versus credit | Done Phase 2. List and receipt show Cash or Credit |
 | U12 | P2 | The audit row is an id and a raw timestamp | `audit-page.html` |
 | U13 | P2 | The user filter checkbox is a full-width block | `user-list-page.html` omits `check`. Live size 254 by 13 |
 | U14 | P2 | Catalog barcode help and the offered column take more reading than the task | `product-form-page.html`, `product-list-page.html` |
@@ -249,14 +247,16 @@ Verification for each implementation:
 
 ## 12. Completed and remaining
 
-Checked against the shell and the counter on 2026-11-21.
+Checked against the shell and the counter on 2026-11-21. Shared chrome Phase 1 updated 2026-11-25. Daily ops Phase 2 verified 2026-11-26 (wide + ~390px, Angular 140 tests, production build).
 
 | Id | Status |
 | --- | --- |
-| U1, U2, U4, U5 | Done on the counter. The sale stays on `/pos`, the shelf is remembered, the next quantity returns to 1, and customer search and outstanding stay closed for a walk-in cash sale. The counter is entry, cart, and checkout. A repeat scan on the same shelf increases that line. The next scan clears the on-screen receipt |
+| U1, U2, U4, U5 | Done on the counter. The sale stays on `/pos`, the shelf is remembered, the next quantity returns to 1, and customer search and outstanding stay closed for a walk-in cash sale. The counter is entry, cart, and checkout. A repeat scan on the same shelf increases that line. The next scan clears the on-screen receipt. Browse and search open in a dialog; a row click adds |
 | U3 | Done for the cashier landing page and for menu order. POS is first under Daily operations for Admin, Manager, and Cashier. Admin and Manager still sign in to `/catalog/products` |
-| U8 | Done. Below 768px the links are in a Menu drawer. Choosing a route closes it. The page is not pushed down |
-| U6, U7, U9–U17 | Open. U6 still needs an approved stock-name API. The others are screen-level and were left for a later pass |
+| U8 | Done. Below 768px the links are in a Menu drawer. Choosing a route closes it. The page is not pushed down. Drawer matches the ink sidebar |
+| Shared chrome | Done Phase 1. Soft `--line` borders, white inputs/cards/tables, quieter topbar, and calmer notices apply shop-wide from `styles.scss`. POS panels keep their own white entry/cart and green checkout. Sidebar: ink rail, group expand/collapse with localStorage, desktop letter-rail collapse; letter-rail shows all links |
+| U7, U11 | Done Phase 2. Purchase product Enter finds products and does not save. Sales history shows Cash or Credit. Receipt layout is clearer. Expenses list and form use the soft chrome; payment stays cash text. Menu drawer unchanged at ~390px |
+| U6, U9, U10, U12–U17 | Open. Next: Phase 3 Catalog and Inventory. U6 still needs an approved stock-name API |
 
 The shell now uses the existing routes in four groups: Daily operations, Products and inventory, People, and Management. Locations stays one screen. Opening, Adjust, and Transfer stay with inventory changes. A group is omitted when the role has no link in it. No route, role, or request changed.
 

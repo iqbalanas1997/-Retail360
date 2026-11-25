@@ -26,7 +26,8 @@
           <th>Receipt</th>
           <th>Sold</th>
           <th>Customer</th>
-          <th>Total</th>
+          <th>Payment</th>
+          <th class="money">Total</th>
           <th></th>
         </tr>
       </thead>
@@ -36,7 +37,8 @@
             <td>{{ sale.receiptNumber }}</td>
             <td>{{ soldAt(sale) }}</td>
             <td>{{ customerLabel(sale) }}</td>
-            <td>{{ money(sale.total) }}</td>
+            <td>{{ paymentLabel(sale) }}</td>
+            <td class="money">{{ money(sale.total) }}</td>
             <td><a [routerLink]="['/sales', sale.id]">Open</a></td>
           </tr>
         }

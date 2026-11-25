@@ -43,7 +43,7 @@
           <th>Reference</th>
           <th>Supplier</th>
           <th>Date</th>
-          <th>Total</th>
+          <th class="money">Total</th>
           <th>Status</th>
           <th></th>
         </tr>
@@ -54,7 +54,7 @@
             <td>{{ reference(purchase) }}</td>
             <td>{{ purchase.supplierName }}</td>
             <td>{{ purchase.purchaseDate }}</td>
-            <td>{{ money(purchase.total) }}</td>
+            <td class="money">{{ money(purchase.total) }}</td>
             <td>{{ statusLabel(purchase.status) }}</td>
             <td><a [routerLink]="['/purchases', purchase.id]">Open</a></td>
           </tr>

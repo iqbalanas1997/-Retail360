@@ -32,7 +32,7 @@
 }
 
 @if (!loading()) {
-  <p class="pos-total">Total {{ money(total()) }}</p>
+  <p class="list-total">Total {{ money(total()) }}</p>
 }
 
 @if (loading()) {
@@ -46,7 +46,7 @@
         <tr>
           <th>Date</th>
           <th>Category</th>
-          <th>Amount</th>
+          <th class="money">Amount</th>
           <th>Payment</th>
           <th>Notes</th>
           <th></th>
@@ -57,7 +57,7 @@
           <tr>
             <td>{{ expense.expenseDate }}</td>
             <td>{{ categoryLabel(expense.category) }}</td>
-            <td>{{ money(expense.amount) }}</td>
+            <td class="money">{{ money(expense.amount) }}</td>
             <td>Cash</td>
             <td>{{ expense.notes }}</td>
             <td><a [routerLink]="['/expenses', expense.id]">Open</a></td>

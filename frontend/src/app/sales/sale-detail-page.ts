@@ -7,6 +7,7 @@ import { formatMoney } from '../core/purchase-rules';
 import { SaleApi } from '../core/sale-api.service';
 import { formatSoldAt } from '../core/sale-rules';
 import { type Sale } from '../core/sale.models';
+import { SessionService } from '../core/session.service';
 
 @Component({
   selector: 'app-sale-detail-page',
@@ -15,9 +16,11 @@ import { type Sale } from '../core/sale.models';
 })
 export class SaleDetailPage {
   private readonly salesApi = inject(SaleApi);
+  private readonly session = inject(SessionService);
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
 
+  protected readonly canSell = this.session.canCompleteSales;
   protected readonly loading = signal(true);
   protected readonly error = signal('');
   protected readonly success = signal('');
@@ -41,6 +44,10 @@ export class SaleDetailPage {
   protected customerLabel(sale: Sale): string {
     const name = sale.customerName?.trim();
     return name ? `Customer ${name}` : 'No customer';
+  }
+
+  protected paymentLabel(sale: Sale): string {
+    return sale.paymentMethod === 'credit' ? 'Credit' : 'Cash';
   }
 
   protected soldAt(sale: Sale): string {

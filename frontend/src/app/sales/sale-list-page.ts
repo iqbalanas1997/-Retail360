@@ -44,6 +44,10 @@ export class SaleListPage {
     return sale.customerName?.trim() || 'No customer';
   }
 
+  protected paymentLabel(sale: Sale): string {
+    return sale.paymentMethod === 'credit' ? 'Credit' : 'Cash';
+  }
+
   protected soldAt(sale: Sale): string {
     return formatSoldAt(sale.soldAt);
   }

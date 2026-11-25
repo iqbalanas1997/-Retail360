@@ -51,12 +51,20 @@
     <div class="toolbar">
       <label>
         Find product
-        <input [value]="productQuery()" (input)="productQuery.set($any($event.target).value)" />
+        <input
+          name="productName"
+          [value]="productQuery()"
+          (input)="productQuery.set($any($event.target).value)"
+          (keydown)="onProductKey($event)"
+          autocomplete="off"
+          [disabled]="!editable() || saving()"
+        />
       </label>
-      <button type="button" class="secondary" [disabled]="finding() || saving()" (click)="findProducts()">
+      <button type="button" class="secondary" [disabled]="finding() || saving() || !editable()" (click)="findProducts()">
         {{ finding() ? 'Finding…' : 'Find' }}
       </button>
     </div>
+    <p class="hint">Enter finds products. It does not save the purchase.</p>
     @if (productsTruncated()) {
       <p class="hint">The catalog returned 200 products. Type a more specific name and find again.</p>
     }
@@ -110,28 +118,32 @@
   }
 
   @if (purchase() && recorded() && canReceive()) {
-    <h2>Receive goods</h2>
-    <p class="hint">Choose an active shelf for each line. The shop API posts the stock.</p>
-    @for (line of purchase()!.lines; track line.id) {
-      <label>
-        {{ line.productName }}
-        <select [value]="shelfChoices()[line.id] || ''" (change)="setShelf(line.id, $any($event.target).value)">
-          <option value="">Select a shelf</option>
-          @for (shelf of activeShelves(); track shelf.id) {
-            <option [value]="shelf.id">{{ shelf.areaName }} / {{ shelf.name }}</option>
-          }
-        </select>
-      </label>
-    }
-    <button type="button" [disabled]="receiving()" (click)="receive()">
-      {{ receiving() ? 'Receiving…' : 'Receive purchase' }}
-    </button>
+    <section class="receive-panel">
+      <h2>Receive goods</h2>
+      <p class="hint">Choose an active shelf for each line. The shop API posts the stock.</p>
+      @for (line of purchase()!.lines; track line.id) {
+        <label>
+          {{ line.productName }}
+          <select [value]="shelfChoices()[line.id] || ''" (change)="setShelf(line.id, $any($event.target).value)">
+            <option value="">Select a shelf</option>
+            @for (shelf of activeShelves(); track shelf.id) {
+              <option [value]="shelf.id">{{ shelf.areaName }} / {{ shelf.name }}</option>
+            }
+          </select>
+        </label>
+      }
+      <button type="button" [disabled]="receiving()" (click)="receive()">
+        {{ receiving() ? 'Receiving…' : 'Receive purchase' }}
+      </button>
+    </section>
   }
 
   @if (received()) {
-    <h2>Received lines</h2>
-    @for (line of purchase()!.lines; track line.id) {
-      <p>{{ line.productName }} — {{ shelfName(line.shelfId) }}</p>
-    }
+    <section class="receive-panel">
+      <h2>Received lines</h2>
+      @for (line of purchase()!.lines; track line.id) {
+        <p>{{ line.productName }} — {{ shelfName(line.shelfId) }}</p>
+      }
+    </section>
   }
 }

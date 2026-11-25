@@ -1,45 +1,163 @@
-<div class="shell" [class.nav-open]="navOpen()">
+<div class="shell" [class.nav-open]="navOpen()" [class.nav-collapsed]="navCollapsed()">
   <button type="button" class="nav-backdrop" (click)="closeNav()" [hidden]="!navOpen()" aria-label="Close menu"></button>
-  <aside class="sidebar">
-    <p class="brand">Retail360</p>
-    <p class="nav-label">Daily operations</p>
-    @if (session.canCompleteSales()) {
-      <a routerLink="/pos" routerLinkActive="active" (click)="closeNav()">POS</a>
-    }
-    <a routerLink="/sales" routerLinkActive="active" (click)="closeNav()">Sales</a>
-    <a routerLink="/purchases" routerLinkActive="active" (click)="closeNav()">Purchases</a>
-    <a routerLink="/expenses" routerLinkActive="active" (click)="closeNav()">Expenses</a>
+  <aside class="sidebar" aria-label="Shop navigation">
+    <div class="brand-row">
+      <p class="brand">
+        <span class="brand-full">Retail360</span>
+        <span class="brand-mark" aria-hidden="true">R</span>
+      </p>
+      <button
+        type="button"
+        class="nav-collapse"
+        (click)="toggleNavCollapsed()"
+        [attr.aria-expanded]="!navCollapsed()"
+        [attr.aria-label]="navCollapsed() ? 'Expand menu' : 'Collapse menu'"
+        [title]="navCollapsed() ? 'Expand menu' : 'Collapse menu'"
+      >
+        {{ navCollapsed() ? '»' : '«' }}
+      </button>
+    </div>
 
-    <p class="nav-label">Products and inventory</p>
-    <a routerLink="/catalog/products" routerLinkActive="active" (click)="closeNav()">Products</a>
-    <a routerLink="/catalog/categories" routerLinkActive="active" (click)="closeNav()">Categories</a>
-    <a routerLink="/catalog/brands" routerLinkActive="active" (click)="closeNav()">Brands</a>
-    <a routerLink="/catalog/units" routerLinkActive="active" (click)="closeNav()">Units</a>
-    <a routerLink="/inventory/stock" routerLinkActive="active" (click)="closeNav()">Stock</a>
-    <a routerLink="/inventory/locations" routerLinkActive="active" (click)="closeNav()">Locations</a>
-    @if (session.canManageInventory()) {
-      <a routerLink="/inventory/opening" routerLinkActive="active" (click)="closeNav()">Opening</a>
-      <a routerLink="/inventory/adjustments" routerLinkActive="active" (click)="closeNav()">Adjust</a>
-      <a routerLink="/inventory/transfers" routerLinkActive="active" (click)="closeNav()">Transfer</a>
-    }
+    <section class="nav-group">
+      <button
+        type="button"
+        class="nav-label"
+        (click)="toggleGroup('daily')"
+        [attr.aria-expanded]="groupOpen('daily')"
+      >
+        <span class="nav-label-text">Daily operations</span>
+        <span class="nav-group-mark" aria-hidden="true">{{ groupOpen('daily') ? '«' : '»' }}</span>
+      </button>
+      <div class="nav-group-links" [hidden]="!linksVisible('daily')">
+        @if (session.canCompleteSales()) {
+          <a routerLink="/pos" routerLinkActive="active" title="POS" (click)="closeNav()">
+            <span class="nav-mark" aria-hidden="true">P</span>
+            <span class="nav-text">POS</span>
+          </a>
+        }
+        <a routerLink="/sales" routerLinkActive="active" title="Sales" (click)="closeNav()">
+          <span class="nav-mark" aria-hidden="true">S</span>
+          <span class="nav-text">Sales</span>
+        </a>
+        <a routerLink="/purchases" routerLinkActive="active" title="Purchases" (click)="closeNav()">
+          <span class="nav-mark" aria-hidden="true">P</span>
+          <span class="nav-text">Purchases</span>
+        </a>
+        <a routerLink="/expenses" routerLinkActive="active" title="Expenses" (click)="closeNav()">
+          <span class="nav-mark" aria-hidden="true">E</span>
+          <span class="nav-text">Expenses</span>
+        </a>
+      </div>
+    </section>
 
-    <p class="nav-label">People</p>
-    <a routerLink="/suppliers" routerLinkActive="active" (click)="closeNav()">Suppliers</a>
-    @if (session.canWriteCustomers()) {
-      <a routerLink="/customers" routerLinkActive="active" (click)="closeNav()">Customers</a>
-    }
+    <section class="nav-group">
+      <button
+        type="button"
+        class="nav-label"
+        (click)="toggleGroup('catalog')"
+        [attr.aria-expanded]="groupOpen('catalog')"
+      >
+        <span class="nav-label-text">Products and inventory</span>
+        <span class="nav-group-mark" aria-hidden="true">{{ groupOpen('catalog') ? '«' : '»' }}</span>
+      </button>
+      <div class="nav-group-links" [hidden]="!linksVisible('catalog')">
+        <a routerLink="/catalog/products" routerLinkActive="active" title="Products" (click)="closeNav()">
+          <span class="nav-mark" aria-hidden="true">P</span>
+          <span class="nav-text">Products</span>
+        </a>
+        <a routerLink="/catalog/categories" routerLinkActive="active" title="Categories" (click)="closeNav()">
+          <span class="nav-mark" aria-hidden="true">C</span>
+          <span class="nav-text">Categories</span>
+        </a>
+        <a routerLink="/catalog/brands" routerLinkActive="active" title="Brands" (click)="closeNav()">
+          <span class="nav-mark" aria-hidden="true">B</span>
+          <span class="nav-text">Brands</span>
+        </a>
+        <a routerLink="/catalog/units" routerLinkActive="active" title="Units" (click)="closeNav()">
+          <span class="nav-mark" aria-hidden="true">U</span>
+          <span class="nav-text">Units</span>
+        </a>
+        <a routerLink="/inventory/stock" routerLinkActive="active" title="Stock" (click)="closeNav()">
+          <span class="nav-mark" aria-hidden="true">S</span>
+          <span class="nav-text">Stock</span>
+        </a>
+        <a routerLink="/inventory/locations" routerLinkActive="active" title="Locations" (click)="closeNav()">
+          <span class="nav-mark" aria-hidden="true">L</span>
+          <span class="nav-text">Locations</span>
+        </a>
+        @if (session.canManageInventory()) {
+          <a routerLink="/inventory/opening" routerLinkActive="active" title="Opening" (click)="closeNav()">
+            <span class="nav-mark" aria-hidden="true">O</span>
+            <span class="nav-text">Opening</span>
+          </a>
+          <a routerLink="/inventory/adjustments" routerLinkActive="active" title="Adjust" (click)="closeNav()">
+            <span class="nav-mark" aria-hidden="true">A</span>
+            <span class="nav-text">Adjust</span>
+          </a>
+          <a routerLink="/inventory/transfers" routerLinkActive="active" title="Transfer" (click)="closeNav()">
+            <span class="nav-mark" aria-hidden="true">T</span>
+            <span class="nav-text">Transfer</span>
+          </a>
+        }
+      </div>
+    </section>
+
+    <section class="nav-group">
+      <button
+        type="button"
+        class="nav-label"
+        (click)="toggleGroup('people')"
+        [attr.aria-expanded]="groupOpen('people')"
+      >
+        <span class="nav-label-text">People</span>
+        <span class="nav-group-mark" aria-hidden="true">{{ groupOpen('people') ? '«' : '»' }}</span>
+      </button>
+      <div class="nav-group-links" [hidden]="!linksVisible('people')">
+        <a routerLink="/suppliers" routerLinkActive="active" title="Suppliers" (click)="closeNav()">
+          <span class="nav-mark" aria-hidden="true">S</span>
+          <span class="nav-text">Suppliers</span>
+        </a>
+        @if (session.canWriteCustomers()) {
+          <a routerLink="/customers" routerLinkActive="active" title="Customers" (click)="closeNav()">
+            <span class="nav-mark" aria-hidden="true">C</span>
+            <span class="nav-text">Customers</span>
+          </a>
+        }
+      </div>
+    </section>
 
     @if (session.canViewReports() || session.canManageUsers() || session.canViewAudit()) {
-      <p class="nav-label">Management</p>
-      @if (session.canViewReports()) {
-        <a routerLink="/dashboard" routerLinkActive="active" (click)="closeNav()">Dashboard</a>
-      }
-      @if (session.canManageUsers()) {
-        <a routerLink="/users" routerLinkActive="active" (click)="closeNav()">Users</a>
-      }
-      @if (session.canViewAudit()) {
-        <a routerLink="/audit" routerLinkActive="active" (click)="closeNav()">Audit</a>
-      }
+      <section class="nav-group">
+        <button
+          type="button"
+          class="nav-label"
+          (click)="toggleGroup('management')"
+          [attr.aria-expanded]="groupOpen('management')"
+        >
+          <span class="nav-label-text">Management</span>
+          <span class="nav-group-mark" aria-hidden="true">{{ groupOpen('management') ? '«' : '»' }}</span>
+        </button>
+        <div class="nav-group-links" [hidden]="!linksVisible('management')">
+          @if (session.canViewReports()) {
+            <a routerLink="/dashboard" routerLinkActive="active" title="Dashboard" (click)="closeNav()">
+              <span class="nav-mark" aria-hidden="true">D</span>
+              <span class="nav-text">Dashboard</span>
+            </a>
+          }
+          @if (session.canManageUsers()) {
+            <a routerLink="/users" routerLinkActive="active" title="Users" (click)="closeNav()">
+              <span class="nav-mark" aria-hidden="true">U</span>
+              <span class="nav-text">Users</span>
+            </a>
+          }
+          @if (session.canViewAudit()) {
+            <a routerLink="/audit" routerLinkActive="active" title="Audit" (click)="closeNav()">
+              <span class="nav-mark" aria-hidden="true">A</span>
+              <span class="nav-text">Audit</span>
+            </a>
+          }
+        </div>
+      </section>
     }
   </aside>
   <div class="workspace">

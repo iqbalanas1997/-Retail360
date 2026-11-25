@@ -12,35 +12,42 @@
   <p class="status">Loading receipt…</p>
 } @else if (sale(); as receipt) {
   <article class="receipt">
-    <h2>Receipt {{ receipt.receiptNumber }}</h2>
-    <p>{{ soldAt(receipt) }}</p>
-    <p>{{ customerLabel(receipt) }}</p>
-    <p>Payment {{ receipt.paymentMethod }}</p>
+    <header class="receipt-head">
+      <h2>Receipt {{ receipt.receiptNumber }}</h2>
+      <p class="receipt-meta">{{ soldAt(receipt) }}</p>
+      <p class="receipt-meta">{{ customerLabel(receipt) }}</p>
+      <p class="receipt-meta">Payment {{ paymentLabel(receipt) }}</p>
+    </header>
     <div class="table-wrap">
       <table>
         <thead>
           <tr>
             <th>Product</th>
             <th>Shelf</th>
-            <th>Quantity</th>
-            <th>Unit price</th>
-            <th>Line total</th>
+            <th class="money">Quantity</th>
+            <th class="money">Unit price</th>
+            <th class="money">Line total</th>
           </tr>
         </thead>
         <tbody>
           @for (line of receipt.lines; track line.id) {
             <tr>
-              <td>{{ line.productName }}</td>
+              <td class="emphasis">{{ line.productName }}</td>
               <td>{{ line.shelfName }}</td>
-              <td>{{ line.quantity }}</td>
-              <td>{{ money(line.unitPrice) }}</td>
-              <td>{{ money(line.lineTotal) }}</td>
+              <td class="money">{{ line.quantity }}</td>
+              <td class="money">{{ money(line.unitPrice) }}</td>
+              <td class="money">{{ money(line.lineTotal) }}</td>
             </tr>
           }
         </tbody>
       </table>
     </div>
-    <p class="pos-total">Total {{ money(receipt.total) }}</p>
-    <button type="button" class="secondary no-print" (click)="print()">Print</button>
+    <p class="receipt-total">Total {{ money(receipt.total) }}</p>
+    <div class="actions no-print">
+      <button type="button" (click)="print()">Print</button>
+      @if (canSell()) {
+        <a class="button secondary" routerLink="/pos">New sale</a>
+      }
+    </div>
   </article>
 }
