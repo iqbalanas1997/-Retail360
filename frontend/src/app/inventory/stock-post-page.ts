@@ -1,6 +1,6 @@
-import { Component, inject, signal } from '@angular/core';
+import { Component, inject, input, signal } from '@angular/core';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
-import { ActivatedRoute, RouterLink } from '@angular/router';
+import { ActivatedRoute } from '@angular/router';
 import { firstValueFrom } from 'rxjs';
 
 import { ApiError } from '../core/api-error';
@@ -21,7 +21,7 @@ type StockPostMode = 'opening' | 'adjustment' | 'transfer';
 
 @Component({
   selector: 'app-stock-post-page',
-  imports: [ReactiveFormsModule, RouterLink],
+  imports: [ReactiveFormsModule],
   templateUrl: './stock-post-page.html',
 })
 export class StockPostPage {
@@ -32,6 +32,7 @@ export class StockPostPage {
   private readonly session = inject(SessionService);
   private readonly attempt = new OperationAttempt();
 
+  readonly mode = input<StockPostMode | null>(null);
   protected readonly canManage = this.session.canManageInventory;
   protected readonly loading = signal(true);
   protected readonly saving = signal(false);
@@ -57,14 +58,19 @@ export class StockPostPage {
   });
 
   constructor() {
-    if (this.mode() === 'transfer') {
+    if (this.resolvedMode() === 'transfer') {
       this.form.controls.reasonText.setValue('');
     }
 
     void this.load();
   }
 
-  protected mode(): StockPostMode {
+  protected resolvedMode(): StockPostMode {
+    const fromInput = this.mode();
+    if (fromInput === 'adjustment' || fromInput === 'transfer' || fromInput === 'opening') {
+      return fromInput;
+    }
+
     const mode = this.route.snapshot.data['mode'];
     if (mode === 'adjustment' || mode === 'transfer' || mode === 'opening') {
       return mode;
@@ -74,7 +80,7 @@ export class StockPostPage {
   }
 
   protected quantityLabel(): string {
-    return this.mode() === 'adjustment' ? 'Adjustment quantity' : 'Quantity';
+    return this.resolvedMode() === 'adjustment' ? 'Adjustment quantity' : 'Quantity';
   }
 
   protected shelfLabel(shelf: Shelf): string {
@@ -187,7 +193,7 @@ export class StockPostPage {
       throw new Error('Product was not found.');
     }
 
-    if (this.mode() === 'transfer') {
+    if (this.resolvedMode() === 'transfer') {
       const sourceShelfId = value.sourceShelfId.trim();
       const destinationShelfId = value.destinationShelfId.trim();
       if (!sourceShelfId || !destinationShelfId) {
@@ -211,7 +217,7 @@ export class StockPostPage {
       throw new Error('Shelf was not found.');
     }
 
-    if (this.mode() === 'adjustment') {
+    if (this.resolvedMode() === 'adjustment') {
       const quantity = parseAdjustmentQuantity(value.quantity);
       const reason = parseReason(this.adjustmentReason(value.reasonChoice, value.reasonText), true);
       return {
@@ -241,13 +247,13 @@ export class StockPostPage {
     const productId = String(body['productId']);
     const quantity = Number(body['quantity']);
     const reason = String(body['reason']);
-    if (this.mode() === 'adjustment') {
+    if (this.resolvedMode() === 'adjustment') {
       return firstValueFrom(
         this.inventory.adjustStock({ operationId, productId, shelfId: String(body['shelfId']), quantity, reason }),
       );
     }
 
-    if (this.mode() === 'transfer') {
+    if (this.resolvedMode() === 'transfer') {
       return firstValueFrom(
         this.inventory.transferStock({
           operationId,
@@ -267,7 +273,7 @@ export class StockPostPage {
 
   private async readBalances(): Promise<ShelfBalance[]> {
     const value = this.form.getRawValue();
-    if (this.mode() === 'transfer') {
+    if (this.resolvedMode() === 'transfer') {
       const [source, destination] = await Promise.all([
         firstValueFrom(this.inventory.listBalances(value.productId, value.sourceShelfId)),
         firstValueFrom(this.inventory.listBalances(value.productId, value.destinationShelfId)),

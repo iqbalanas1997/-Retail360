@@ -1,5 +1,3 @@
-<p class="back"><a routerLink="/inventory/stock">Back to stock</a></p>
-
 @if (!canManage()) {
   <p class="hint">You can view stock. Only an Admin, Manager, or Inventory Staff member can change it.</p>
 } @else if (loading()) {
@@ -48,7 +46,7 @@
       </select>
     </label>
 
-    @if (mode() === 'transfer') {
+    @if (resolvedMode() === 'transfer') {
       <label>
         Source shelf
         <select formControlName="sourceShelfId">
@@ -83,7 +81,7 @@
       {{ quantityLabel() }}
       <input formControlName="quantity" inputmode="decimal" />
     </label>
-    @if (mode() === 'adjustment') {
+    @if (resolvedMode() === 'adjustment') {
       <p class="hint">Use a positive quantity to add stock and a negative quantity to remove it. At most 3 decimal places.</p>
       <label>
         Reason
@@ -100,7 +98,7 @@
           <input formControlName="reasonText" maxlength="200" />
         </label>
       }
-    } @else if (mode() === 'opening') {
+    } @else if (resolvedMode() === 'opening') {
       <p class="hint">Quantity must be greater than zero, with at most 3 decimal places. An inactive shelf cannot receive stock.</p>
       <label>
         Reason

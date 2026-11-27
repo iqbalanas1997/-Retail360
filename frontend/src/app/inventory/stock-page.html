@@ -12,11 +12,7 @@
     </select>
   </label>
   <button type="submit">Search</button>
-  @if (canManage()) {
-    <a class="button" routerLink="/inventory/opening">Opening stock</a>
-  }
 </form>
-<p class="hint">Search checks product names in the rows loaded from the stock list. That list has no name filter.</p>
 
 @if (error()) {
   <p class="notice error" role="alert">{{ error() }}</p>

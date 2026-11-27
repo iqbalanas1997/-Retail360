@@ -69,28 +69,10 @@
           <span class="nav-mark" aria-hidden="true">N</span>
           <span class="nav-text">Catalog names</span>
         </a>
-        <a routerLink="/inventory/stock" routerLinkActive="active" title="Stock" (click)="closeNav()">
-          <span class="nav-mark" aria-hidden="true">S</span>
-          <span class="nav-text">Stock</span>
+        <a routerLink="/inventory" routerLinkActive="active" title="Inventory" (click)="closeNav()">
+          <span class="nav-mark" aria-hidden="true">I</span>
+          <span class="nav-text">Inventory</span>
         </a>
-        <a routerLink="/inventory/locations" routerLinkActive="active" title="Locations" (click)="closeNav()">
-          <span class="nav-mark" aria-hidden="true">L</span>
-          <span class="nav-text">Locations</span>
-        </a>
-        @if (session.canManageInventory()) {
-          <a routerLink="/inventory/opening" routerLinkActive="active" title="Opening" (click)="closeNav()">
-            <span class="nav-mark" aria-hidden="true">O</span>
-            <span class="nav-text">Opening</span>
-          </a>
-          <a routerLink="/inventory/adjustments" routerLinkActive="active" title="Adjust" (click)="closeNav()">
-            <span class="nav-mark" aria-hidden="true">A</span>
-            <span class="nav-text">Adjust</span>
-          </a>
-          <a routerLink="/inventory/transfers" routerLinkActive="active" title="Transfer" (click)="closeNav()">
-            <span class="nav-mark" aria-hidden="true">T</span>
-            <span class="nav-text">Transfer</span>
-          </a>
-        }
       </div>
     </section>
 

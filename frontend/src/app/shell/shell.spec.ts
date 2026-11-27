@@ -103,8 +103,7 @@ describe('shell session expiry', () => {
     expect(text).not.toContain('Audit');
     expect(text).not.toContain('Users');
     expect(text).not.toContain('Customers');
-    expect(text).toContain('Stock');
-    expect(text).toContain('Opening');
+    expect(text).toContain('Inventory');
     expect(text).toContain('Sales');
     expect(text).toContain('Purchases');
   });

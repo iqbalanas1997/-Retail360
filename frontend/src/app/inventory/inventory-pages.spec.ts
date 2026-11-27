@@ -36,7 +36,86 @@ describe('inventory screens', () => {
     fixture.detectChanges();
 
     expect(fixture.nativeElement.textContent).toContain('No stock rows match this search.');
-    expect(fixture.nativeElement.textContent).not.toContain('Opening stock');
+    expect(fixture.nativeElement.textContent).not.toContain('Opening');
+  });
+
+  it('opens inventory tabs on one page and redirects old stock routes', async () => {
+    remember('Admin');
+    TestBed.configureTestingModule({
+      providers: [
+        provideRouter(routes),
+        provideHttpClient(withInterceptors([authInterceptor])),
+        provideHttpClientTesting(),
+      ],
+    });
+    const harness = await RouterTestingHarness.create();
+    await harness.navigateByUrl('/inventory/opening');
+    await turn();
+    harness.detectChanges();
+    const http = TestBed.inject(HttpTestingController);
+    http.expectOne('/api/products?activeOnly=false&limit=200&offset=0').flush([]);
+    http.expectOne('/api/shelves').flush([]);
+    await turn();
+    harness.detectChanges();
+    const root = harness.fixture.nativeElement as HTMLElement;
+
+    expect(TestBed.inject(Router).url).toContain('/inventory');
+    expect(TestBed.inject(Router).url).toContain('tab=opening');
+    expect(root.textContent).toContain('Stock');
+    expect(root.textContent).toContain('Locations');
+    expect(root.textContent).toContain('Opening');
+    expect(root.textContent).toContain('Adjust');
+    expect(root.textContent).toContain('Transfer');
+    expect(root.textContent).toContain('Find product');
+
+    const locations = [...root.querySelectorAll('a')].find((link) => link.textContent?.trim() === 'Locations');
+    locations?.click();
+    await turn();
+    harness.detectChanges();
+    http.expectOne('/api/areas').flush([]);
+    await turn();
+    harness.detectChanges();
+
+    expect(TestBed.inject(Router).url).toContain('tab=locations');
+    expect(root.textContent).toContain('No areas yet.');
+
+    await harness.navigateByUrl('/inventory/adjustments');
+    await turn();
+    harness.detectChanges();
+    http.expectOne('/api/products?activeOnly=false&limit=200&offset=0').flush([]);
+    http.expectOne('/api/shelves').flush([]);
+    await turn();
+    harness.detectChanges();
+
+    expect(TestBed.inject(Router).url).toContain('tab=adjust');
+    expect(root.textContent).toContain('Adjustment quantity');
+  });
+
+  it('hides manage tabs from a cashier on the inventory hub', async () => {
+    remember('Cashier');
+    TestBed.configureTestingModule({
+      providers: [
+        provideRouter(routes),
+        provideHttpClient(withInterceptors([authInterceptor])),
+        provideHttpClientTesting(),
+      ],
+    });
+    const harness = await RouterTestingHarness.create();
+    await harness.navigateByUrl('/inventory');
+    await turn();
+    harness.detectChanges();
+    TestBed.inject(HttpTestingController)
+      .expectOne('/api/inventory/stock?status=all&limit=50&offset=0')
+      .flush([]);
+    await turn();
+    harness.detectChanges();
+    const root = harness.fixture.nativeElement as HTMLElement;
+    const tabs = [...root.querySelectorAll('.inventory-tabs .name-tab')].map((tab) => tab.textContent?.trim());
+
+    expect(tabs).toEqual(['Stock', 'Locations']);
+    expect(root.textContent).not.toContain('Opening');
+    expect(root.textContent).not.toContain('Adjust');
+    expect(root.textContent).not.toContain('Transfer');
   });
 
   it('shows a stock API failure and leaves the list empty', async () => {

@@ -510,13 +510,15 @@ h2 {
   font-size: 1.1rem;
 }
 
-.names-page {
+.names-page,
+.inventory-page {
   display: grid;
   width: 100%;
   min-height: calc(100vh - 7rem);
 }
 
-.names-board {
+.names-board,
+.inventory-board {
   display: flex;
   flex-direction: column;
   min-height: 100%;
@@ -527,7 +529,8 @@ h2 {
   overflow: hidden;
 }
 
-.names-board-top {
+.names-board-top,
+.inventory-board-top {
   padding: 0.85rem 0.85rem 0;
   background:
     linear-gradient(180deg, rgba(31, 41, 51, 0.03), transparent 72%),
@@ -536,6 +539,21 @@ h2 {
 
 .names-board > .notice {
   margin: 0.75rem 1rem 0;
+}
+
+.inventory-board-top {
+  padding-bottom: 0.85rem;
+  border-bottom: 1px solid var(--line);
+}
+
+.inventory-board-body {
+  flex: 1 1 auto;
+  padding: 1rem 1.1rem 1.25rem;
+  min-width: 0;
+}
+
+.inventory-tabs {
+  grid-template-columns: repeat(auto-fit, minmax(5.75rem, 1fr));
 }
 
 .names-add {
@@ -741,7 +759,8 @@ h2 {
 }
 
 @media (max-width: 767px) {
-  .names-page {
+  .names-page,
+  .inventory-page {
     min-height: calc(100vh - 9rem);
   }
 
@@ -749,11 +768,22 @@ h2 {
     grid-template-columns: 1fr;
   }
 
+  .inventory-tabs {
+    grid-template-columns: repeat(auto-fit, minmax(5.5rem, 1fr));
+  }
+
+  .inventory-tabs .name-tab {
+    min-height: 2.4rem;
+    padding: 0.35rem 0.45rem;
+    font-size: 0.92rem;
+  }
+
   .names-add {
     padding: 0.9rem 0.85rem;
   }
 
-  .names-body {
+  .names-body,
+  .inventory-board-body {
     padding: 0.9rem 0.85rem 1rem;
   }
 

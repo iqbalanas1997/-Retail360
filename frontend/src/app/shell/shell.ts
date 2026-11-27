@@ -139,7 +139,7 @@ export function groupForUrl(url: string): NavGroupId | null {
     return 'daily';
   }
 
-  if (path.startsWith('/catalog/') || path.startsWith('/inventory/')) {
+  if (path.startsWith('/catalog/') || path === '/inventory' || path.startsWith('/inventory/')) {
     return 'catalog';
   }
 

@@ -1,0 +1,40 @@
+<section class="inventory-page">
+  <div class="inventory-board">
+    <header class="inventory-board-top">
+      <nav class="name-tabs inventory-tabs" aria-label="Inventory section">
+        @for (tab of tabs(); track tab.id) {
+          <a
+            class="name-tab"
+            routerLink="/inventory"
+            [queryParams]="{ tab: tab.id }"
+            [replaceUrl]="true"
+            [class.active]="activeTab() === tab.id"
+            [attr.aria-current]="activeTab() === tab.id ? 'page' : null"
+          >
+            {{ tab.label }}
+          </a>
+        }
+      </nav>
+    </header>
+
+    <div class="inventory-board-body">
+      @switch (activeTab()) {
+        @case ('stock') {
+          <app-stock-page />
+        }
+        @case ('locations') {
+          <app-locations-page />
+        }
+        @case ('opening') {
+          <app-stock-post-page mode="opening" />
+        }
+        @case ('adjust') {
+          <app-stock-post-page mode="adjustment" />
+        }
+        @case ('transfer') {
+          <app-stock-post-page mode="transfer" />
+        }
+      }
+    </div>
+  </div>
+</section>

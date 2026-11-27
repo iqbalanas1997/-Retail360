@@ -85,7 +85,7 @@ Omit `paymentMethod` for cash. Send `credit` only when credit is selected and a 
 
 ### Inventory
 
-`/inventory/stock` shows on-hand quantity by shelf. Locations, opening, adjustment, and transfer stay separate routes. Inactive shelves and failed posts must still be obvious. Do not hide a validation error behind a new step.
+`/inventory` is one hub with tabs for stock, locations, opening, adjust, and transfer. Stock shows on-hand quantity by shelf. Manage tabs stay Admin, Manager, and Inventory Staff only. Inactive shelves and failed posts must still be obvious. Do not hide a validation error behind a new step.
 
 ### Purchasing and suppliers
 

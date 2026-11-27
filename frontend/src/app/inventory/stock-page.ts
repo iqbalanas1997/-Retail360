@@ -1,26 +1,22 @@
 import { Component, inject, signal } from '@angular/core';
 import { FormBuilder, ReactiveFormsModule } from '@angular/forms';
-import { RouterLink } from '@angular/router';
 import { firstValueFrom } from 'rxjs';
 
 import { ApiError } from '../core/api-error';
 import { formatScaled } from '../core/catalog-rules';
 import { type ProductStock, type ShelfBalance } from '../core/inventory.models';
 import { InventoryApi } from '../core/inventory-api.service';
-import { SessionService } from '../core/session.service';
 
 @Component({
   selector: 'app-stock-page',
-  imports: [ReactiveFormsModule, RouterLink],
+  imports: [ReactiveFormsModule],
   templateUrl: './stock-page.html',
 })
 export class StockPage {
   private readonly formBuilder = inject(FormBuilder);
   private readonly api = inject(InventoryApi);
-  private readonly session = inject(SessionService);
 
   protected readonly pageSize = 50;
-  protected readonly canManage = this.session.canManageInventory;
   protected readonly rows = signal<ProductStock[]>([]);
   protected readonly balances = signal<ShelfBalance[]>([]);
   protected readonly selectedId = signal('');

@@ -72,9 +72,9 @@ Categories, brands, and units share one Catalog names page at `/catalog/names`: 
 
 ### Inventory
 
-Stock shows product, on hand, minimum, status, and offered. Choosing a product loads shelf balances. Opening, adjustment, and transfer are separate routes with a product finder, shelf, quantity, and reason. Adjustment reasons are a short list. Inactive shelves are named in the hints.
+Stock, locations, opening, adjust, and transfer share one Inventory hub at `/inventory` with quiet tabs on the same board chrome as Catalog names. Old `/inventory/*` routes redirect to the matching tab. Opening, Adjust, and Transfer tabs show only for Admin, Manager, and Inventory Staff.
 
-The stock search box is labeled "Search loaded products" and the hint says the list has no name filter (`stock-page.html`, `stock-page.ts` `visibleRows`). A product that is not in the loaded page looks missing. A true name search needs an API change and is not part of a layout pass.
+Stock shows product, on hand, minimum, status, and offered. Choosing a product loads shelf balances. Stock search still filters only loaded rows (`visibleRows`). A true name search needs an API change and is not part of a layout pass.
 
 Locations edit every area and shelf inline. The actions are clear and the rows are dense. There is no search, which is acceptable while the shop has few areas.
 
@@ -183,7 +183,7 @@ Recommended order for someone who can sell: POS, Sales, then the modules they al
 Recommended landing page:
 
 - Cashier: `/pos`
-- Inventory Staff: `/inventory/stock`
+- Inventory Staff: `/inventory`
 - Admin and Manager: `/dashboard`
 
 Do not remove a module from a role that can already open it. Do not show the customer admin form to cashiers.
@@ -258,7 +258,7 @@ Checked against the shell and the counter on 2026-11-21. Shared chrome Phase 1 u
 | U7, U11 | Done Phase 2. Purchase product Enter finds products and does not save. Sales history shows Cash or Credit. Receipt layout is clearer. Expenses list and form use the soft chrome; payment stays cash text. Menu drawer unchanged at ~390px |
 | U6, U9, U10, U12–U17 | Open. Next: Phase 3 Catalog and Inventory. U6 still needs an approved stock-name API |
 
-The shell now uses the existing routes in four groups: Daily operations, Products and inventory, People, and Management. Locations stays one screen. Opening, Adjust, and Transfer stay with inventory changes. A group is omitted when the role has no link in it. No route, role, or request changed.
+The shell now uses the existing routes in four groups: Daily operations, Products and inventory, People, and Management. Inventory is one shell link with in-page tabs. A group is omitted when the role has no link in it. No role or request changed.
 
 Product entry on the counter also accepts a name or barcode while typing, and Browse products lists one page at a time. The catalog list still has no category or barcode query, and shelf quantity still comes from the existing balances call.
 

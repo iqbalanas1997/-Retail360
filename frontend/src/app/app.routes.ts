@@ -12,9 +12,7 @@ import { CustomerListPage } from './customers/customer-list-page';
 import { DashboardPage } from './dashboard/dashboard-page';
 import { ExpenseFormPage } from './expenses/expense-form-page';
 import { ExpenseListPage } from './expenses/expense-list-page';
-import { LocationsPage } from './inventory/locations-page';
-import { StockPage } from './inventory/stock-page';
-import { StockPostPage } from './inventory/stock-post-page';
+import { InventoryHubPage, type InventoryTab } from './inventory/inventory-hub-page';
 import { LoginPage } from './login/login-page';
 import { Shell } from './shell/shell';
 import { PosPage } from './pos/pos-page';
@@ -43,16 +41,12 @@ export const routes: Routes = [
       { path: 'catalog/categories', redirectTo: catalogNamesRedirect('categories'), pathMatch: 'full' },
       { path: 'catalog/brands', redirectTo: catalogNamesRedirect('brands'), pathMatch: 'full' },
       { path: 'catalog/units', redirectTo: catalogNamesRedirect('units'), pathMatch: 'full' },
-      { path: 'inventory', pathMatch: 'full', redirectTo: 'inventory/stock' },
-      { path: 'inventory/stock', component: StockPage, data: { title: 'Stock' } },
-      { path: 'inventory/locations', component: LocationsPage, data: { title: 'Locations' } },
-      { path: 'inventory/opening', component: StockPostPage, data: { title: 'Opening stock', mode: 'opening' } },
-      {
-        path: 'inventory/adjustments',
-        component: StockPostPage,
-        data: { title: 'Stock adjustment', mode: 'adjustment' },
-      },
-      { path: 'inventory/transfers', component: StockPostPage, data: { title: 'Shelf transfer', mode: 'transfer' } },
+      { path: 'inventory', component: InventoryHubPage, data: { title: 'Inventory' } },
+      { path: 'inventory/stock', redirectTo: inventoryRedirect('stock'), pathMatch: 'full' },
+      { path: 'inventory/locations', redirectTo: inventoryRedirect('locations'), pathMatch: 'full' },
+      { path: 'inventory/opening', redirectTo: inventoryRedirect('opening'), pathMatch: 'full' },
+      { path: 'inventory/adjustments', redirectTo: inventoryRedirect('adjust'), pathMatch: 'full' },
+      { path: 'inventory/transfers', redirectTo: inventoryRedirect('transfer'), pathMatch: 'full' },
       { path: 'suppliers', component: SupplierListPage, data: { title: 'Suppliers' } },
       { path: 'suppliers/new', component: SupplierFormPage, data: { title: 'New supplier' } },
       { path: 'suppliers/:id', component: SupplierFormPage, data: { title: 'Supplier' } },
@@ -80,4 +74,8 @@ export const routes: Routes = [
 
 function catalogNamesRedirect(tab: NamedCatalogTab): RedirectFunction {
   return () => inject(Router).createUrlTree(['/catalog/names'], { queryParams: { tab } });
+}
+
+function inventoryRedirect(tab: InventoryTab): RedirectFunction {
+  return () => inject(Router).createUrlTree(['/inventory'], { queryParams: { tab } });
 }
