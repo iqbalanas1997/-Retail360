@@ -52,9 +52,7 @@ On a narrow screen the same links wrap across the top before any work starts.
 
 ### Dashboard
 
-`/dashboard` has Today, Yesterday, Last 7 days, This month, and a custom date range. Figures are counts and totals for sales, expenses, and purchases, then recent rows, then low stock. There is no chart and no profit number. That matches the module.
-
-The four period buttons are the same green, so the selected period is not visible. The first sentence on the page explains UTC dates. Low stock, which is current rather than tied to the dates, is last. A zero total renders as `0.0`.
+`/dashboard` is one board for Admin and Manager: period chips with a pressed state, custom dates, a sales-led metric strip, sales/purchase/expense panels, recent rows, and a low-stock panel that does not follow the selected dates. There is no chart and no profit number. That matches the module. A zero total still renders as `0.0`.
 
 ### POS and sales
 

@@ -42,6 +42,12 @@ describe('dashboard screen', () => {
     expect(body).toContain('No expenses in this period.');
     expect(body).toContain('No active products are low on stock.');
     expect(body).not.toContain('Profit');
+
+    const today = [...(harness.fixture.nativeElement as HTMLElement).querySelectorAll('.dashboard-period')].find(
+      (button) => button.textContent?.trim() === 'Today',
+    ) as HTMLButtonElement;
+    expect(today.getAttribute('aria-pressed')).toBe('true');
+    expect(today.classList.contains('active')).toBe(true);
   });
 
   it('applies an explicit range and ignores an older response', async () => {

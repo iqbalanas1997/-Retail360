@@ -11,6 +11,8 @@ import { type DashboardReport, type LowStockReport } from '../core/report.models
 import { type ReportPeriod, reportRange, requireReportRange, utcToday } from '../core/report-rules';
 import { formatSoldAt } from '../core/sale-rules';
 
+type SelectedPeriod = ReportPeriod | 'custom';
+
 @Component({
   selector: 'app-dashboard-page',
   imports: [ReactiveFormsModule, RouterLink],
@@ -27,6 +29,7 @@ export class DashboardPage {
   protected readonly loadingStock = signal(true);
   protected readonly error = signal('');
   protected readonly stockError = signal('');
+  protected readonly selectedPeriod = signal<SelectedPeriod>('today');
   protected readonly form = this.formBuilder.nonNullable.group({
     from: '',
     to: '',
@@ -40,6 +43,7 @@ export class DashboardPage {
   }
 
   protected selectPeriod(period: ReportPeriod): void {
+    this.selectedPeriod.set(period);
     this.form.setValue(reportRange(period, utcToday()));
     void this.loadDashboard();
   }
@@ -48,6 +52,7 @@ export class DashboardPage {
     try {
       const range = requireReportRange(this.form.controls.from.value, this.form.controls.to.value);
       this.form.setValue(range);
+      this.selectedPeriod.set('custom');
       this.error.set('');
     } catch (error) {
       this.error.set(error instanceof Error ? error.message : 'The request failed.');

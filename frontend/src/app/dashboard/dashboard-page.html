@@ -1,181 +1,306 @@
-<div class="toolbar">
-  <button type="button" (click)="selectPeriod('today')">Today</button>
-  <button type="button" (click)="selectPeriod('yesterday')">Yesterday</button>
-  <button type="button" (click)="selectPeriod('last7')">Last 7 days</button>
-  <button type="button" (click)="selectPeriod('month')">This month</button>
-</div>
+<section class="dashboard-page">
+  <div class="dashboard-board">
+    <header class="dashboard-top">
+      <div class="dashboard-top-row">
+        <div class="dashboard-heading">
+          <p class="dashboard-kicker">Shop overview</p>
+          @if (report(); as current) {
+            <p class="dashboard-range" aria-live="polite">{{ current.from }} to {{ current.to }}</p>
+          } @else {
+            <p class="dashboard-range">{{ form.controls.from.value }} to {{ form.controls.to.value }}</p>
+          }
+        </div>
 
-<form class="toolbar" [formGroup]="form" (ngSubmit)="applyCustom()">
-  <label>
-    From
-    <input type="date" formControlName="from" />
-  </label>
-  <label>
-    To
-    <input type="date" formControlName="to" />
-  </label>
-  <button type="submit">Apply</button>
-</form>
-<p class="hint">Sale times and received purchases use UTC dates. Expense dates and purchase document dates are the dates saved on those records.</p>
+        <div class="dashboard-periods" role="group" aria-label="Report period">
+          <button
+            type="button"
+            class="dashboard-period"
+            [class.active]="selectedPeriod() === 'today'"
+            [attr.aria-pressed]="selectedPeriod() === 'today'"
+            (click)="selectPeriod('today')"
+          >
+            Today
+          </button>
+          <button
+            type="button"
+            class="dashboard-period"
+            [class.active]="selectedPeriod() === 'yesterday'"
+            [attr.aria-pressed]="selectedPeriod() === 'yesterday'"
+            (click)="selectPeriod('yesterday')"
+          >
+            Yesterday
+          </button>
+          <button
+            type="button"
+            class="dashboard-period"
+            [class.active]="selectedPeriod() === 'last7'"
+            [attr.aria-pressed]="selectedPeriod() === 'last7'"
+            (click)="selectPeriod('last7')"
+          >
+            Last 7 days
+          </button>
+          <button
+            type="button"
+            class="dashboard-period"
+            [class.active]="selectedPeriod() === 'month'"
+            [attr.aria-pressed]="selectedPeriod() === 'month'"
+            (click)="selectPeriod('month')"
+          >
+            This month
+          </button>
+        </div>
+      </div>
 
-@if (error()) {
-  <p class="notice error" role="alert">{{ error() }}</p>
-  <button type="button" class="secondary" (click)="loadDashboard()">Try again</button>
-}
+      <form class="dashboard-range-form" [formGroup]="form" (ngSubmit)="applyCustom()">
+        <label>
+          From
+          <input type="date" formControlName="from" />
+        </label>
+        <label>
+          To
+          <input type="date" formControlName="to" />
+        </label>
+        <button type="submit">Apply</button>
+      </form>
+      <p class="hint dashboard-utc-hint">
+        Sale times and received purchases use UTC dates. Expense dates and purchase document dates are the dates
+        saved on those records.
+      </p>
+    </header>
 
-@if (loading()) {
-  <p class="status">Loading dashboard…</p>
-} @else if (report(); as current) {
-  <p class="status">{{ current.from }} to {{ current.to }}</p>
+    <div class="dashboard-body">
+      @if (error()) {
+        <p class="notice error" role="alert">{{ error() }}</p>
+        <button type="button" class="secondary" (click)="loadDashboard()">Try again</button>
+      }
 
-  <h2>Sales</h2>
-  <div class="summary-grid">
-    <section class="card">
-      <p>Completed sales</p>
-      <p class="metric">{{ current.sales.count }}</p>
-    </section>
-    <section class="card">
-      <p>Sales total</p>
-      <p class="metric">{{ money(current.sales.total) }}</p>
-    </section>
-    <section class="card">
-      <p>Average sale</p>
-      <p class="metric">{{ average(current.sales.average) }}</p>
-    </section>
-  </div>
+      @if (loading()) {
+        <p class="status">Loading dashboard…</p>
+      } @else if (report(); as current) {
+        <div class="dashboard-hero">
+          <article class="dashboard-stat dashboard-stat-lead">
+            <p class="dashboard-stat-label">Sales total</p>
+            <p class="metric dashboard-stat-value">{{ money(current.sales.total) }}</p>
+            <p class="dashboard-stat-meta">
+              {{ current.sales.count }} completed · Average {{ average(current.sales.average) }}
+            </p>
+          </article>
+          <article class="dashboard-stat">
+            <p class="dashboard-stat-label">Expense total</p>
+            <p class="metric dashboard-stat-value">{{ money(current.expenses.total) }}</p>
+            <p class="dashboard-stat-meta">{{ current.expenses.count }} recorded</p>
+          </article>
+          <article class="dashboard-stat">
+            <p class="dashboard-stat-label">Purchases received</p>
+            <p class="metric dashboard-stat-value">{{ money(current.purchases.receivedTotal) }}</p>
+            <p class="dashboard-stat-meta">
+              {{ current.purchases.receivedCount }} received · {{ current.purchases.recordedCount }} recorded
+              ({{ money(current.purchases.recordedTotal) }})
+            </p>
+          </article>
+          <article
+            class="dashboard-stat"
+            [class.dashboard-stat-alert]="(lowStock()?.count ?? 0) > 0"
+          >
+            <p class="dashboard-stat-label">Low stock</p>
+            @if (loadingStock()) {
+              <p class="metric dashboard-stat-value">…</p>
+              <p class="dashboard-stat-meta">Loading low stock…</p>
+            } @else if (lowStock(); as stock) {
+              <p class="metric dashboard-stat-value">{{ stock.count }}</p>
+              <p class="dashboard-stat-meta">
+                {{ stock.count }} active product{{ stock.count === 1 ? '' : 's' }} with low stock.
+              </p>
+            } @else {
+              <p class="metric dashboard-stat-value">—</p>
+              <p class="dashboard-stat-meta">Current stock, not dated</p>
+            }
+          </article>
+        </div>
 
-  <h2>Expenses</h2>
-  <div class="summary-grid">
-    <section class="card">
-      <p>Recorded expenses</p>
-      <p class="metric">{{ current.expenses.count }}</p>
-    </section>
-    <section class="card">
-      <p>Expense total</p>
-      <p class="metric">{{ money(current.expenses.total) }}</p>
-    </section>
-  </div>
-  <div class="table-wrap">
-    <table>
-      <thead>
-        <tr>
-          <th>Category</th>
-          <th>Count</th>
-          <th>Amount</th>
-        </tr>
-      </thead>
-      <tbody>
-        @for (category of current.expenses.categories; track category.category) {
-          <tr>
-            <td>{{ categoryLabel(category.category) }}</td>
-            <td>{{ category.count }}</td>
-            <td>{{ money(category.total) }}</td>
-          </tr>
+        <div class="dashboard-summary">
+          <section class="dashboard-panel">
+            <header class="dashboard-panel-head">
+              <h2>Sales</h2>
+            </header>
+            <div class="summary-grid dashboard-summary-grid">
+              <div class="dashboard-mini">
+                <p class="dashboard-mini-label">Completed sales</p>
+                <p class="metric">{{ current.sales.count }}</p>
+              </div>
+              <div class="dashboard-mini">
+                <p class="dashboard-mini-label">Sales total</p>
+                <p class="metric">{{ money(current.sales.total) }}</p>
+              </div>
+              <div class="dashboard-mini">
+                <p class="dashboard-mini-label">Average sale</p>
+                <p class="metric">{{ average(current.sales.average) }}</p>
+              </div>
+            </div>
+          </section>
+
+          <section class="dashboard-panel">
+            <header class="dashboard-panel-head">
+              <h2>Purchases</h2>
+            </header>
+            <div class="summary-grid dashboard-summary-grid">
+              <div class="dashboard-mini">
+                <p class="dashboard-mini-label">Purchases recorded</p>
+                <p class="metric">{{ current.purchases.recordedCount }}</p>
+                <p class="dashboard-mini-meta">Recorded purchase value {{ money(current.purchases.recordedTotal) }}</p>
+              </div>
+              <div class="dashboard-mini">
+                <p class="dashboard-mini-label">Purchases received</p>
+                <p class="metric">{{ current.purchases.receivedCount }}</p>
+                <p class="dashboard-mini-meta">Received purchase value {{ money(current.purchases.receivedTotal) }}</p>
+              </div>
+            </div>
+            <p class="hint">
+              A recorded purchase is counted by its document date. Received stock is counted by the UTC date the goods
+              were received. Those figures are not added together.
+            </p>
+          </section>
+        </div>
+
+        <section class="dashboard-panel">
+          <header class="dashboard-panel-head">
+            <h2>Expenses</h2>
+            <p class="dashboard-panel-note">
+              {{ current.expenses.count }} recorded · {{ money(current.expenses.total) }}
+            </p>
+          </header>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Category</th>
+                  <th>Count</th>
+                  <th>Amount</th>
+                </tr>
+              </thead>
+              <tbody>
+                @for (category of current.expenses.categories; track category.category) {
+                  <tr>
+                    <td>{{ categoryLabel(category.category) }}</td>
+                    <td>{{ category.count }}</td>
+                    <td>{{ money(category.total) }}</td>
+                  </tr>
+                }
+              </tbody>
+            </table>
+          </div>
+        </section>
+
+        <div class="dashboard-columns">
+          <section class="dashboard-panel">
+            <header class="dashboard-panel-head">
+              <h2>Recent sales</h2>
+            </header>
+            @if (current.recentSales.length === 0) {
+              <p class="status">No sales in this period.</p>
+            } @else {
+              <div class="table-wrap">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Receipt</th>
+                      <th>Sold</th>
+                      <th>Total</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    @for (sale of current.recentSales; track sale.id) {
+                      <tr>
+                        <td><a [routerLink]="['/sales', sale.id]">{{ sale.receiptNumber }}</a></td>
+                        <td>{{ soldAt(sale.soldAt) }}</td>
+                        <td>{{ money(sale.total) }}</td>
+                      </tr>
+                    }
+                  </tbody>
+                </table>
+              </div>
+            }
+          </section>
+
+          <section class="dashboard-panel">
+            <header class="dashboard-panel-head">
+              <h2>Recent expenses</h2>
+            </header>
+            @if (current.recentExpenses.length === 0) {
+              <p class="status">No expenses in this period.</p>
+            } @else {
+              <div class="table-wrap">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Date</th>
+                      <th>Category</th>
+                      <th>Amount</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    @for (expense of current.recentExpenses; track expense.id) {
+                      <tr>
+                        <td><a [routerLink]="['/expenses', expense.id]">{{ expense.expenseDate }}</a></td>
+                        <td>{{ categoryLabel(expense.category) }}</td>
+                        <td>{{ money(expense.amount) }}</td>
+                      </tr>
+                    }
+                  </tbody>
+                </table>
+              </div>
+            }
+          </section>
+        </div>
+      }
+
+      <section
+        class="dashboard-panel"
+        [class.dashboard-panel-alert]="(lowStock()?.count ?? 0) > 0"
+      >
+        <header class="dashboard-panel-head">
+          <h2>Low stock</h2>
+          <p class="dashboard-panel-note">
+            Current stock of active products. Low stock means the total on every shelf is above zero and at or below
+            the product minimum. This list does not follow the selected dates.
+          </p>
+        </header>
+        @if (stockError()) {
+          <p class="notice error" role="alert">{{ stockError() }}</p>
+          <button type="button" class="secondary" (click)="loadLowStock()">Try again</button>
         }
-      </tbody>
-    </table>
+        @if (loadingStock()) {
+          <p class="status">Loading low stock…</p>
+        } @else if (lowStock(); as stock) {
+          <p class="status">{{ stock.count }} active product{{ stock.count === 1 ? '' : 's' }} with low stock.</p>
+          @if (stock.products.length === 0) {
+            <p class="status">No active products are low on stock.</p>
+          } @else {
+            <div class="table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Product</th>
+                    <th>On hand</th>
+                    <th>Minimum</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  @for (product of stock.products; track product.id) {
+                    <tr>
+                      <td>
+                        <a [routerLink]="['/catalog/products', product.id]">{{ product.name }}</a>
+                      </td>
+                      <td>{{ quantity(product.onHand) }}</td>
+                      <td>{{ quantity(product.minimumStock) }}</td>
+                    </tr>
+                  }
+                </tbody>
+              </table>
+            </div>
+          }
+        }
+      </section>
+    </div>
   </div>
-
-  <h2>Purchases</h2>
-  <div class="summary-grid">
-    <section class="card">
-      <p>Purchases recorded</p>
-      <p class="metric">{{ current.purchases.recordedCount }}</p>
-      <p>Recorded purchase value {{ money(current.purchases.recordedTotal) }}</p>
-    </section>
-    <section class="card">
-      <p>Purchases received</p>
-      <p class="metric">{{ current.purchases.receivedCount }}</p>
-      <p>Received purchase value {{ money(current.purchases.receivedTotal) }}</p>
-    </section>
-  </div>
-  <p class="hint">A recorded purchase is counted by its document date. Received stock is counted by the UTC date the goods were received. Those figures are not added together.</p>
-
-  <h2>Recent sales</h2>
-  @if (current.recentSales.length === 0) {
-    <p class="status">No sales in this period.</p>
-  } @else {
-    <div class="table-wrap">
-      <table>
-        <thead>
-          <tr>
-            <th>Receipt</th>
-            <th>Sold</th>
-            <th>Total</th>
-          </tr>
-        </thead>
-        <tbody>
-          @for (sale of current.recentSales; track sale.id) {
-            <tr>
-              <td><a [routerLink]="['/sales', sale.id]">{{ sale.receiptNumber }}</a></td>
-              <td>{{ soldAt(sale.soldAt) }}</td>
-              <td>{{ money(sale.total) }}</td>
-            </tr>
-          }
-        </tbody>
-      </table>
-    </div>
-  }
-
-  <h2>Recent expenses</h2>
-  @if (current.recentExpenses.length === 0) {
-    <p class="status">No expenses in this period.</p>
-  } @else {
-    <div class="table-wrap">
-      <table>
-        <thead>
-          <tr>
-            <th>Date</th>
-            <th>Category</th>
-            <th>Amount</th>
-          </tr>
-        </thead>
-        <tbody>
-          @for (expense of current.recentExpenses; track expense.id) {
-            <tr>
-              <td><a [routerLink]="['/expenses', expense.id]">{{ expense.expenseDate }}</a></td>
-              <td>{{ categoryLabel(expense.category) }}</td>
-              <td>{{ money(expense.amount) }}</td>
-            </tr>
-          }
-        </tbody>
-      </table>
-    </div>
-  }
-}
-
-<h2>Low stock</h2>
-<p class="hint">Current stock of active products. Low stock means the total on every shelf is above zero and at or below the product minimum. This list does not follow the selected dates.</p>
-@if (stockError()) {
-  <p class="notice error" role="alert">{{ stockError() }}</p>
-  <button type="button" class="secondary" (click)="loadLowStock()">Try again</button>
-}
-@if (loadingStock()) {
-  <p class="status">Loading low stock…</p>
-} @else if (lowStock(); as stock) {
-  <p class="status">{{ stock.count }} active product{{ stock.count === 1 ? '' : 's' }} with low stock.</p>
-  @if (stock.products.length === 0) {
-    <p class="status">No active products are low on stock.</p>
-  } @else {
-    <div class="table-wrap">
-      <table>
-        <thead>
-          <tr>
-            <th>Product</th>
-            <th>On hand</th>
-            <th>Minimum</th>
-          </tr>
-        </thead>
-        <tbody>
-          @for (product of stock.products; track product.id) {
-            <tr>
-              <td><a [routerLink]="['/catalog/products', product.id]">{{ product.name }}</a></td>
-              <td>{{ quantity(product.onHand) }}</td>
-              <td>{{ quantity(product.minimumStock) }}</td>
-            </tr>
-          }
-        </tbody>
-      </table>
-    </div>
-  }
-}
+</section>

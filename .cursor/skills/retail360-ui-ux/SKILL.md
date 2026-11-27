@@ -97,7 +97,7 @@ A purchase is recorded, then received. Those states stay distinct. There is no s
 
 ### Dashboard
 
-`/dashboard` is read-only for Admin and Manager. Lead with the existing sales, expense, purchase, and low-stock figures for the selected dates. Do not add charts, a profit figure, or a receivable tile.
+`/dashboard` is read-only for Admin and Manager. It uses one board with period chips (`aria-pressed`), a sales-led metric strip, dated sections, and a low-stock panel that stays independent of the date range. Lead with the existing sales, expense, purchase, and low-stock figures. Do not add charts, a profit figure, or a receivable tile.
 
 ### Expenses, users, audit, account
 
