@@ -1,6 +1,7 @@
-import { Component, inject, signal } from '@angular/core';
-import { ActivatedRoute } from '@angular/router';
-import { firstValueFrom } from 'rxjs';
+import { Component, effect, inject, signal, untracked } from '@angular/core';
+import { toSignal } from '@angular/core/rxjs-interop';
+import { ActivatedRoute, RouterLink } from '@angular/router';
+import { firstValueFrom, map } from 'rxjs';
 
 import { ApiError } from '../core/api-error';
 import { parseName } from '../core/catalog-rules';
@@ -8,20 +9,49 @@ import { type NamedCatalogItem } from '../core/catalog.models';
 import { SessionService } from '../core/session.service';
 import { ShopApi } from '../core/shop-api.service';
 
+export type NamedCatalogTab = 'categories' | 'brands' | 'units';
+
 interface NamedCatalogKind {
+  id: NamedCatalogTab;
   path: string;
   singular: string;
   plural: string;
+  label: string;
 }
 
-const kinds: Record<string, NamedCatalogKind> = {
-  categories: { path: '/api/categories', singular: 'category', plural: 'categories' },
-  brands: { path: '/api/brands', singular: 'brand', plural: 'brands' },
-  units: { path: '/api/units', singular: 'unit', plural: 'units' },
+const kinds: Record<NamedCatalogTab, NamedCatalogKind> = {
+  categories: {
+    id: 'categories',
+    path: '/api/categories',
+    singular: 'category',
+    plural: 'categories',
+    label: 'Categories',
+  },
+  brands: {
+    id: 'brands',
+    path: '/api/brands',
+    singular: 'brand',
+    plural: 'brands',
+    label: 'Brands',
+  },
+  units: {
+    id: 'units',
+    path: '/api/units',
+    singular: 'unit',
+    plural: 'units',
+    label: 'Units',
+  },
 };
+
+export const NAMED_CATALOG_TABS: NamedCatalogKind[] = [
+  kinds.categories,
+  kinds.brands,
+  kinds.units,
+];
 
 @Component({
   selector: 'app-named-catalog-page',
+  imports: [RouterLink],
   templateUrl: './named-catalog-page.html',
 })
 export class NamedCatalogPage {
@@ -29,6 +59,7 @@ export class NamedCatalogPage {
   private readonly api = inject(ShopApi);
   private readonly session = inject(SessionService);
 
+  protected readonly tabs = NAMED_CATALOG_TABS;
   protected readonly canWrite = this.session.canWriteCatalog;
   protected readonly items = signal<NamedCatalogItem[]>([]);
   protected readonly drafts = signal<Record<string, string>>({});
@@ -39,8 +70,21 @@ export class NamedCatalogPage {
   protected readonly success = signal('');
   protected readonly pendingDelete = signal<string | null>(null);
 
-  constructor() {
-    void this.reload();
+  protected readonly activeTab = toSignal(
+    this.route.queryParamMap.pipe(map((params) => normalizeTab(params.get('tab')))),
+    { initialValue: normalizeTab(this.route.snapshot.queryParamMap.get('tab')) },
+  );
+
+  private readonly loadActiveTab = effect(() => {
+    const tab = this.activeTab();
+    untracked(() => {
+      this.resetTabState();
+      void this.reload(tab);
+    });
+  });
+
+  protected kind(): NamedCatalogKind {
+    return kinds[this.activeTab()];
   }
 
   protected singular(): string {
@@ -51,22 +95,45 @@ export class NamedCatalogPage {
     return this.kind().plural;
   }
 
-  protected async reload(): Promise<void> {
+  protected async reload(tab = this.activeTab()): Promise<void> {
     this.loading.set(true);
     this.error.set('');
     try {
-      const items = await firstValueFrom(this.api.listNamed(this.kind().path));
+      const items = await firstValueFrom(this.api.listNamed(kinds[tab].path));
+      if (tab !== this.activeTab()) {
+        return;
+      }
+
       this.items.set(items);
       this.drafts.set(Object.fromEntries(items.map((item) => [item.id, item.name])));
     } catch (error) {
+      if (tab !== this.activeTab()) {
+        return;
+      }
+
       this.error.set(error instanceof ApiError ? error.message : 'The request failed.');
     } finally {
-      this.loading.set(false);
+      if (tab === this.activeTab()) {
+        this.loading.set(false);
+      }
     }
   }
 
   protected setDraft(id: string, value: string): void {
     this.drafts.update((current) => ({ ...current, [id]: value }));
+    if (this.pendingDelete() === id) {
+      this.pendingDelete.set(null);
+    }
+  }
+
+  protected isDirty(item: NamedCatalogItem): boolean {
+    return (this.drafts()[item.id] ?? '') !== item.name;
+  }
+
+  protected saveIfDirty(item: NamedCatalogItem): void {
+    if (this.isDirty(item)) {
+      void this.save(item);
+    }
   }
 
   protected async create(): Promise<void> {
@@ -101,9 +168,13 @@ export class NamedCatalogPage {
     return (event.target as HTMLInputElement).value;
   }
 
-  private kind(): NamedCatalogKind {
-    const key = this.route.snapshot.data['kind'];
-    return kinds[typeof key === 'string' ? key : ''] ?? kinds['categories'];
+  private resetTabState(): void {
+    this.newName.set('');
+    this.error.set('');
+    this.success.set('');
+    this.pendingDelete.set(null);
+    this.items.set([]);
+    this.drafts.set({});
   }
 
   private async run(work: () => Promise<void>): Promise<void> {
@@ -125,6 +196,14 @@ export class NamedCatalogPage {
       this.saving.set(false);
     }
   }
+}
+
+export function normalizeTab(value: string | null | undefined): NamedCatalogTab {
+  if (value === 'brands' || value === 'units' || value === 'categories') {
+    return value;
+  }
+
+  return 'categories';
 }
 
 function capitalize(value: string): string {

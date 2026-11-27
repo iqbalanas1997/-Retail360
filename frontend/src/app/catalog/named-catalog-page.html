@@ -1,49 +1,105 @@
-@if (error()) {
-  <p class="notice error" role="alert">{{ error() }}</p>
-}
-@if (success()) {
-  <p class="notice ok" role="status">{{ success() }}</p>
-}
-
-@if (canWrite()) {
-  <form class="toolbar" (ngSubmit)="create()">
-    <label>
-      New {{ singular() }}
-      <input [value]="newName()" maxlength="200" (input)="newName.set(inputValue($event))" />
-    </label>
-    <button type="submit" [disabled]="saving()">Add</button>
-  </form>
-}
-
-@if (loading()) {
-  <p class="status">Loading…</p>
-} @else if (items().length === 0 && !error()) {
-  <p class="status">No {{ plural() }} yet.</p>
-} @else if (items().length > 0) {
-  <ul class="name-list">
-    @for (item of items(); track item.id) {
-      <li>
-        <input
-          [value]="drafts()[item.id]"
-          maxlength="200"
-          [readOnly]="!canWrite()"
-          (input)="setDraft(item.id, inputValue($event))"
-        />
-        @if (canWrite()) {
-          <button type="button" class="secondary" [disabled]="saving()" (click)="save(item)">Save</button>
-          @if (pendingDelete() !== item.id) {
-            <button type="button" class="secondary" [disabled]="saving()" (click)="pendingDelete.set(item.id)">
-              Remove
-            </button>
-          } @else {
-            <span class="confirm">
-              Remove {{ item.name }}? This fails if a product still uses it.
-              <button type="button" [disabled]="saving()" (click)="remove(item)">Remove</button>
-              <button type="button" class="secondary" (click)="pendingDelete.set(null)">Cancel</button>
-            </span>
-          }
+<section class="names-page">
+  <div class="names-board">
+    <header class="names-board-top">
+      <nav class="name-tabs" aria-label="Catalog name type">
+        @for (tab of tabs; track tab.id) {
+          <a
+            class="name-tab"
+            routerLink="/catalog/names"
+            [queryParams]="{ tab: tab.id }"
+            [replaceUrl]="true"
+            [class.active]="activeTab() === tab.id"
+            [attr.aria-current]="activeTab() === tab.id ? 'page' : null"
+          >
+            {{ tab.label }}
+          </a>
         }
-      </li>
+      </nav>
+    </header>
+
+    @if (error()) {
+      <p class="notice error" role="alert">{{ error() }}</p>
     }
-  </ul>
-}
+    @if (success()) {
+      <p class="notice ok" role="status">{{ success() }}</p>
+    }
+
+    @if (canWrite()) {
+      <form class="names-add" (submit)="$event.preventDefault(); create()">
+        <label class="names-add-field">
+          <span class="names-add-label">New {{ singular() }}</span>
+          <input
+            [value]="newName()"
+            maxlength="200"
+            autocomplete="off"
+            (input)="newName.set(inputValue($event))"
+          />
+        </label>
+        <button type="submit" [disabled]="saving()">Add</button>
+      </form>
+    }
+
+    <div class="names-body">
+      @if (loading()) {
+        <p class="status names-empty">Loading {{ plural() }}…</p>
+      } @else if (items().length === 0 && !error()) {
+        <p class="status names-empty">
+          No {{ plural() }} yet.
+          @if (canWrite()) {
+            Add the first {{ singular() }} above.
+          }
+        </p>
+      } @else if (items().length > 0) {
+        <p class="names-count">{{ items().length }} {{ items().length === 1 ? singular() : plural() }}</p>
+        <ul class="name-list">
+          @for (item of items(); track item.id) {
+            <li
+              [class.name-row-dirty]="canWrite() && isDirty(item)"
+              [class.name-row-confirm]="pendingDelete() === item.id"
+            >
+              @if (canWrite()) {
+                <label class="name-list-label">
+                  <span class="visually-hidden">{{ singular() }} name</span>
+                  <input
+                    [value]="drafts()[item.id]"
+                    maxlength="200"
+                    autocomplete="off"
+                    (input)="setDraft(item.id, inputValue($event))"
+                    (keydown.enter)="$event.preventDefault(); saveIfDirty(item)"
+                  />
+                </label>
+                <span class="name-row-actions">
+                  @if (isDirty(item)) {
+                    <button type="button" [disabled]="saving()" (click)="save(item)">Save</button>
+                  }
+                  @if (pendingDelete() !== item.id) {
+                    <button
+                      type="button"
+                      class="secondary"
+                      [disabled]="saving()"
+                      (click)="pendingDelete.set(item.id)"
+                    >
+                      Remove
+                    </button>
+                  }
+                </span>
+                @if (pendingDelete() === item.id) {
+                  <span class="confirm name-remove-confirm">
+                    <span class="name-remove-copy">
+                      <span>Remove {{ item.name }}?</span>
+                      <span class="hint">Keep it if any product still uses this {{ singular() }}.</span>
+                    </span>
+                    <button type="button" [disabled]="saving()" (click)="remove(item)">Remove</button>
+                    <button type="button" class="secondary" (click)="pendingDelete.set(null)">Cancel</button>
+                  </span>
+                }
+              } @else {
+                <p class="name-list-value">{{ item.name }}</p>
+              }
+            </li>
+          }
+        </ul>
+      }
+    </div>
+  </div>
+</section>

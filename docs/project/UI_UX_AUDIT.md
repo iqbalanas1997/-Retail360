@@ -68,7 +68,7 @@ The product list searches by name, can limit to offered products, and shows unit
 
 The barcode instructions are two long paragraphs. The list uses "Offered" where other modules use "Active". Several barcodes in one cell become hard to scan, which was visible on the live product list.
 
-Categories, brands, and units share `named-catalog-page.html`: type a name, Add, then rename or remove inline. The existing-name inputs have no label.
+Categories, brands, and units share one Catalog names page at `/catalog/names`: one full-height board, segmented tabs, composer add row, ticket-style name rows with Save only when dirty, and a calm remove confirm. Cashiers see names as text. Old category/brand/unit routes redirect to the matching tab.
 
 ### Inventory
 
@@ -134,7 +134,7 @@ Verified means the behavior was read in source and, where noted, seen in the run
 | U12 | P2 | The audit row is an id and a raw timestamp | `audit-page.html` |
 | U13 | P2 | The user filter checkbox is a full-width block | `user-list-page.html` omits `check`. Live size 254 by 13 |
 | U14 | P2 | Catalog barcode help and the offered column take more reading than the task | `product-form-page.html`, `product-list-page.html` |
-| U15 | P2 | Location and name-list rows are dense and the edit fields are unlabeled | `locations-page.html`, `named-catalog-page.html` |
+| U15 | P2 | Location and name-list rows are dense and the edit fields are unlabeled | Locations remain dense. Catalog names inputs now have a visually hidden label |
 | U16 | P3 | The expense payment control can only be Cash | `expense-form-page.html` |
 | U17 | P3 | Sign-in does not focus the user name | `login-page.html` has no autofocus |
 

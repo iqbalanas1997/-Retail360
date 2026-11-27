@@ -81,7 +81,7 @@ Omit `paymentMethod` for cash. Send `credit` only when credit is selected and a 
 
 ### Catalog
 
-`/catalog/products` searches quickly. The product form edits the current catalog fields and barcodes. Enter in the barcode field adds the code and does not save the product. Generate shop barcode proposes an `R360-` code. Print the Code 128 label only after save says Saved. Categories, brands, and units stay on `NamedCatalogPage`. Do not add a SKU or a stock field to the product form.
+`/catalog/products` searches quickly. The product form edits the current catalog fields and barcodes. Enter in the barcode field adds the code and does not save the product. Generate shop barcode proposes an `R360-` code. Print the Code 128 label only after save says Saved. Categories, brands, and units share `/catalog/names` on `NamedCatalogPage` with tabs. Do not add a SKU or a stock field to the product form.
 
 ### Inventory
 

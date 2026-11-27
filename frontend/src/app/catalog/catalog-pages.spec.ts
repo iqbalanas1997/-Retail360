@@ -2,7 +2,7 @@ import { provideHttpClient, withInterceptors } from '@angular/common/http';
 import { vi } from 'vitest';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { TestBed } from '@angular/core/testing';
-import { provideRouter } from '@angular/router';
+import { provideRouter, Router } from '@angular/router';
 import { RouterTestingHarness } from '@angular/router/testing';
 
 import { routes } from '../app.routes';
@@ -232,6 +232,103 @@ describe('catalog screens', () => {
     expect(label?.querySelector('.barcode-digits')?.textContent).toBe('00123');
     expect(print).toHaveBeenCalledOnce();
     print.mockRestore();
+  });
+
+  it('manages categories, brands, and units on one catalog names page', async () => {
+    remember('Admin');
+    const harness = await open('/catalog/names');
+    const http = TestBed.inject(HttpTestingController);
+    http.expectOne('/api/categories').flush([{ id: 'category-1', name: 'Grain', createdAt: '', updatedAt: '' }]);
+    await turn();
+    harness.detectChanges();
+    const root = harness.fixture.nativeElement as HTMLElement;
+
+    expect(root.textContent).toContain('Categories');
+    expect(root.textContent).toContain('Brands');
+    expect(root.textContent).toContain('Units');
+    expect((root.querySelector('.name-list input') as HTMLInputElement).value).toBe('Grain');
+    expect(root.textContent).toContain('New category');
+
+    const brands = [...root.querySelectorAll('a')].find((link) => link.textContent?.trim() === 'Brands');
+    brands?.click();
+    await turn();
+    harness.detectChanges();
+    http.expectOne('/api/brands').flush([]);
+    await turn();
+    harness.detectChanges();
+
+    expect(TestBed.inject(Router).url).toContain('tab=brands');
+    expect(root.textContent).toContain('No brands yet.');
+    expect(root.textContent).toContain('New brand');
+    const name = root.querySelector('.names-add input') as HTMLInputElement;
+    name.value = 'Mill';
+    name.dispatchEvent(new Event('input'));
+    (root.querySelector('button[type="submit"]') as HTMLButtonElement).click();
+    http.expectOne((request) => request.method === 'POST' && request.url === '/api/brands').flush({
+      id: 'brand-1',
+      name: 'Mill',
+      createdAt: '',
+      updatedAt: '',
+    });
+    await turn();
+    http.expectOne('/api/brands').flush([{ id: 'brand-1', name: 'Mill', createdAt: '', updatedAt: '' }]);
+    await turn();
+    harness.detectChanges();
+
+    expect(root.textContent).toContain('Brand saved.');
+    expect((root.querySelector('.name-list input') as HTMLInputElement).value).toBe('Mill');
+
+    const units = [...root.querySelectorAll('a')].find((link) => link.textContent?.trim() === 'Units');
+    units?.click();
+    await turn();
+    harness.detectChanges();
+    http.expectOne('/api/units').flush([{ id: 'unit-1', name: 'Piece', createdAt: '', updatedAt: '' }]);
+    await turn();
+    harness.detectChanges();
+    const draft = root.querySelector('.name-list input') as HTMLInputElement;
+    draft.value = 'Pack';
+    draft.dispatchEvent(new Event('input'));
+    harness.detectChanges();
+    clickButton(root, 'Save');
+    http
+      .expectOne((request) => request.method === 'PUT' && request.url === '/api/units/unit-1')
+      .flush({ id: 'unit-1', name: 'Pack', createdAt: '', updatedAt: '' });
+    await turn();
+    http.expectOne('/api/units').flush([{ id: 'unit-1', name: 'Pack', createdAt: '', updatedAt: '' }]);
+    await turn();
+    harness.detectChanges();
+    clickButton(root, 'Remove');
+    harness.detectChanges();
+    const confirm = root.querySelector('.confirm button') as HTMLButtonElement;
+    confirm.click();
+    http.expectOne((request) => request.method === 'DELETE' && request.url === '/api/units/unit-1').flush(null);
+    await turn();
+    http.expectOne('/api/units').flush([]);
+    await turn();
+    harness.detectChanges();
+
+    expect(root.textContent).toContain('Unit removed.');
+    expect(root.textContent).toContain('No units yet.');
+  });
+
+  it('hides catalog name writes from a cashier and redirects old name routes', async () => {
+    remember('Cashier');
+    const harness = await open('/catalog/categories');
+    await turn();
+    harness.detectChanges();
+    const http = TestBed.inject(HttpTestingController);
+    http.expectOne('/api/categories').flush([{ id: 'category-1', name: 'Grain', createdAt: '', updatedAt: '' }]);
+    await turn();
+    harness.detectChanges();
+    const root = harness.fixture.nativeElement as HTMLElement;
+    expect(TestBed.inject(Router).url).toContain('/catalog/names');
+    expect(TestBed.inject(Router).url).toContain('tab=categories');
+    expect(root.querySelector('.name-list-value')?.textContent?.trim()).toBe('Grain');
+    expect(root.querySelector('.name-list input')).toBeNull();
+    expect(root.textContent).not.toContain('New category');
+    expect(root.textContent).not.toContain('Add');
+    expect(root.textContent).not.toContain('Save');
+    expect(root.textContent).not.toContain('Remove');
   });
 
   it('keeps a new barcode unsaved when the product save is rejected', async () => {

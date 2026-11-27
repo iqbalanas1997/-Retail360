@@ -1,8 +1,9 @@
-import { Routes } from '@angular/router';
+import { inject } from '@angular/core';
+import { Router, Routes, type RedirectFunction } from '@angular/router';
 
 import { PasswordPage } from './account/password-page';
 import { AuditPage } from './audit/audit-page';
-import { NamedCatalogPage } from './catalog/named-catalog-page';
+import { NamedCatalogPage, type NamedCatalogTab } from './catalog/named-catalog-page';
 import { ProductFormPage } from './catalog/product-form-page';
 import { ProductListPage } from './catalog/product-list-page';
 import { authGuard, guestGuard } from './core/auth.guard';
@@ -38,13 +39,10 @@ export const routes: Routes = [
       { path: 'catalog/products', component: ProductListPage, data: { title: 'Products' } },
       { path: 'catalog/products/new', component: ProductFormPage, data: { title: 'New product' } },
       { path: 'catalog/products/:id', component: ProductFormPage, data: { title: 'Product' } },
-      {
-        path: 'catalog/categories',
-        component: NamedCatalogPage,
-        data: { title: 'Categories', kind: 'categories' },
-      },
-      { path: 'catalog/brands', component: NamedCatalogPage, data: { title: 'Brands', kind: 'brands' } },
-      { path: 'catalog/units', component: NamedCatalogPage, data: { title: 'Units', kind: 'units' } },
+      { path: 'catalog/names', component: NamedCatalogPage, data: { title: 'Catalog names' } },
+      { path: 'catalog/categories', redirectTo: catalogNamesRedirect('categories'), pathMatch: 'full' },
+      { path: 'catalog/brands', redirectTo: catalogNamesRedirect('brands'), pathMatch: 'full' },
+      { path: 'catalog/units', redirectTo: catalogNamesRedirect('units'), pathMatch: 'full' },
       { path: 'inventory', pathMatch: 'full', redirectTo: 'inventory/stock' },
       { path: 'inventory/stock', component: StockPage, data: { title: 'Stock' } },
       { path: 'inventory/locations', component: LocationsPage, data: { title: 'Locations' } },
@@ -79,3 +77,7 @@ export const routes: Routes = [
     ],
   },
 ];
+
+function catalogNamesRedirect(tab: NamedCatalogTab): RedirectFunction {
+  return () => inject(Router).createUrlTree(['/catalog/names'], { queryParams: { tab } });
+}
