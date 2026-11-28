@@ -62,9 +62,7 @@ On a narrow screen the same links wrap across the top before any work starts.
 
 ### Catalog
 
-The product list searches by name, can limit to offered products, and shows unit, selling price, minimum stock, barcodes, and offered state. Opening a product is one link. The form has the real catalog fields and no stock quantity. Enter on a barcode adds it and does not save. A saved code can be printed as a Code 128 label.
-
-The barcode instructions are two long paragraphs. The list uses "Offered" where other modules use "Active". Several barcodes in one cell become hard to scan, which was visible on the live product list.
+The product list searches by name, can limit to offered products, and shows unit, selling price, minimum stock, barcodes, and offered state on a flat board matching Stock. Opening a product is one link (name or Open). The form has the real catalog fields and no stock quantity on a matching board with a two-column field grid. Enter on a barcode adds it and does not save. A saved code can be printed as a Code 128 label. Barcode help is two short paragraphs. The list still uses "Offered" where other modules use "Active".
 
 Categories, brands, and units share one Catalog names page at `/catalog/names`: one full-height board, segmented tabs, composer add row, ticket-style name rows with Save only when dirty, and a calm remove confirm. Cashiers see names as text. Old category/brand/unit routes redirect to the matching tab.
 
@@ -131,7 +129,7 @@ Verified means the behavior was read in source and, where noted, seen in the run
 | U11 | P2 | Sales history hides cash versus credit | Done Phase 2. List and receipt show Cash or Credit |
 | U12 | P2 | The audit row is an id and a raw timestamp | `audit-page.html` |
 | U13 | P2 | The user filter checkbox is a full-width block | `user-list-page.html` omits `check`. Live size 254 by 13 |
-| U14 | P2 | Catalog barcode help and the offered column take more reading than the task | `product-form-page.html`, `product-list-page.html` |
+| U14 | P2 | Catalog barcode help and the offered column take more reading than the task | Done for barcode help length and list scanability on the product board; Offered label kept |
 | U15 | P2 | Location and name-list rows are dense and the edit fields are unlabeled | Locations remain dense. Catalog names inputs now have a visually hidden label |
 | U16 | P3 | The expense payment control can only be Cash | `expense-form-page.html` |
 | U17 | P3 | Sign-in does not focus the user name | `login-page.html` has no autofocus |

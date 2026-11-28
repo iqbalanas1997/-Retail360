@@ -209,7 +209,7 @@ describe('catalog screens', () => {
 
     const root = harness.fixture.nativeElement as HTMLElement;
     expect(root.textContent).toContain('Barcodes for this product');
-    expect(root.textContent).toContain('stored only after that save succeeds');
+    expect(root.textContent).toContain('It is kept only after save.');
     clickButton(root, 'Generate shop barcode');
     harness.detectChanges();
 

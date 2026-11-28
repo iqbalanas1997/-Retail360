@@ -81,7 +81,7 @@ Omit `paymentMethod` for cash. Send `credit` only when credit is selected and a 
 
 ### Catalog
 
-`/catalog/products` searches quickly. The product form edits the current catalog fields and barcodes. Enter in the barcode field adds the code and does not save the product. Generate shop barcode proposes an `R360-` code. Print the Code 128 label only after save says Saved. Categories, brands, and units share `/catalog/names` on `NamedCatalogPage` with tabs. Do not add a SKU or a stock field to the product form.
+`/catalog/products` is a flat board: composer search, product panel with count chip, offered badges, and barcode chips. The editor is the matching board with a two-column field grid and a barcodes panel. Do not add panel help about Inventory or how to search. Barcode help stays two short layman lines. Enter in the barcode field adds the code and does not save the product. Generate shop barcode proposes an `R360-` code. Print waits for the next render so the label is in the DOM, then opens the browser print dialog. Print the Code 128 label only after save says Saved. Categories, brands, and units share `/catalog/names` on `NamedCatalogPage` with tabs. Do not add a SKU or a stock field to the product form.
 
 ### Inventory
 

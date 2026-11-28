@@ -1,4 +1,4 @@
-import { Component, inject, signal } from '@angular/core';
+import { afterNextRender, Component, inject, Injector, signal } from '@angular/core';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { firstValueFrom } from 'rxjs';
@@ -21,6 +21,7 @@ export class ProductFormPage {
   private readonly session = inject(SessionService);
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
+  private readonly injector = inject(Injector);
 
   protected readonly canWrite = this.session.canWriteCatalog;
   protected readonly loading = signal(true);
@@ -157,8 +158,9 @@ export class ProductFormPage {
       return;
     }
 
+    this.error.set('');
     this.labelToPrint.set(barcode);
-    queueMicrotask(() => window.print());
+    afterNextRender(() => window.print(), { injector: this.injector });
   }
 
   protected removeBarcode(barcode: string): void {

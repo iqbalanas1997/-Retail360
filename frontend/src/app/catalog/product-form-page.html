@@ -1,161 +1,201 @@
-<p class="back no-print"><a routerLink="/catalog/products">Back to products</a></p>
+<div class="product-editor" [class.printing-label]="labelToPrint()">
+  <p class="back no-print"><a routerLink="/catalog/products">Back to products</a></p>
 
-@if (loading()) {
-  <p class="status">Loading product…</p>
-} @else if (loadFailed()) {
-  @if (error()) {
-    <p class="notice error" role="alert">{{ error() }}</p>
-  }
-  <button type="button" (click)="load()">Try again</button>
-} @else {
-  <div class="product-editor" [class.printing-label]="labelToPrint()">
-  @if (error()) {
-    <p class="notice error" role="alert">{{ error() }}</p>
-  }
-  @if (success()) {
-    <p class="notice ok" role="status">{{ success() }}</p>
-  }
-  @if (!canWrite()) {
-    <p class="hint">You can view this product. Only an Admin or Manager can change it.</p>
-  }
-
-  <form class="form" [formGroup]="form" (ngSubmit)="save()">
-    <label>
-      Name
-      <input formControlName="name" maxlength="200" />
-    </label>
-    <label>
-      Unit
-      <select formControlName="unitId">
-        <option value="">Select a unit</option>
-        @for (unit of units(); track unit.id) {
-          <option [value]="unit.id">{{ unit.name }}</option>
-        }
-      </select>
-    </label>
-    @if (units().length === 0) {
-      <p class="hint">Create a unit before saving a product.</p>
+  @if (loading()) {
+    <p class="status">Loading product…</p>
+  } @else if (loadFailed()) {
+    @if (error()) {
+      <p class="notice error" role="alert">{{ error() }}</p>
     }
-    <label>
-      Category
-      <select formControlName="categoryId">
-        <option value="">None</option>
-        @for (category of categories(); track category.id) {
-          <option [value]="category.id">{{ category.name }}</option>
-        }
-      </select>
-    </label>
-    <label>
-      Brand
-      <select formControlName="brandId">
-        <option value="">None</option>
-        @for (brand of brands(); track brand.id) {
-          <option [value]="brand.id">{{ brand.name }}</option>
-        }
-      </select>
-    </label>
-    <label>
-      Purchase price
-      <input formControlName="purchasePrice" inputmode="decimal" />
-    </label>
-    <label>
-      Selling price
-      <input formControlName="sellingPrice" inputmode="decimal" />
-    </label>
-    <label>
-      Minimum stock
-      <input formControlName="minimumStock" inputmode="decimal" />
-    </label>
-    <p class="hint">Prices use at most 2 decimal places. Minimum stock uses at most 3. Stock quantity is kept in Inventory.</p>
-
-    <fieldset>
-      <legend>Barcodes for this product</legend>
-      <p class="hint">Type the code printed on the package. Add it here, then choose Save product. The code is stored only after that save succeeds. A product can have several barcodes, or none. Leading zeros are kept.</p>
-      <p class="hint">If the package has no barcode, Generate shop barcode adds an internal Code 128 code that starts with R360-. It is not a manufacturer number. Other products are checked for that code only when you save. If the code is already used, the save fails and it stays not saved. Print the label only after it says Saved.</p>
-      @if (barcodes().length === 0) {
-        <p class="status">No barcodes yet.</p>
-      } @else {
-        <ul class="chips">
-          @for (barcode of barcodes(); track barcode) {
-            <li>
-              <span class="barcode-value">{{ barcode }}</span>
-              @if (isSavedBarcode(barcode)) {
-                <span class="hint">Saved</span>
-                <button type="button" class="secondary no-print" (click)="printLabel(barcode)">Print label</button>
-              } @else {
-                <span class="hint">Not saved yet</span>
-              }
-              @if (canWrite()) {
-                <button type="button" class="secondary no-print" (click)="removeBarcode(barcode)">Remove</button>
-              }
-            </li>
-          }
-        </ul>
-      }
-      @if (canWrite()) {
-        <div class="inline">
-          <label>
-            Barcode
-            <input
-              name="barcodeDraft"
-              type="text"
-              inputmode="text"
-              autocomplete="off"
-              spellcheck="false"
-              [value]="barcodeDraft()"
-              maxlength="128"
-              (input)="barcodeDraft.set(inputValue($event))"
-              (keydown.enter)="addBarcodeFromKeyboard($event)"
-            />
-          </label>
-          <button type="button" class="secondary" (click)="addBarcode()">Add barcode</button>
-          <button type="button" class="secondary" (click)="generateBarcode()">Generate shop barcode</button>
-        </div>
-      }
-    </fieldset>
-
-    @if (canWrite()) {
-      <div class="actions">
-        <button type="submit" [disabled]="saving()">
-          {{ saving() ? 'Saving…' : 'Save product' }}
-        </button>
-        @if (product(); as current) {
-          @if (current.isActive) {
-            <button type="button" class="secondary" [disabled]="saving()" (click)="setOffered(false)">
-              Stop offering
-            </button>
-          } @else {
-            <button type="button" class="secondary" [disabled]="saving()" (click)="setOffered(true)">
-              Offer product
-            </button>
-          }
-          @if (!confirmDelete()) {
-            <button type="button" class="secondary" [disabled]="saving()" (click)="confirmDelete.set(true)">
-              Remove product
-            </button>
-          } @else {
-            <span class="confirm">
-              Remove {{ current.name }} from the catalog? This fails if the product has stock history.
-              <button type="button" [disabled]="saving()" (click)="remove()">Remove</button>
-              <button type="button" class="secondary" (click)="confirmDelete.set(false)">Cancel</button>
+    <button type="button" (click)="load()">Try again</button>
+  } @else {
+    <section class="product-board" aria-label="Product editor">
+      <header class="product-board-head no-print">
+        <div class="product-board-heading">
+          <h2 class="product-board-title">{{ product()?.name || 'New product' }}</h2>
+          @if (product(); as current) {
+            <span
+              class="stock-badge stock-badge-lg"
+              [class.stock-badge-ok]="current.isActive"
+              [class.stock-badge-off]="!current.isActive"
+            >
+              {{ current.isActive ? 'Offered' : 'Not offered' }}
             </span>
           }
+        </div>
+      </header>
+
+      <div class="product-board-body">
+        @if (error()) {
+          <p class="notice error" role="alert">{{ error() }}</p>
         }
-      </div>
-    }
-  </form>
-  @if (labelToPrint(); as code) {
-    <article class="barcode-label">
-      <p class="barcode-name">{{ product()?.name }}</p>
-      @if (labelFor(code); as drawn) {
-        <svg [attr.viewBox]="'0 0 ' + drawn.width + ' 60'" role="img" [attr.aria-label]="code">
-          @for (bar of drawn.bars; track $index) {
-            <rect [attr.x]="bar.x" y="0" [attr.width]="bar.width" height="42" fill="currentColor" />
+        @if (success()) {
+          <p class="notice ok" role="status">{{ success() }}</p>
+        }
+        @if (!canWrite()) {
+          <p class="hint">You can view this product. Only an Admin or Manager can change it.</p>
+        }
+
+        <form class="form product-form" [formGroup]="form" (ngSubmit)="save()">
+          <div class="product-fields">
+            <label class="product-field product-field-wide">
+              <span class="products-field-label">Name</span>
+              <input formControlName="name" maxlength="200" />
+            </label>
+            <label class="product-field">
+              <span class="products-field-label">Unit</span>
+              <select formControlName="unitId">
+                <option value="">Select a unit</option>
+                @for (unit of units(); track unit.id) {
+                  <option [value]="unit.id">{{ unit.name }}</option>
+                }
+              </select>
+            </label>
+            @if (units().length === 0) {
+              <p class="hint product-field-wide">Create a unit before saving a product.</p>
+            }
+            <label class="product-field">
+              <span class="products-field-label">Category</span>
+              <select formControlName="categoryId">
+                <option value="">None</option>
+                @for (category of categories(); track category.id) {
+                  <option [value]="category.id">{{ category.name }}</option>
+                }
+              </select>
+            </label>
+            <label class="product-field">
+              <span class="products-field-label">Brand</span>
+              <select formControlName="brandId">
+                <option value="">None</option>
+                @for (brand of brands(); track brand.id) {
+                  <option [value]="brand.id">{{ brand.name }}</option>
+                }
+              </select>
+            </label>
+            <label class="product-field">
+              <span class="products-field-label">Purchase price</span>
+              <input formControlName="purchasePrice" inputmode="decimal" />
+            </label>
+            <label class="product-field">
+              <span class="products-field-label">Selling price</span>
+              <input formControlName="sellingPrice" inputmode="decimal" />
+            </label>
+            <label class="product-field">
+              <span class="products-field-label">Minimum stock</span>
+              <input formControlName="minimumStock" inputmode="decimal" />
+            </label>
+            <p class="hint product-field-wide">
+              Prices use at most 2 decimal places. Minimum stock uses at most 3.
+            </p>
+          </div>
+
+          <fieldset class="product-barcodes">
+            <legend>Barcodes for this product</legend>
+            <p class="hint">Type the code from the pack, then click Save product. It is kept only after save.</p>
+            <p class="hint">
+              No code on the pack? Click Generate shop barcode, save, then Print label when it says Saved.
+            </p>
+            @if (barcodes().length === 0) {
+              <p class="status">No barcodes yet.</p>
+            } @else {
+              <ul class="chips product-barcode-list">
+                @for (barcode of barcodes(); track barcode) {
+                  <li>
+                    <span class="barcode-value">{{ barcode }}</span>
+                    @if (isSavedBarcode(barcode)) {
+                      <span class="hint">Saved</span>
+                      <button type="button" class="secondary no-print" (click)="printLabel(barcode)">
+                        Print label
+                      </button>
+                    } @else {
+                      <span class="hint">Not saved yet</span>
+                    }
+                    @if (canWrite()) {
+                      <button type="button" class="secondary no-print" (click)="removeBarcode(barcode)">
+                        Remove
+                      </button>
+                    }
+                  </li>
+                }
+              </ul>
+            }
+            @if (canWrite()) {
+              <div class="inline product-barcode-add">
+                <label>
+                  <span class="products-field-label">Barcode</span>
+                  <input
+                    name="barcodeDraft"
+                    type="text"
+                    inputmode="text"
+                    autocomplete="off"
+                    spellcheck="false"
+                    [value]="barcodeDraft()"
+                    maxlength="128"
+                    (input)="barcodeDraft.set(inputValue($event))"
+                    (keydown.enter)="addBarcodeFromKeyboard($event)"
+                  />
+                </label>
+                <button type="button" class="secondary" (click)="addBarcode()">Add barcode</button>
+                <button type="button" class="secondary" (click)="generateBarcode()">
+                  Generate shop barcode
+                </button>
+              </div>
+            }
+          </fieldset>
+
+          @if (canWrite()) {
+            <div class="actions product-actions">
+              <button type="submit" [disabled]="saving()">
+                {{ saving() ? 'Saving…' : 'Save product' }}
+              </button>
+              @if (product(); as current) {
+                @if (current.isActive) {
+                  <button type="button" class="secondary" [disabled]="saving()" (click)="setOffered(false)">
+                    Stop offering
+                  </button>
+                } @else {
+                  <button type="button" class="secondary" [disabled]="saving()" (click)="setOffered(true)">
+                    Offer product
+                  </button>
+                }
+                @if (!confirmDelete()) {
+                  <button
+                    type="button"
+                    class="secondary"
+                    [disabled]="saving()"
+                    (click)="confirmDelete.set(true)"
+                  >
+                    Remove product
+                  </button>
+                } @else {
+                  <span class="confirm">
+                    Remove {{ current.name }} from the catalog? This fails if the product has stock
+                    history.
+                    <button type="button" [disabled]="saving()" (click)="remove()">Remove</button>
+                    <button type="button" class="secondary" (click)="confirmDelete.set(false)">
+                      Cancel
+                    </button>
+                  </span>
+                }
+              }
+            </div>
           }
-        </svg>
-      }
-      <p class="barcode-digits">{{ code }}</p>
-    </article>
+        </form>
+      </div>
+    </section>
+
+    @if (labelToPrint(); as code) {
+      <article class="barcode-label">
+        <p class="barcode-name">{{ product()?.name }}</p>
+        @if (labelFor(code); as drawn) {
+          <svg [attr.viewBox]="'0 0 ' + drawn.width + ' 60'" role="img" [attr.aria-label]="code">
+            @for (bar of drawn.bars; track $index) {
+              <rect [attr.x]="bar.x" y="0" [attr.width]="bar.width" height="42" fill="currentColor" />
+            }
+          </svg>
+        }
+        <p class="barcode-digits">{{ code }}</p>
+      </article>
+    }
   }
-  </div>
-}
+</div>

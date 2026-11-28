@@ -44,10 +44,6 @@ export class ProductListPage {
     return formatScaled(value, 3);
   }
 
-  protected barcodes(product: Product): string {
-    return product.barcodes.join(', ');
-  }
-
   protected async reload(): Promise<void> {
     const generation = ++this.loadGeneration;
     this.loading.set(true);
