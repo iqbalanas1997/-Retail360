@@ -1,4 +1,4 @@
-import { Component, inject, signal } from '@angular/core';
+import { Component, computed, inject, signal } from '@angular/core';
 import { FormBuilder, ReactiveFormsModule } from '@angular/forms';
 import { firstValueFrom } from 'rxjs';
 
@@ -30,6 +30,11 @@ export class StockPage {
   protected readonly form = this.formBuilder.nonNullable.group({
     name: '',
     status: 'all',
+  });
+
+  protected readonly selectedProduct = computed(() => {
+    const id = this.selectedId();
+    return this.rows().find((row) => row.productId === id) ?? null;
   });
 
   constructor() {

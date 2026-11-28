@@ -1,94 +1,170 @@
-<form class="toolbar" [formGroup]="form" (ngSubmit)="reload()">
-  <label>
-    Search loaded products
-    <input formControlName="name" />
-  </label>
-  <label>
-    Stock status
-    <select formControlName="status">
-      <option value="all">All</option>
-      <option value="low">Low stock</option>
-      <option value="out">Out of stock</option>
-    </select>
-  </label>
-  <button type="submit">Search</button>
-</form>
+<div class="stock-page">
+  <form class="stock-composer" [formGroup]="form" (ngSubmit)="reload()">
+    <label class="stock-composer-field">
+      <span class="stock-field-label">Search loaded products</span>
+      <input formControlName="name" placeholder="Product name…" />
+    </label>
+    <label class="stock-composer-field stock-composer-status">
+      <span class="stock-field-label">Stock status</span>
+      <select formControlName="status">
+        <option value="all">All</option>
+        <option value="low">Low stock</option>
+        <option value="out">Out of stock</option>
+      </select>
+    </label>
+    <button type="submit">Search</button>
+  </form>
 
-@if (error()) {
-  <p class="notice error" role="alert">{{ error() }}</p>
-}
-
-@if (loading()) {
-  <p class="status">Loading stock…</p>
-} @else if (visibleRows().length === 0 && !error()) {
-  <p class="status">No stock rows match this search.</p>
-} @else if (visibleRows().length > 0) {
-  <div class="table-wrap">
-    <table>
-      <thead>
-        <tr>
-          <th>Product</th>
-          <th>On hand</th>
-          <th>Minimum</th>
-          <th>Status</th>
-          <th>Offered</th>
-        </tr>
-      </thead>
-      <tbody>
-        @for (row of visibleRows(); track row.productId) {
-          <tr>
-            <td>
-              <button type="button" class="secondary" (click)="selectProduct(row.productId)">
-                {{ row.productName }}
-              </button>
-            </td>
-            <td>{{ quantity(row.onHand) }}</td>
-            <td>{{ quantity(row.minimumStock) }}</td>
-            <td [class.emphasis]="row.status === 'low' || row.status === 'out'">{{ statusLabel(row.status) }}</td>
-            <td>{{ row.productIsActive ? 'Yes' : 'No' }}</td>
-          </tr>
-        }
-      </tbody>
-    </table>
-  </div>
-  @if (hasMore()) {
-    <button type="button" class="secondary" [disabled]="loadingMore()" (click)="showMore()">
-      {{ loadingMore() ? 'Loading…' : 'Show more' }}
-    </button>
+  @if (error()) {
+    <p class="notice error" role="alert">{{ error() }}</p>
   }
-}
 
-@if (selectedId()) {
-  <h2>Shelf balances</h2>
-  @if (balanceError()) {
-    <p class="notice error" role="alert">{{ balanceError() }}</p>
-  }
-  @if (loadingBalances()) {
-    <p class="status">Loading shelf balances…</p>
-  } @else if (balances().length === 0 && !balanceError()) {
-    <p class="status">No shelf balance for this product.</p>
-  } @else if (balances().length > 0) {
-    <div class="table-wrap">
-      <table>
-        <thead>
-          <tr>
-            <th>Area</th>
-            <th>Shelf</th>
-            <th>Quantity</th>
-            <th>Shelf active</th>
-          </tr>
-        </thead>
-        <tbody>
-          @for (balance of balances(); track balance.shelfId) {
-            <tr>
-              <td>{{ balance.areaName }}</td>
-              <td>{{ balance.shelfName }}</td>
-              <td>{{ quantity(balance.quantity) }}</td>
-              <td>{{ balance.shelfIsActive ? 'Yes' : 'No' }}</td>
-            </tr>
+  <div class="stock-layout">
+    <section class="stock-panel stock-list-panel" aria-label="Stock list">
+      <header class="stock-panel-head">
+        <div class="stock-panel-heading">
+          <h2 class="stock-panel-title">Stock</h2>
+          @if (!loading()) {
+            <span class="stock-chip">{{ visibleRows().length }}</span>
           }
-        </tbody>
-      </table>
-    </div>
-  }
-}
+        </div>
+        <p class="stock-panel-help">Choose a product to see shelf balances.</p>
+      </header>
+
+      <div class="stock-panel-body">
+        @if (loading()) {
+          <p class="status stock-empty">Loading stock…</p>
+        } @else if (visibleRows().length === 0 && !error()) {
+          <p class="status stock-empty">No stock rows match this search.</p>
+        } @else if (visibleRows().length > 0) {
+          <div class="table-wrap stock-table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Product</th>
+                  <th>On hand</th>
+                  <th>Minimum</th>
+                  <th>Status</th>
+                  <th>Offered</th>
+                </tr>
+              </thead>
+              <tbody>
+                @for (row of visibleRows(); track row.productId) {
+                  <tr [class.stock-row-active]="row.productId === selectedId()">
+                    <td>
+                      <button
+                        type="button"
+                        class="stock-product-btn"
+                        [class.active]="row.productId === selectedId()"
+                        (click)="selectProduct(row.productId)"
+                      >
+                        {{ row.productName }}
+                      </button>
+                    </td>
+                    <td class="stock-num">{{ quantity(row.onHand) }}</td>
+                    <td class="stock-num">{{ quantity(row.minimumStock) }}</td>
+                    <td>
+                      <span
+                        class="stock-badge"
+                        [class.stock-badge-low]="row.status === 'low'"
+                        [class.stock-badge-out]="row.status === 'out'"
+                        [class.stock-badge-ok]="row.status !== 'low' && row.status !== 'out'"
+                      >
+                        {{ statusLabel(row.status) }}
+                      </span>
+                    </td>
+                    <td>
+                      <span
+                        class="stock-badge"
+                        [class.stock-badge-ok]="row.productIsActive"
+                        [class.stock-badge-off]="!row.productIsActive"
+                      >
+                        {{ row.productIsActive ? 'Yes' : 'No' }}
+                      </span>
+                    </td>
+                  </tr>
+                }
+              </tbody>
+            </table>
+          </div>
+          @if (hasMore()) {
+            <button type="button" class="secondary stock-more" [disabled]="loadingMore()" (click)="showMore()">
+              {{ loadingMore() ? 'Loading…' : 'Show more' }}
+            </button>
+          }
+        }
+      </div>
+    </section>
+
+    <section class="stock-panel stock-detail-panel" aria-label="Shelf balances">
+      @if (selectedId()) {
+        <header class="stock-detail-head">
+          <div class="stock-detail-title">
+            <p class="stock-kicker">Shelf balances</p>
+            <h2 class="stock-selected-name">
+              {{ selectedProduct()?.productName || 'Selected product' }}
+            </h2>
+          </div>
+          @if (selectedProduct(); as product) {
+            <span
+              class="stock-badge stock-badge-lg"
+              [class.stock-badge-low]="product.status === 'low'"
+              [class.stock-badge-out]="product.status === 'out'"
+              [class.stock-badge-ok]="product.status !== 'low' && product.status !== 'out'"
+            >
+              {{ statusLabel(product.status) }}
+            </span>
+          }
+        </header>
+
+        <div class="stock-panel-body">
+          @if (balanceError()) {
+            <p class="notice error" role="alert">{{ balanceError() }}</p>
+          }
+          @if (loadingBalances()) {
+            <p class="status stock-empty">Loading shelf balances…</p>
+          } @else if (balances().length === 0 && !balanceError()) {
+            <p class="status stock-empty">No shelf balance for this product.</p>
+          } @else if (balances().length > 0) {
+            <p class="stock-count">{{ balances().length }} shelf{{ balances().length === 1 ? '' : 'ves' }}</p>
+            <div class="table-wrap stock-table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Area</th>
+                    <th>Shelf</th>
+                    <th>Quantity</th>
+                    <th>Shelf active</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  @for (balance of balances(); track balance.shelfId) {
+                    <tr [class.stock-shelf-inactive]="!balance.shelfIsActive">
+                      <td>{{ balance.areaName }}</td>
+                      <td>{{ balance.shelfName }}</td>
+                      <td class="stock-num">{{ quantity(balance.quantity) }}</td>
+                      <td>
+                        <span
+                          class="stock-badge"
+                          [class.stock-badge-ok]="balance.shelfIsActive"
+                          [class.stock-badge-off]="!balance.shelfIsActive"
+                        >
+                          {{ balance.shelfIsActive ? 'Yes' : 'No' }}
+                        </span>
+                      </td>
+                    </tr>
+                  }
+                </tbody>
+              </table>
+            </div>
+          }
+        </div>
+      } @else {
+        <div class="stock-detail-empty">
+          <p class="stock-kicker">Shelf balances</p>
+          <p class="status stock-empty">Choose a product to see shelf balances.</p>
+        </div>
+      }
+    </section>
+  </div>
+</div>

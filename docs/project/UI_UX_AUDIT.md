@@ -72,7 +72,7 @@ Categories, brands, and units share one Catalog names page at `/catalog/names`: 
 
 Stock, locations, opening, adjust, and transfer share one Inventory hub at `/inventory` with quiet tabs on the same board chrome as Catalog names. Old `/inventory/*` routes redirect to the matching tab. Opening, Adjust, and Transfer tabs show only for Admin, Manager, and Inventory Staff.
 
-Stock shows product, on hand, minimum, status, and offered. Choosing a product loads shelf balances. Stock search still filters only loaded rows (`visibleRows`). A true name search needs an API change and is not part of a layout pass.
+Stock is a two-pane board: product list with status badges on the left, shelf balances for the selected product on the right. Search still filters only loaded rows (`visibleRows`). A true name search needs an API change and is not part of a layout pass.
 
 Locations is a two-pane board: pick an area on the left, then edit that area and its shelves on the right. Save appears only when a name is dirty. Remove keeps a confirm. There is no search, which is acceptable while the shop has few areas.
 
