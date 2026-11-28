@@ -8,7 +8,7 @@ import { LocationsPage } from './locations-page';
 import { StockPage } from './stock-page';
 import { StockPostPage } from './stock-post-page';
 
-export type InventoryTab = 'stock' | 'locations' | 'opening' | 'adjust' | 'transfer';
+export type InventoryTab = 'stock' | 'locations' | 'moves';
 
 interface InventoryTabItem {
   id: InventoryTab;
@@ -19,9 +19,7 @@ interface InventoryTabItem {
 const ALL_TABS: InventoryTabItem[] = [
   { id: 'stock', label: 'Stock', manageOnly: false },
   { id: 'locations', label: 'Locations', manageOnly: false },
-  { id: 'opening', label: 'Opening', manageOnly: true },
-  { id: 'adjust', label: 'Adjust', manageOnly: true },
-  { id: 'transfer', label: 'Transfer', manageOnly: true },
+  { id: 'moves', label: 'Change stock', manageOnly: true },
 ];
 
 @Component({
@@ -52,20 +50,16 @@ export function normalizeInventoryTab(
     return 'locations';
   }
 
-  if (!canManage) {
-    return 'stock';
-  }
-
-  if (value === 'opening') {
-    return 'opening';
-  }
-
-  if (value === 'adjust' || value === 'adjustments') {
-    return 'adjust';
-  }
-
-  if (value === 'transfer' || value === 'transfers') {
-    return 'transfer';
+  if (
+    canManage &&
+    (value === 'moves' ||
+      value === 'opening' ||
+      value === 'adjust' ||
+      value === 'adjustments' ||
+      value === 'transfer' ||
+      value === 'transfers')
+  ) {
+    return 'moves';
   }
 
   return 'stock';

@@ -44,9 +44,9 @@ export const routes: Routes = [
       { path: 'inventory', component: InventoryHubPage, data: { title: 'Inventory' } },
       { path: 'inventory/stock', redirectTo: inventoryRedirect('stock'), pathMatch: 'full' },
       { path: 'inventory/locations', redirectTo: inventoryRedirect('locations'), pathMatch: 'full' },
-      { path: 'inventory/opening', redirectTo: inventoryRedirect('opening'), pathMatch: 'full' },
-      { path: 'inventory/adjustments', redirectTo: inventoryRedirect('adjust'), pathMatch: 'full' },
-      { path: 'inventory/transfers', redirectTo: inventoryRedirect('transfer'), pathMatch: 'full' },
+      { path: 'inventory/opening', redirectTo: inventoryMovesRedirect('opening'), pathMatch: 'full' },
+      { path: 'inventory/adjustments', redirectTo: inventoryMovesRedirect('adjust'), pathMatch: 'full' },
+      { path: 'inventory/transfers', redirectTo: inventoryMovesRedirect('transfer'), pathMatch: 'full' },
       { path: 'suppliers', component: SupplierListPage, data: { title: 'Suppliers' } },
       { path: 'suppliers/new', component: SupplierFormPage, data: { title: 'New supplier' } },
       { path: 'suppliers/:id', component: SupplierFormPage, data: { title: 'Supplier' } },
@@ -78,4 +78,8 @@ function catalogNamesRedirect(tab: NamedCatalogTab): RedirectFunction {
 
 function inventoryRedirect(tab: InventoryTab): RedirectFunction {
   return () => inject(Router).createUrlTree(['/inventory'], { queryParams: { tab } });
+}
+
+function inventoryMovesRedirect(mode: 'opening' | 'adjust' | 'transfer'): RedirectFunction {
+  return () => inject(Router).createUrlTree(['/inventory'], { queryParams: { tab: 'moves', mode } });
 }

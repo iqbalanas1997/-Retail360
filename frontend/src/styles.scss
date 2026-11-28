@@ -1157,6 +1157,236 @@ h2 {
   }
 }
 
+.moves-page {
+  display: grid;
+  gap: 1rem;
+  min-width: 0;
+}
+
+.moves-top {
+  display: grid;
+  gap: 0.9rem;
+  padding: 1.05rem 1.1rem;
+  border: 1px solid rgba(31, 107, 74, 0.18);
+  border-radius: 16px;
+  background:
+    linear-gradient(180deg, rgba(31, 107, 74, 0.1), rgba(244, 240, 230, 0.3) 55%, #fff);
+}
+
+.moves-heading {
+  display: grid;
+  gap: 0.3rem;
+}
+
+.moves-kicker {
+  margin: 0;
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: rgba(31, 41, 51, 0.55);
+}
+
+.moves-title {
+  margin: 0;
+  font-size: 1.35rem;
+  font-weight: 700;
+  color: var(--ink);
+}
+
+.moves-help {
+  margin: 0;
+  color: rgba(31, 41, 51, 0.68);
+  font-size: 0.95rem;
+  font-weight: 500;
+}
+
+.moves-modes {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.3rem;
+  padding: 0.3rem;
+  border-radius: 12px;
+  background: rgba(31, 41, 51, 0.05);
+  border: 1px solid rgba(31, 41, 51, 0.06);
+}
+
+.moves-mode {
+  min-height: 2.7rem;
+  border-radius: 9px;
+  background: transparent;
+  color: rgba(31, 41, 51, 0.72);
+  font-weight: 700;
+}
+
+.moves-mode:hover {
+  background: rgba(255, 255, 255, 0.72);
+  color: var(--ink);
+}
+
+.moves-mode.active {
+  background: #fff;
+  color: var(--green);
+  box-shadow: 0 1px 0 rgba(31, 41, 51, 0.04), 0 8px 16px rgba(31, 41, 51, 0.08);
+}
+
+.moves-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1.35fr) minmax(15rem, 0.85fr);
+  gap: 1rem;
+  align-items: start;
+  min-width: 0;
+}
+
+.moves-panel {
+  min-width: 0;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  background: #fff;
+  box-shadow: 0 12px 28px rgba(31, 41, 51, 0.05);
+  overflow: hidden;
+}
+
+.moves-form-panel {
+  display: grid;
+  gap: 0.9rem;
+  padding: 1.05rem 1.1rem 1.15rem;
+  background:
+    linear-gradient(180deg, rgba(31, 107, 74, 0.05), transparent 8rem),
+    #fff;
+}
+
+.moves-find {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: end;
+  gap: 0.75rem;
+  margin: 0;
+  padding: 0.9rem 0.95rem;
+  border: 1px solid rgba(31, 41, 51, 0.1);
+  border-radius: 12px;
+  background: rgba(244, 240, 230, 0.42);
+}
+
+.moves-form {
+  display: grid;
+  gap: 0.85rem;
+  width: 100%;
+  max-width: none;
+}
+
+.moves-field {
+  display: grid;
+  gap: 0.3rem;
+  margin: 0;
+  min-width: 0;
+}
+
+.moves-field-label {
+  margin: 0;
+  font-size: 0.98rem;
+  font-weight: 700;
+  color: var(--ink);
+}
+
+.moves-find .moves-field {
+  flex: 1 1 14rem;
+}
+
+.moves-shelf-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.75rem;
+}
+
+.moves-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.65rem;
+  padding-top: 0.2rem;
+}
+
+.moves-result-panel {
+  display: grid;
+  gap: 0.85rem;
+  align-content: start;
+  min-height: 18rem;
+  background:
+    linear-gradient(180deg, rgba(244, 240, 230, 0.55), #fff 45%);
+}
+
+.moves-result-head {
+  display: grid;
+  gap: 0.3rem;
+  padding: 1.05rem 1.1rem 0.9rem;
+  border-bottom: 1px solid var(--line);
+}
+
+.moves-result-title {
+  margin: 0;
+  font-size: 1.15rem;
+  font-weight: 700;
+  color: var(--ink);
+}
+
+.moves-empty {
+  margin: 0;
+  padding: 1.4rem 1.1rem;
+  text-align: center;
+  color: rgba(31, 41, 51, 0.7);
+  font-weight: 600;
+}
+
+.moves-result-block {
+  display: grid;
+  gap: 0.55rem;
+  padding: 0 1.1rem;
+}
+
+.moves-result-block:last-child {
+  padding-bottom: 1.1rem;
+}
+
+.moves-result-list {
+  gap: 0.55rem;
+}
+
+.moves-result-list li {
+  justify-content: space-between;
+  background: #fff;
+}
+
+.moves-result-name {
+  min-width: 0;
+  font-weight: 600;
+}
+
+.moves-result-qty {
+  font-variant-numeric: tabular-nums;
+  font-weight: 700;
+  color: var(--green);
+}
+
+@media (max-width: 1100px) {
+  .moves-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .moves-result-panel {
+    min-height: 0;
+  }
+}
+
+@media (max-width: 767px) {
+  .moves-modes {
+    grid-template-columns: 1fr;
+  }
+
+  .moves-shelf-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
 .names-add {
   display: flex;
   flex-wrap: wrap;

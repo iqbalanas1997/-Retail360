@@ -85,7 +85,7 @@ Omit `paymentMethod` for cash. Send `credit` only when credit is selected and a 
 
 ### Inventory
 
-`/inventory` is one hub with tabs for stock, locations, opening, adjust, and transfer. Stock is a premium two-pane board: product list with status badges, then shelf balances for the selected product. Locations is a matching two-pane board for areas and shelves. Save on Locations appears only when a name is dirty, and remove keeps a confirm. Manage tabs stay Admin, Manager, and Inventory Staff only. Inactive shelves and failed posts must still be obvious. Do not hide a validation error behind a new step.
+`/inventory` is one hub with tabs for Stock, Locations, and Change stock. Stock is a premium two-pane board: product list with status badges, then shelf balances for the selected product. Locations is a matching two-pane board for areas and shelves. Change stock keeps Opening, Adjust, and Transfer on one screen with mode chips. Save on Locations appears only when a name is dirty, and remove keeps a confirm. Change stock stays Admin, Manager, and Inventory Staff only. Inactive shelves and failed posts must still be obvious. Do not hide a validation error behind a new step.
 
 ### Purchasing and suppliers
 

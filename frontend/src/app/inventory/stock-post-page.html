@@ -1,136 +1,207 @@
-@if (!canManage()) {
-  <p class="hint">You can view stock. Only an Admin, Manager, or Inventory Staff member can change it.</p>
-} @else if (loading()) {
-  <p class="status">Loading stock form…</p>
-} @else if (loadFailed()) {
-  @if (error()) {
-    <p class="notice error" role="alert">{{ error() }}</p>
-  }
-  <button type="button" (click)="load()">Try again</button>
-} @else {
-  @if (error()) {
-    <p class="notice error" role="alert">{{ error() }}</p>
-  }
-  @if (retryHint()) {
-    <p class="hint">{{ retryHint() }}</p>
-  }
-  @if (success()) {
-    <p class="notice ok" role="status">{{ success() }}</p>
-  }
-
-  <div class="toolbar">
-    <label>
-      Find product
-      <input
-        [value]="productQuery()"
-        (input)="productQuery.set(inputValue($event))"
-        (keydown.enter)="findProducts(); $event.preventDefault()"
-      />
-    </label>
-    <button type="button" class="secondary" [disabled]="finding() || saving()" (click)="findProducts()">
-      {{ finding() ? 'Finding…' : 'Find' }}
-    </button>
-  </div>
-  @if (productsTruncated()) {
-    <p class="hint">The catalog returned 200 products. Type a more specific name and find again.</p>
-  }
-
-  <form class="form" [formGroup]="form" (ngSubmit)="submit()">
-    <label>
-      Product
-      <select formControlName="productId">
-        <option value="">Select a product</option>
-        @for (product of products(); track product.id) {
-          <option [value]="product.id">{{ productLabel(product) }}</option>
+<div class="moves-page">
+  @if (!canManage()) {
+    <p class="hint">You can view stock. Only an Admin, Manager, or Inventory Staff member can change it.</p>
+  } @else if (loading()) {
+    <p class="status moves-empty">Loading stock form…</p>
+  } @else if (loadFailed()) {
+    @if (error()) {
+      <p class="notice error" role="alert">{{ error() }}</p>
+    }
+    <button type="button" (click)="load()">Try again</button>
+  } @else {
+    <header class="moves-top">
+      <div class="moves-heading">
+        <p class="moves-kicker">Stock change</p>
+        <h2 class="moves-title">Opening, adjust, or transfer</h2>
+        <p class="moves-help">{{ modeHelp() }}</p>
+      </div>
+      <div class="moves-modes" role="group" aria-label="Stock change type">
+        @for (mode of modes; track mode.id) {
+          <button
+            type="button"
+            class="moves-mode"
+            [class.active]="selectedMode() === mode.id"
+            [attr.aria-pressed]="selectedMode() === mode.id"
+            [disabled]="saving()"
+            (click)="selectMode(mode.id)"
+          >
+            {{ mode.label }}
+          </button>
         }
-      </select>
-    </label>
+      </div>
+    </header>
 
-    @if (resolvedMode() === 'transfer') {
-      <label>
-        Source shelf
-        <select formControlName="sourceShelfId">
-          <option value="">Select a shelf</option>
-          @for (shelf of shelves(); track shelf.id) {
-            <option [value]="shelf.id">{{ shelfLabel(shelf) }}</option>
-          }
-        </select>
-      </label>
-      <label>
-        Destination shelf
-        <select formControlName="destinationShelfId">
-          <option value="">Select a shelf</option>
-          @for (shelf of shelves(); track shelf.id) {
-            <option [value]="shelf.id">{{ shelfLabel(shelf) }}</option>
-          }
-        </select>
-      </label>
-    } @else {
-      <label>
-        Shelf
-        <select formControlName="shelfId">
-          <option value="">Select a shelf</option>
-          @for (shelf of shelves(); track shelf.id) {
-            <option [value]="shelf.id">{{ shelfLabel(shelf) }}</option>
-          }
-        </select>
-      </label>
+    @if (error()) {
+      <p class="notice error" role="alert">{{ error() }}</p>
+    }
+    @if (retryHint()) {
+      <p class="hint">{{ retryHint() }}</p>
+    }
+    @if (success()) {
+      <p class="notice ok" role="status">{{ success() }}</p>
     }
 
-    <label>
-      {{ quantityLabel() }}
-      <input formControlName="quantity" inputmode="decimal" />
-    </label>
-    @if (resolvedMode() === 'adjustment') {
-      <p class="hint">Use a positive quantity to add stock and a negative quantity to remove it. At most 3 decimal places.</p>
-      <label>
-        Reason
-        <select formControlName="reasonChoice">
-          <option value="damaged">Damaged</option>
-          <option value="expired">Expired</option>
-          <option value="missing">Missing</option>
-          <option value="other">Other</option>
-        </select>
-      </label>
-      @if (form.controls.reasonChoice.value === 'other') {
-        <label>
-          Other reason
-          <input formControlName="reasonText" maxlength="200" />
-        </label>
-      }
-    } @else if (resolvedMode() === 'opening') {
-      <p class="hint">Quantity must be greater than zero, with at most 3 decimal places. An inactive shelf cannot receive stock.</p>
-      <label>
-        Reason
-        <input formControlName="reasonText" maxlength="200" />
-      </label>
-    } @else {
-      <p class="hint">Quantity must be greater than zero, with at most 3 decimal places. Reason can be left blank.</p>
-      <label>
-        Reason
-        <input formControlName="reasonText" maxlength="200" />
-      </label>
-    }
+    <div class="moves-layout">
+      <section class="moves-panel moves-form-panel">
+        <div class="moves-find">
+          <label class="moves-field">
+            <span class="moves-field-label">Find product</span>
+            <input
+              [value]="productQuery()"
+              (input)="productQuery.set(inputValue($event))"
+              (keydown.enter)="$event.preventDefault(); findProducts()"
+              placeholder="Product name or barcode…"
+              autocomplete="off"
+            />
+          </label>
+          <button type="button" class="secondary" [disabled]="finding() || saving()" (click)="findProducts()">
+            {{ finding() ? 'Finding…' : 'Find' }}
+          </button>
+        </div>
+        @if (findHint()) {
+          <p class="hint" role="status">{{ findHint() }}</p>
+        }
+        @if (productsTruncated()) {
+          <p class="hint">The catalog returned 200 products. Type a more specific name and find again.</p>
+        }
 
-    <button type="submit" [disabled]="saving()">
-      {{ saving() ? 'Saving…' : 'Save stock' }}
-    </button>
-  </form>
+        <form class="moves-form" [formGroup]="form" (ngSubmit)="submit()">
+          <label class="moves-field">
+            <span class="moves-field-label">Product</span>
+            <select formControlName="productId">
+              <option value="">Select a product</option>
+              @for (product of products(); track product.id) {
+                <option [value]="product.id">{{ productLabel(product) }}</option>
+              }
+            </select>
+          </label>
 
-  @if (balances().length > 0) {
-    <h2>Balance</h2>
-    <ul class="name-list">
-      @for (balance of balances(); track balance.shelfId) {
-        <li>{{ balance.areaName }} / {{ balance.shelfName }}: {{ quantity(balance.quantity) }}</li>
-      }
-    </ul>
+          @if (selectedMode() === 'transfer') {
+            <div class="moves-shelf-grid">
+              <label class="moves-field">
+                <span class="moves-field-label">Source shelf</span>
+                <select formControlName="sourceShelfId">
+                  <option value="">Select a shelf</option>
+                  @for (shelf of shelves(); track shelf.id) {
+                    <option [value]="shelf.id">{{ shelfLabel(shelf) }}</option>
+                  }
+                </select>
+              </label>
+              <label class="moves-field">
+                <span class="moves-field-label">Destination shelf</span>
+                <select formControlName="destinationShelfId">
+                  <option value="">Select a shelf</option>
+                  @for (shelf of shelves(); track shelf.id) {
+                    <option [value]="shelf.id">{{ shelfLabel(shelf) }}</option>
+                  }
+                </select>
+              </label>
+            </div>
+          } @else {
+            <label class="moves-field">
+              <span class="moves-field-label">Shelf</span>
+              <select formControlName="shelfId">
+                <option value="">Select a shelf</option>
+                @for (shelf of shelves(); track shelf.id) {
+                  <option [value]="shelf.id">{{ shelfLabel(shelf) }}</option>
+                }
+              </select>
+            </label>
+          }
+
+          <label class="moves-field">
+            <span class="moves-field-label">{{ quantityLabel() }}</span>
+            <input formControlName="quantity" inputmode="decimal" />
+          </label>
+
+          @if (selectedMode() === 'adjustment') {
+            <p class="hint">
+              Use a positive quantity to add stock and a negative quantity to remove it. At most 3 decimal places.
+            </p>
+            <label class="moves-field">
+              <span class="moves-field-label">Reason</span>
+              <select formControlName="reasonChoice">
+                <option value="damaged">Damaged</option>
+                <option value="expired">Expired</option>
+                <option value="missing">Missing</option>
+                <option value="other">Other</option>
+              </select>
+            </label>
+            @if (form.controls.reasonChoice.value === 'other') {
+              <label class="moves-field">
+                <span class="moves-field-label">Other reason</span>
+                <input formControlName="reasonText" maxlength="200" />
+              </label>
+            }
+          } @else if (selectedMode() === 'opening') {
+            <p class="hint">Quantity must be greater than zero, with at most 3 decimal places. An inactive shelf cannot receive stock.</p>
+            <label class="moves-field">
+              <span class="moves-field-label">Reason</span>
+              <input formControlName="reasonText" maxlength="200" />
+            </label>
+          } @else {
+            <p class="hint">Quantity must be greater than zero, with at most 3 decimal places. Reason can be left blank.</p>
+            <label class="moves-field">
+              <span class="moves-field-label">Reason</span>
+              <input formControlName="reasonText" maxlength="200" />
+            </label>
+          }
+
+          <div class="moves-actions">
+            <button type="submit" [disabled]="saving()">
+              {{ saving() ? 'Saving…' : saveLabel() }}
+            </button>
+          </div>
+        </form>
+      </section>
+
+      <aside class="moves-panel moves-result-panel" aria-label="Result">
+        <header class="moves-result-head">
+          <p class="moves-kicker">Result</p>
+          <h3 class="moves-result-title">Balance and movements</h3>
+        </header>
+
+        @if (!form.controls.productId.value) {
+          <p class="status moves-empty">Choose a product to see current shelf balances.</p>
+        } @else if (loadingBalances()) {
+          <p class="status moves-empty">Loading shelf balances…</p>
+        } @else if (balances().length === 0 && movements().length === 0) {
+          <p class="status moves-empty">No shelf balance for this product yet.</p>
+        } @else {
+          @if (balances().length > 0) {
+            <div class="moves-result-block">
+              <p class="moves-field-label">Balance</p>
+              <ul class="name-list moves-result-list">
+                @for (balance of balances(); track balance.shelfId) {
+                  <li>
+                    <span class="moves-result-name">{{ balance.areaName }} / {{ balance.shelfName }}</span>
+                    <span class="moves-result-qty">{{ quantity(balance.quantity) }}</span>
+                  </li>
+                }
+              </ul>
+            </div>
+          } @else {
+            <div class="moves-result-block">
+              <p class="status">No shelf balance for this product yet.</p>
+            </div>
+          }
+          @if (movements().length > 0) {
+            <div class="moves-result-block">
+              <p class="moves-field-label">Movements</p>
+              <ul class="name-list moves-result-list">
+                @for (movement of movements(); track movement.id) {
+                  <li>
+                    <span class="moves-result-name">
+                      {{ movement.movementType }} {{ movement.direction }}
+                    </span>
+                    <span class="moves-result-qty">{{ quantity(movement.quantity) }}</span>
+                  </li>
+                }
+              </ul>
+            </div>
+          }
+        }
+      </aside>
+    </div>
   }
-  @if (movements().length > 0) {
-    <h2>Movements</h2>
-    <ul class="name-list">
-      @for (movement of movements(); track movement.id) {
-        <li>{{ movement.movementType }} {{ movement.direction }} {{ quantity(movement.quantity) }}</li>
-      }
-    </ul>
-  }
-}
+</div>

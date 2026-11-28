@@ -6,7 +6,7 @@
           <a
             class="name-tab"
             routerLink="/inventory"
-            [queryParams]="{ tab: tab.id }"
+            [queryParams]="tab.id === 'moves' ? { tab: tab.id, mode: 'opening' } : { tab: tab.id }"
             [replaceUrl]="true"
             [class.active]="activeTab() === tab.id"
             [attr.aria-current]="activeTab() === tab.id ? 'page' : null"
@@ -25,14 +25,8 @@
         @case ('locations') {
           <app-locations-page />
         }
-        @case ('opening') {
-          <app-stock-post-page mode="opening" />
-        }
-        @case ('adjust') {
-          <app-stock-post-page mode="adjustment" />
-        }
-        @case ('transfer') {
-          <app-stock-post-page mode="transfer" />
+        @case ('moves') {
+          <app-stock-post-page />
         }
       }
     </div>

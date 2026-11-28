@@ -60,9 +60,11 @@ describe('inventory screens', () => {
     const root = harness.fixture.nativeElement as HTMLElement;
 
     expect(TestBed.inject(Router).url).toContain('/inventory');
-    expect(TestBed.inject(Router).url).toContain('tab=opening');
+    expect(TestBed.inject(Router).url).toContain('tab=moves');
+    expect(TestBed.inject(Router).url).toContain('mode=opening');
     expect(root.textContent).toContain('Stock');
     expect(root.textContent).toContain('Locations');
+    expect(root.textContent).toContain('Change stock');
     expect(root.textContent).toContain('Opening');
     expect(root.textContent).toContain('Adjust');
     expect(root.textContent).toContain('Transfer');
@@ -87,7 +89,8 @@ describe('inventory screens', () => {
     await turn();
     harness.detectChanges();
 
-    expect(TestBed.inject(Router).url).toContain('tab=adjust');
+    expect(TestBed.inject(Router).url).toContain('tab=moves');
+    expect(TestBed.inject(Router).url).toContain('mode=adjust');
     expect(root.textContent).toContain('Adjustment quantity');
   });
 
@@ -113,6 +116,7 @@ describe('inventory screens', () => {
     const tabs = [...root.querySelectorAll('.inventory-tabs .name-tab')].map((tab) => tab.textContent?.trim());
 
     expect(tabs).toEqual(['Stock', 'Locations']);
+    expect(root.textContent).not.toContain('Change stock');
     expect(root.textContent).not.toContain('Opening');
     expect(root.textContent).not.toContain('Adjust');
     expect(root.textContent).not.toContain('Transfer');
@@ -250,6 +254,7 @@ describe('inventory screens', () => {
     fixture.detectChanges();
 
     choose(fixture.nativeElement, 'productId', 'product-1');
+    flushBalances(http, 'product-1');
     choose(fixture.nativeElement, 'shelfId', 'shelf-1');
     setQuantity(fixture.nativeElement, '2.000');
     submit(fixture.nativeElement);
@@ -285,12 +290,47 @@ describe('inventory screens', () => {
     fixture.detectChanges();
 
     choose(fixture.nativeElement, 'productId', 'product-1');
+    flushBalances(http, 'product-1');
     choose(fixture.nativeElement, 'shelfId', 'shelf-1');
     setQuantity(fixture.nativeElement, '2.000');
     submit(fixture.nativeElement);
     submit(fixture.nativeElement);
 
     expect(http.match('/api/inventory/opening')).toHaveLength(1);
+  });
+
+  it('loads shelf balances when a product is selected', async () => {
+    remember('Admin');
+    const fixture = create(StockPostPage);
+    const http = TestBed.inject(HttpTestingController);
+    http.expectOne('/api/products?activeOnly=false&limit=200&offset=0').flush([
+      { id: 'product-1', name: 'Rice', barcodes: ['RICE-5KG'] },
+    ]);
+    http.expectOne('/api/shelves').flush([
+      { id: 'shelf-1', areaId: 'area-1', areaName: 'Front', name: 'A1', isActive: true },
+    ]);
+    await fixture.whenStable();
+    fixture.detectChanges();
+
+    expect(fixture.nativeElement.textContent).toContain('Choose a product to see current shelf balances.');
+    choose(fixture.nativeElement, 'productId', 'product-1');
+    flushBalances(http, 'product-1', [
+      {
+        productId: 'product-1',
+        productName: 'Rice',
+        shelfId: 'shelf-1',
+        shelfName: 'A1',
+        areaId: 'area-1',
+        areaName: 'Front',
+        quantity: 4,
+        shelfIsActive: true,
+      },
+    ]);
+    await fixture.whenStable();
+    fixture.detectChanges();
+
+    expect(fixture.nativeElement.textContent).toContain('Front / A1');
+    expect(fixture.nativeElement.textContent).toContain('4.000');
   });
 
   it('keeps the newer stock page when an older response arrives later', async () => {
@@ -330,7 +370,7 @@ describe('inventory screens', () => {
     await fixture.whenStable();
     fixture.detectChanges();
 
-    const input = fixture.nativeElement.querySelector('.toolbar input') as HTMLInputElement;
+    const input = fixture.nativeElement.querySelector('.moves-find input') as HTMLInputElement;
     input.value = 'Rice';
     input.dispatchEvent(new Event('input'));
     const find = [...fixture.nativeElement.querySelectorAll('button')].find(
@@ -342,9 +382,12 @@ describe('inventory screens', () => {
     );
     request.flush([{ id: 'product-1', name: 'Rice', barcodes: ['RICE-5KG'] }]);
     await fixture.whenStable();
+    flushBalances(http, 'product-1');
+    await fixture.whenStable();
     fixture.detectChanges();
 
     expect(fixture.nativeElement.textContent).toContain('Rice (RICE-5KG)');
+    expect(fixture.nativeElement.textContent).toContain('Selected Rice.');
   });
 });
 
@@ -390,5 +433,22 @@ function setQuantity(root: HTMLElement, value: string): void {
 }
 
 function submit(root: HTMLElement): void {
-  (root.querySelector('button[type="submit"]') as HTMLButtonElement).click();
+  const action = [...root.querySelectorAll('button[type="submit"]')].find((button) => {
+    const text = (button.textContent ?? '').trim();
+    return text.includes('Save') || text === 'Search';
+  }) as HTMLButtonElement;
+  action.click();
+}
+
+function flushBalances(
+  http: HttpTestingController,
+  productId: string,
+  body: object[] = [],
+): void {
+  http
+    .expectOne(
+      (request) =>
+        request.url === '/api/inventory/balances' && request.params.get('productId') === productId,
+    )
+    .flush(body);
 }
