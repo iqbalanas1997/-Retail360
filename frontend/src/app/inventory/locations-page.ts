@@ -1,4 +1,4 @@
-import { Component, inject, signal } from '@angular/core';
+import { Component, computed, inject, signal } from '@angular/core';
 import { firstValueFrom } from 'rxjs';
 
 import { ApiError } from '../core/api-error';
@@ -30,6 +30,11 @@ export class LocationsPage {
   protected readonly success = signal('');
   protected readonly pendingDelete = signal('');
 
+  protected readonly selectedArea = computed(() => {
+    const id = this.selectedAreaId();
+    return this.areas().find((area) => area.id === id) ?? null;
+  });
+
   constructor() {
     void this.reload();
   }
@@ -49,6 +54,7 @@ export class LocationsPage {
         await this.loadShelves(selected);
       } else {
         this.shelves.set([]);
+        this.shelfDrafts.set({});
       }
     } catch (error) {
       this.error.set(error instanceof ApiError ? error.message : 'The request failed.');
@@ -58,8 +64,13 @@ export class LocationsPage {
   }
 
   protected async chooseArea(areaId: string): Promise<void> {
+    if (areaId === this.selectedAreaId()) {
+      return;
+    }
+
     this.selectedAreaId.set(areaId);
     this.pendingDelete.set('');
+    this.success.set('');
     await this.loadShelves(areaId);
   }
 
@@ -74,6 +85,10 @@ export class LocationsPage {
   }
 
   protected async saveArea(area: Area): Promise<void> {
+    if (!this.isAreaDirty(area)) {
+      return;
+    }
+
     await this.run(async () => {
       await firstValueFrom(this.api.renameArea(area.id, parseName(this.areaDrafts()[area.id] ?? '')));
       this.success.set('Area saved.');
@@ -113,6 +128,10 @@ export class LocationsPage {
   }
 
   protected async saveShelf(shelf: Shelf): Promise<void> {
+    if (!this.isShelfDirty(shelf)) {
+      return;
+    }
+
     await this.run(async () => {
       await firstValueFrom(this.api.renameShelf(shelf.id, parseName(this.shelfDrafts()[shelf.id] ?? '')));
       this.success.set('Shelf saved.');
@@ -135,6 +154,14 @@ export class LocationsPage {
       this.success.set('Shelf removed.');
       await this.loadShelves(shelf.areaId);
     });
+  }
+
+  protected isAreaDirty(area: Area): boolean {
+    return (this.areaDrafts()[area.id] ?? '').trim() !== area.name;
+  }
+
+  protected isShelfDirty(shelf: Shelf): boolean {
+    return (this.shelfDrafts()[shelf.id] ?? '').trim() !== shelf.name;
   }
 
   protected setAreaDraft(id: string, value: string): void {

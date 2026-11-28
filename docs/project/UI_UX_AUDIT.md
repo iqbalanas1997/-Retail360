@@ -74,7 +74,7 @@ Stock, locations, opening, adjust, and transfer share one Inventory hub at `/inv
 
 Stock shows product, on hand, minimum, status, and offered. Choosing a product loads shelf balances. Stock search still filters only loaded rows (`visibleRows`). A true name search needs an API change and is not part of a layout pass.
 
-Locations edit every area and shelf inline. The actions are clear and the rows are dense. There is no search, which is acceptable while the shop has few areas.
+Locations is a two-pane board: pick an area on the left, then edit that area and its shelves on the right. Save appears only when a name is dirty. Remove keeps a confirm. There is no search, which is acceptable while the shop has few areas.
 
 ### Purchasing
 

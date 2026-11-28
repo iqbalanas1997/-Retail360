@@ -158,7 +158,12 @@ describe('inventory screens', () => {
     fixture.detectChanges();
 
     expect(fixture.nativeElement.textContent).not.toContain('Add area');
+    expect(fixture.nativeElement.textContent).not.toContain('Add shelf');
     expect(fixture.nativeElement.textContent).toContain('Front');
+    expect(fixture.nativeElement.textContent).toContain('Areas');
+    expect(fixture.nativeElement.textContent).toContain('Selected area');
+    expect(fixture.nativeElement.textContent).toContain('Shelves in this area');
+    expect(fixture.nativeElement.textContent).toContain('No shelves in this area.');
   });
 
   it('shows a delete blocked by stock history', async () => {
@@ -190,6 +195,45 @@ describe('inventory screens', () => {
     expect(fixture.nativeElement.textContent).toContain(
       'Area cannot be deleted because it has a shelf or stock history.',
     );
+  });
+
+  it('switches area shelves when another area is chosen', async () => {
+    remember('Admin');
+    const fixture = create(LocationsPage);
+    const http = TestBed.inject(HttpTestingController);
+    http.expectOne('/api/areas').flush([
+      { id: 'area-1', name: 'Front', isActive: true, createdAt: '', updatedAt: '' },
+      { id: 'area-2', name: 'Store', isActive: true, createdAt: '', updatedAt: '' },
+    ]);
+    await turn();
+    http
+      .expectOne((request) => request.url.startsWith('/api/shelves') && request.params.get('areaId') === 'area-1')
+      .flush([{ id: 'shelf-1', areaId: 'area-1', areaName: 'Front', name: 'A1', isActive: true }]);
+    await turn();
+    fixture.detectChanges();
+
+    const firstShelf = fixture.nativeElement.querySelector(
+      '.locations-shelf-list input',
+    ) as HTMLInputElement;
+    expect(firstShelf.value).toBe('A1');
+
+    const store = [...fixture.nativeElement.querySelectorAll('.locations-area')].find(
+      (button) => button.textContent?.includes('Store'),
+    ) as HTMLButtonElement;
+    store.click();
+    await turn();
+    http
+      .expectOne((request) => request.url.startsWith('/api/shelves') && request.params.get('areaId') === 'area-2')
+      .flush([{ id: 'shelf-2', areaId: 'area-2', areaName: 'Store', name: 'B2', isActive: false }]);
+    await turn();
+    fixture.detectChanges();
+
+    const secondShelf = fixture.nativeElement.querySelector(
+      '.locations-shelf-list input',
+    ) as HTMLInputElement;
+    expect(store.classList.contains('active')).toBe(true);
+    expect(secondShelf.value).toBe('B2');
+    expect(fixture.nativeElement.textContent).toContain('Inactive');
   });
 
   it('reuses the operation id after a network failure and shows a stock conflict', async () => {

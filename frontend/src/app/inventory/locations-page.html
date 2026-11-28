@@ -1,118 +1,264 @@
-@if (error()) {
-  <p class="notice error" role="alert">{{ error() }}</p>
-}
-@if (success()) {
-  <p class="notice ok" role="status">{{ success() }}</p>
-}
-@if (!canManage()) {
-  <p class="hint">You can view locations. Only an Admin, Manager, or Inventory Staff member can change them.</p>
-}
+<div class="locations-page">
+  @if (error()) {
+    <p class="notice error" role="alert">{{ error() }}</p>
+  }
+  @if (success()) {
+    <p class="notice ok" role="status">{{ success() }}</p>
+  }
+  @if (!canManage()) {
+    <p class="hint">You can view locations. Only an Admin, Manager, or Inventory Staff member can change them.</p>
+  }
 
-@if (canManage()) {
-  <form class="toolbar" (ngSubmit)="createArea()">
-    <label>
-      New area
-      <input [value]="newArea()" maxlength="200" (input)="newArea.set(inputValue($event))" />
-    </label>
-    <button type="submit" [disabled]="saving()">Add area</button>
-  </form>
-}
-
-@if (loading()) {
-  <p class="status">Loading locations…</p>
-} @else if (areas().length === 0 && !error()) {
-  <p class="status">No areas yet.</p>
-} @else if (areas().length > 0) {
-  <ul class="name-list">
-    @for (area of areas(); track area.id) {
-      <li>
-        <button type="button" class="secondary" (click)="chooseArea(area.id)">
-          {{ area.name }}{{ area.id === selectedAreaId() ? ' (selected)' : '' }}
-        </button>
-        <input
-          [value]="areaDrafts()[area.id]"
-          maxlength="200"
-          [readOnly]="!canManage()"
-          (input)="setAreaDraft(area.id, inputValue($event))"
-        />
-        <span>{{ area.isActive ? 'Active' : 'Inactive' }}</span>
-        @if (canManage()) {
-          <button type="button" class="secondary" [disabled]="saving()" (click)="saveArea(area)">Save</button>
-          @if (area.isActive) {
-            <button type="button" class="secondary" [disabled]="saving()" (click)="setAreaActive(area, false)">
-              Deactivate
-            </button>
-          } @else {
-            <button type="button" class="secondary" [disabled]="saving()" (click)="setAreaActive(area, true)">
-              Activate
-            </button>
-          }
-          @if (pendingDelete() !== area.id) {
-            <button type="button" class="secondary" [disabled]="saving()" (click)="pendingDelete.set(area.id)">
-              Remove
-            </button>
-          } @else {
-            <span class="confirm">
-              Remove {{ area.name }}? This fails if a shelf or stock history remains.
-              <button type="button" [disabled]="saving()" (click)="removeArea(area)">Remove</button>
-              <button type="button" class="secondary" (click)="pendingDelete.set('')">Cancel</button>
-            </span>
-          }
-        }
-      </li>
-    }
-  </ul>
-
-  <h2>Shelves</h2>
   @if (canManage()) {
-    <form class="toolbar" (ngSubmit)="createShelf()">
-      <label>
-        New shelf
-        <input [value]="newShelf()" maxlength="200" (input)="newShelf.set(inputValue($event))" />
+    <form class="locations-composer" (submit)="$event.preventDefault(); createArea()">
+      <label class="locations-composer-field">
+        <span class="locations-field-label">New area</span>
+        <input
+          [value]="newArea()"
+          maxlength="200"
+          autocomplete="off"
+          placeholder="Front counter, Store room…"
+          (input)="newArea.set(inputValue($event))"
+        />
       </label>
-      <button type="submit" [disabled]="saving()">Add shelf</button>
+      <button type="submit" [disabled]="saving()">Add area</button>
     </form>
   }
-  @if (loadingShelves()) {
-    <p class="status">Loading shelves…</p>
-  } @else if (shelves().length === 0) {
-    <p class="status">No shelves in this area.</p>
-  } @else {
-    <ul class="name-list">
-      @for (shelf of shelves(); track shelf.id) {
-        <li>
-          <input
-            [value]="shelfDrafts()[shelf.id]"
-            maxlength="200"
-            [readOnly]="!canManage()"
-            (input)="setShelfDraft(shelf.id, inputValue($event))"
-          />
-          <span>{{ shelf.isActive ? 'Active' : 'Inactive' }}</span>
-          @if (canManage()) {
-            <button type="button" class="secondary" [disabled]="saving()" (click)="saveShelf(shelf)">Save</button>
-            @if (shelf.isActive) {
-              <button type="button" class="secondary" [disabled]="saving()" (click)="setShelfActive(shelf, false)">
-                Deactivate
-              </button>
-            } @else {
-              <button type="button" class="secondary" [disabled]="saving()" (click)="setShelfActive(shelf, true)">
-                Activate
-              </button>
-            }
-            @if (pendingDelete() !== shelf.id) {
-              <button type="button" class="secondary" [disabled]="saving()" (click)="pendingDelete.set(shelf.id)">
-                Remove
-              </button>
-            } @else {
-              <span class="confirm">
-                Remove {{ shelf.name }}? This fails if stock history remains.
-                <button type="button" [disabled]="saving()" (click)="removeShelf(shelf)">Remove</button>
-                <button type="button" class="secondary" (click)="pendingDelete.set('')">Cancel</button>
-              </span>
-            }
-          }
-        </li>
+
+  @if (loading()) {
+    <p class="status locations-empty">Loading locations…</p>
+  } @else if (areas().length === 0 && !error()) {
+    <p class="status locations-empty">
+      No areas yet.
+      @if (canManage()) {
+        Add the first area above, then add shelves inside it.
       }
-    </ul>
+    </p>
+  } @else if (areas().length > 0) {
+    <div class="locations-layout">
+      <aside class="locations-areas" aria-label="Areas">
+        <header class="locations-pane-head">
+          <div class="locations-pane-heading">
+            <h2 class="locations-pane-title">Areas</h2>
+            <span class="locations-chip">{{ areas().length }}</span>
+          </div>
+          <p class="locations-pane-help">Choose an area to open its shelves.</p>
+        </header>
+        <ul class="locations-area-list">
+          @for (area of areas(); track area.id) {
+            <li>
+              <button
+                type="button"
+                class="locations-area"
+                [class.active]="area.id === selectedAreaId()"
+                [attr.aria-current]="area.id === selectedAreaId() ? 'true' : null"
+                (click)="chooseArea(area.id)"
+              >
+                <span class="locations-area-name">{{ area.name }}</span>
+                <span
+                  class="locations-badge"
+                  [class.locations-badge-off]="!area.isActive"
+                >
+                  {{ area.isActive ? 'Active' : 'Inactive' }}
+                </span>
+              </button>
+            </li>
+          }
+        </ul>
+      </aside>
+
+      <section class="locations-detail" aria-label="Selected area">
+        @if (selectedArea(); as area) {
+          <header class="locations-detail-head">
+            <div class="locations-detail-title">
+              <p class="locations-kicker">Selected area</p>
+              <h2 class="locations-selected-name">{{ area.name }}</h2>
+            </div>
+            <span
+              class="locations-badge locations-badge-lg"
+              [class.locations-badge-off]="!area.isActive"
+            >
+              {{ area.isActive ? 'Active' : 'Inactive' }}
+            </span>
+          </header>
+
+          @if (canManage()) {
+            <div
+              class="locations-editor"
+              [class.name-row-dirty]="isAreaDirty(area)"
+              [class.name-row-confirm]="pendingDelete() === area.id"
+            >
+              <label class="locations-editor-field">
+                <span class="locations-field-label">Area name</span>
+                <input
+                  [value]="areaDrafts()[area.id]"
+                  maxlength="200"
+                  autocomplete="off"
+                  (input)="setAreaDraft(area.id, inputValue($event))"
+                  (keydown.enter)="$event.preventDefault(); saveArea(area)"
+                />
+              </label>
+              <div class="locations-actions">
+                @if (isAreaDirty(area)) {
+                  <button type="button" [disabled]="saving()" (click)="saveArea(area)">Save</button>
+                }
+                @if (area.isActive) {
+                  <button type="button" class="secondary" [disabled]="saving()" (click)="setAreaActive(area, false)">
+                    Deactivate
+                  </button>
+                } @else {
+                  <button type="button" class="secondary" [disabled]="saving()" (click)="setAreaActive(area, true)">
+                    Activate
+                  </button>
+                }
+                @if (pendingDelete() !== area.id) {
+                  <button type="button" class="secondary" [disabled]="saving()" (click)="pendingDelete.set(area.id)">
+                    Remove
+                  </button>
+                }
+              </div>
+              @if (pendingDelete() === area.id) {
+                <div class="confirm name-remove-confirm">
+                  <span class="name-remove-copy">
+                    <span>Remove {{ area.name }}?</span>
+                    <span class="hint">This fails if a shelf or stock history remains.</span>
+                  </span>
+                  <button type="button" [disabled]="saving()" (click)="removeArea(area)">Remove</button>
+                  <button type="button" class="secondary" (click)="pendingDelete.set('')">Cancel</button>
+                </div>
+              }
+            </div>
+          }
+
+          <div class="locations-shelves">
+            <header class="locations-shelves-head">
+              <div class="locations-pane-heading">
+                <h3 class="locations-pane-title">Shelves in this area</h3>
+                @if (!loadingShelves()) {
+                  <span class="locations-chip">{{ shelves().length }}</span>
+                }
+              </div>
+              <p class="locations-count">
+                @if (loadingShelves()) {
+                  Loading shelves…
+                } @else {
+                  {{ shelves().length }} shelf{{ shelves().length === 1 ? '' : 'ves' }}
+                }
+              </p>
+            </header>
+
+            @if (canManage()) {
+              <form class="locations-composer locations-shelf-add" (submit)="$event.preventDefault(); createShelf()">
+                <label class="locations-composer-field">
+                  <span class="locations-field-label">New shelf</span>
+                  <input
+                    [value]="newShelf()"
+                    maxlength="200"
+                    autocomplete="off"
+                    placeholder="A1, Cooler 2…"
+                    (input)="newShelf.set(inputValue($event))"
+                  />
+                </label>
+                <button type="submit" [disabled]="saving()">Add shelf</button>
+              </form>
+            }
+
+            @if (loadingShelves()) {
+              <p class="status">Loading shelves…</p>
+            } @else if (shelves().length === 0) {
+              <p class="status locations-empty">
+                No shelves in this area.
+                @if (canManage()) {
+                  Add the first shelf above.
+                }
+              </p>
+            } @else {
+              <ul class="name-list locations-shelf-list">
+                @for (shelf of shelves(); track shelf.id) {
+                  <li
+                    [class.name-row-dirty]="canManage() && isShelfDirty(shelf)"
+                    [class.name-row-confirm]="pendingDelete() === shelf.id"
+                    [class.locations-shelf-inactive]="!shelf.isActive"
+                  >
+                    @if (canManage()) {
+                      <label class="name-list-label">
+                        <span class="visually-hidden">Shelf name</span>
+                        <input
+                          [value]="shelfDrafts()[shelf.id]"
+                          maxlength="200"
+                          autocomplete="off"
+                          (input)="setShelfDraft(shelf.id, inputValue($event))"
+                          (keydown.enter)="$event.preventDefault(); saveShelf(shelf)"
+                        />
+                      </label>
+                      <span
+                        class="locations-badge"
+                        [class.locations-badge-off]="!shelf.isActive"
+                      >
+                        {{ shelf.isActive ? 'Active' : 'Inactive' }}
+                      </span>
+                      <span class="name-row-actions locations-shelf-actions">
+                        @if (isShelfDirty(shelf)) {
+                          <button type="button" [disabled]="saving()" (click)="saveShelf(shelf)">Save</button>
+                        }
+                        @if (shelf.isActive) {
+                          <button
+                            type="button"
+                            class="secondary"
+                            [disabled]="saving()"
+                            (click)="setShelfActive(shelf, false)"
+                          >
+                            Deactivate
+                          </button>
+                        } @else {
+                          <button
+                            type="button"
+                            class="secondary"
+                            [disabled]="saving()"
+                            (click)="setShelfActive(shelf, true)"
+                          >
+                            Activate
+                          </button>
+                        }
+                        @if (pendingDelete() !== shelf.id) {
+                          <button
+                            type="button"
+                            class="secondary"
+                            [disabled]="saving()"
+                            (click)="pendingDelete.set(shelf.id)"
+                          >
+                            Remove
+                          </button>
+                        }
+                      </span>
+                      @if (pendingDelete() === shelf.id) {
+                        <span class="confirm name-remove-confirm">
+                          <span class="name-remove-copy">
+                            <span>Remove {{ shelf.name }}?</span>
+                            <span class="hint">This fails if stock history remains.</span>
+                          </span>
+                          <button type="button" [disabled]="saving()" (click)="removeShelf(shelf)">Remove</button>
+                          <button type="button" class="secondary" (click)="pendingDelete.set('')">Cancel</button>
+                        </span>
+                      }
+                    } @else {
+                      <p class="name-list-value">{{ shelf.name }}</p>
+                      <span
+                        class="locations-badge"
+                        [class.locations-badge-off]="!shelf.isActive"
+                      >
+                        {{ shelf.isActive ? 'Active' : 'Inactive' }}
+                      </span>
+                    }
+                  </li>
+                }
+              </ul>
+            }
+          </div>
+        } @else {
+          <p class="status locations-empty">Choose an area to see its shelves.</p>
+        }
+      </section>
+    </div>
   }
-}
+</div>
